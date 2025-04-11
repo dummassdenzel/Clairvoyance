@@ -34,6 +34,7 @@ $con = new Connection();
 $pdo = $con->connect();
 $get = new Get($pdo);
 $post = new Post($pdo);
+$put = new Put($pdo);
 $delete = new Delete($pdo);
 $auth = new AuthMiddleware();
 
@@ -57,49 +58,26 @@ switch ($_SERVER['REQUEST_METHOD']) {
     case 'GET':
         switch ($request[0]) {
 
-            case 'products':
+            case 'kpis':
+            if (count($request) > 1) {
+                echo json_encode($get->get_kpis($request[1]));
+            } else {
+                echo json_encode($get->get_kpis());
+            }
+            break;
+
+            case 'measurements':
                 if (count($request) > 1) {
-                    echo json_encode($get->get_products($request[1]));
+                    echo json_encode($get->get_kpis($request[1]));
                 } else {
-                    echo json_encode($get->get_products());
+                    echo "Invalid KPI ID.";
                 }
                 break;
 
-            case 'orders':
-                if (count($request) > 1) {
-                    echo json_encode($get->get_orders($request[1]));
-                } else {
-                    echo json_encode($get->get_orders());
-                }
-                break;
-            case 'uploads':
-                if (count($request) > 2 && $request[1] === 'products') {
-                    $filename = $request[2];
-                    $filepath = "uploads/products/" . $filename;
 
-                    if (file_exists($filepath)) {
-                        $finfo = finfo_open(FILEINFO_MIME_TYPE);
-                        $mime_type = finfo_file($finfo, $filepath);
-                        finfo_close($finfo);
-
-                        header('Content-Type: ' . $mime_type);
-                        header('Content-Disposition: inline; filename="' . $filename . '"');
-                        readfile($filepath);
-                        exit;
-                    } else {
-                        http_response_code(404);
-                        echo "File not found";
-                    }
-                }
-                break;
-            case 'receipt':
-                if (count($request) > 1) {
-                    echo json_encode($get->get_receipt($request[1]));
-                } else {
-                    http_response_code(400);
-                    echo json_encode(["message" => "Order ID is required"]);
-                }
-                break;
+            case 'categories':
+                echo json_encode($get->get_categories());
+            break;
 
             default:
                 // RESPONSE FOR UNSUPPORTED REQUESTS
@@ -125,27 +103,26 @@ switch ($_SERVER['REQUEST_METHOD']) {
         }
         switch ($request[0]) {
 
-            case 'adduser':
+
+            case 'kpis':
+                echo json_encode($post->create_kpi($data));
+                break;
+
+            case 'measurements':
+                echo json_encode($post->create_measurement($data));
+                break;
+
+            case 'categories':
+                    echo json_encode($post->create_category($data));
+                    break;
+
+            case 'register':
                 echo json_encode($post->addUser($data));
                 break;
 
             case 'login':
                 echo json_encode($post->userLogin($data));
                 break;
-
-            case 'orders':
-                echo json_encode($post->createOrder($data));
-                break;
-
-            case 'payment-proof':
-                echo json_encode($post->uploadPaymentProof($_POST, $_FILES));
-                break;
-
-            case 'product-image':
-                echo json_encode($post->uploadProductImage($_POST, $_FILES));
-                break;
-
-
 
             default:
                 // RESPONSE FOR UNSUPPORTED REQUESTS
@@ -155,9 +132,59 @@ switch ($_SERVER['REQUEST_METHOD']) {
         }
         break;
 
+        case 'PUT':
+            switch ($request[0]) {
+    
+                case 'kpis':
+                    if (count($request) > 1) {
+                        echo json_encode($put->update_kpi($request[1]));
+                    } else {
+                        echo "Invalid KPI ID.";
+                    }
+                    break;
+
+                    case 'measurements':
+                        if (count($request) > 1) {
+                            echo json_encode($put->update_measurement($request[1]));
+                        } else {
+                            echo "Invalid KPI ID.";
+                        }
+                        break;
+    
+                default:
+                    // Return a 403 response for unsupported requests
+                    echo "No Such Request";
+                    http_response_code(403);
+                    break;
+            }
+            break;
+
     case 'DELETE':
         switch ($request[0]) {
 
+            case 'kpis':
+                    if (count($request) > 1) {
+                        echo json_encode($delete->delete_kpi($request[1]));
+                    } else {
+                        echo "Invalid KPI ID.";
+                    }
+                    break;
+
+                case 'measurements':
+                        if (count($request) > 1) {
+                            echo json_encode($delete->delete_measurement($request[1]));
+                        } else {
+                            echo "Invalid KPI ID.";
+                        }
+                        break;
+
+                case 'categories':
+                        if (count($request) > 1) {
+                            echo json_encode($delete->delete_category($request[1]));
+                        } else {
+                            echo "Invalid KPI ID.";
+                        }
+                        break;
 
             default:
                 // Return a 403 response for unsupported requests
