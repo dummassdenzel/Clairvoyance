@@ -1,6 +1,7 @@
 <script>
     import Sidebar from "../components/Sidebar.svelte";
     import Header from "../components/Header.svelte";
+    import KpiCard from "../components/KpiCard.svelte";
 </script>
 
 <div class="flex h-screen overflow-hidden">
@@ -15,9 +16,8 @@
   
       <!-- Main content area -->
       <main class="flex-1 overflow-auto bg-white p-6">
-        <!-- Replace with your actual page content -->
-        <h1 class="text-2xl font-bold mb-4">Welcome to Clairvoyance</h1>
-        <p class="text-gray-600">This is where your dashboard content goes.</p>
+        <KpiCard />
+        
       </main>
     </div>
   </div>

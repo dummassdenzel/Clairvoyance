@@ -1,11 +1,14 @@
 <script>
     import { Menu } from '@lucide/svelte';
-  </script>
+    import { isSidebarMinimized } from "../Stores/sidebar";
+</script>
   
-  <header class="w-276 h-14 bg-white border-b border-gray-300 flex items-center justify-between px-4 shadow-sm">
+  <header class="w-full h-14 bg-white border-b border-gray-300 flex items-center justify-between px-4 shadow-sm">
     <!-- Left section: Menu Icon -->
     <div class="flex items-center gap-3">
-      <Menu color="#1c398e" />
+      <button on:click={() => isSidebarMinimized.update(v => !v)}>
+        <Menu color="#1c398e" />
+      </button>
     </div>
   
     <!-- Right section: Search + Profile -->
@@ -16,7 +19,7 @@
         <input 
           type="text" 
           placeholder="Search here..." 
-          class="w-full py-1.5 pr-10 pl-4 bg-blue-100 bg-opacity-10 rounded-full text-white placeholder-gray-400 outline focus:outline-blue-300"
+          class="w-full py-1.5 pr-10 pl-4 bg-blue-100 bg-opacity-10 rounded-full text-blue-900 placeholder-gray-400 outline-gray-400 focus:outline-blue-300"
         />
         <i class="ph ph-magnifying-glass text-blue-800 text-lg absolute right-3 top-1/2 transform -translate-y-1/2"></i>
       </div>
