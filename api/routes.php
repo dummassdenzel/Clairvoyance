@@ -60,7 +60,11 @@ switch ($_SERVER['REQUEST_METHOD']) {
 
             case 'kpis':
             if (count($request) > 1) {
-                echo json_encode($get->get_kpis($request[1]));
+                if (isset($request[2]) && $request[2] === 'file') {
+                    echo json_encode($get->get_kpi_file($request[1]));
+                } else {
+                    echo json_encode($get->get_kpis($request[1]));
+                }
             } else {
                 echo json_encode($get->get_kpis());
             }
