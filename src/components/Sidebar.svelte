@@ -1,14 +1,25 @@
 <script>
   import { Folder, Clock, FileDashed, TrashSimple } from 'phosphor-svelte';
   import { isSidebarMinimized } from "../Stores/sidebar";
+  import CreatKPI from "../components/CreatKpi.svelte";
 
+  let showModal = false;
   let activeItem = "Create API";
+
   const menuItems = [
     { name: "All KPI's", icon: Folder },
     { name: "Recent files", icon: Clock },
     { name: "Draft", icon: FileDashed },
     { name: "Trash", icon: TrashSimple }
   ];
+
+  function openModal() {
+    showModal = true;
+  }
+
+  function closeModal() {
+    showModal = false;
+  }
 </script>
 
 <aside class={`transition-all duration-300 bg-white text-white flex flex-col py-3 border-r border-gray-300 
@@ -21,7 +32,8 @@
 
   <!-- Create KPI Button -->
   <div class="px-6 mb-4">
-    <button class={`bg-blue-900 hover:bg-blue-950 text-white font-semibold py-1.5 rounded-full inline-flex items-center 
+    <button on:click={openModal}
+      class={`bg-blue-900 hover:bg-blue-950 text-white font-semibold py-1.5 rounded-full inline-flex items-center 
       ${$isSidebarMinimized ? 'px-2 w-auto justify-center' : 'px-4 w-53 justify-center'}`}>
       <i class="ph ph-plus"></i>
       {#if !$isSidebarMinimized}
@@ -50,4 +62,12 @@
       </button>
     {/each}
   </nav>
+
+   <!-- Modal Render -->
+   {#if showModal}
+   <div class="fixed inset-0 bg-black/40 flex justify-center items-center z-50">
+     <CreatKPI on:close={closeModal} />
+   </div>
+  {/if}
 </aside>
+
