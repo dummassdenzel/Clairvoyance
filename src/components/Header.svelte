@@ -1,6 +1,6 @@
 <script>
     import { Menu } from '@lucide/svelte';
-    import { isSidebarMinimized } from "../Stores/sidebar";
+    import { isSidebarMinimized } from "../Stores/sidebar.store";
 </script>
   
   <header class="w-full h-14 bg-white border-b border-gray-300 flex items-center justify-between px-4 shadow-sm">

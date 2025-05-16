@@ -35,7 +35,7 @@
           type="text"
           placeholder="Enter KPI name"
           bind:value={kpiName}
-          class="w-full border text-sm border-gray-300 rounded-xl px-3 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          class="w-full border text-sm text-black border-gray-300 rounded-xl px-3 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
       </div>
   
@@ -50,7 +50,7 @@
             id="unit"
             name="unit"
             bind:value={unit}
-            class="w-full border text-sm border-gray-300 rounded-xl px-3 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            class="w-full border text-sm text-black border-gray-300 rounded-xl px-3 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="USD">USD</option>
             <option value="EUR">EUR</option>
@@ -68,7 +68,7 @@
             name="target"
             type="number"
             bind:value={target}
-            class="w-full border text-xs border-gray-300 rounded-xl px-3 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            class="w-full border text-xs text-black border-gray-300 rounded-xl px-3 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
       </div>

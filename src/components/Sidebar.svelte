@@ -1,7 +1,7 @@
 <script>
   import { Folder, Clock, FileDashed, TrashSimple } from 'phosphor-svelte';
-  import { isSidebarMinimized } from "../Stores/sidebar";
-  import CreatKPI from "../components/CreatKpi.svelte";
+  import { isSidebarMinimized } from "../Stores/sidebar.store";
+  import CreateKPI from "./CreateKpi.svelte";
 
   let showModal = false;
   let activeItem = "Create API";
@@ -66,7 +66,7 @@
    <!-- Modal Render -->
    {#if showModal}
    <div class="fixed inset-0 bg-black/40 flex justify-center items-center z-50">
-     <CreatKPI on:close={closeModal} />
+     <CreateKPI on:close={closeModal} />
    </div>
   {/if}
 </aside>
