@@ -1,8 +1,12 @@
 <?php
 
 require_once __DIR__ . '/../config/Environment.php';
+require_once __DIR__ . '/../vendor/autoload.php';
 
-class Jwt
+use Firebase\JWT\JWT as FirebaseJWT;
+use Firebase\JWT\Key;
+
+class JwtService
 {
     private $key;
 
@@ -24,7 +28,7 @@ class Jwt
      */
     public function encode(array $payload): string
     {
-        return \Firebase\JWT\JWT::encode(
+        return FirebaseJWT::encode(
             $payload,
             $this->key,
             'HS256'
@@ -39,9 +43,9 @@ class Jwt
     public function decode(string $token): object
     {
         try {
-            return \Firebase\JWT\JWT::decode(
+            return FirebaseJWT::decode(
                 $token,
-                new \Firebase\JWT\Key($this->key, 'HS256')
+                new Key($this->key, 'HS256')
             );
         } catch (\Exception $e) {
             throw new \Exception('Invalid token: ' . $e->getMessage());

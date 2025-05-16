@@ -1,19 +1,22 @@
 <?php
 
-//set default time zone
+require_once __DIR__ . '/Environment.php';
 
+//set default time zone
 date_default_timezone_set("Asia/Manila");
 
 //set time limit of requests
 set_time_limit(1000);
 
-//define constants for server credentials/configuration
-define("SERVER", "localhost");
-define("DATABASE", "clairvoyance");
-define("USER", "root");
-define("PASSWORD", "");
-define("DRIVER", "mysql");
+// Load environment variables
+$env = Environment::getInstance();
 
+// Define database connection parameters
+define("SERVER", $env->get('DB_HOST', 'localhost'));
+define("DATABASE", $env->get('DB_NAME', 'clairvoyance'));
+define("USER", $env->get('DB_USER', 'root'));
+define("PASSWORD", $env->get('DB_PASS', ''));
+define("DRIVER", "mysql");
 
 class Connection
 {
@@ -24,10 +27,19 @@ class Connection
         \PDO::ATTR_EMULATE_PREPARES => false
     ];
 
-
+    /**
+     * Connect to the database
+     * 
+     * @return \PDO PDO connection
+     */
     public function connect()
     {
-        return new \PDO($this->connectionString, USER, PASSWORD, $this->options);
+        try {
+            return new \PDO($this->connectionString, USER, PASSWORD, $this->options);
+        } catch (\PDOException $e) {
+            error_log("Database connection error: " . $e->getMessage());
+            throw new \Exception("Database connection failed: " . $e->getMessage());
+        }
     }
 }
 

@@ -44,6 +44,21 @@ INSERT INTO `categories` (`id`, `name`, `user_id`) VALUES
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `dashboards`
+--
+
+CREATE TABLE `dashboards` (
+  `id` int(11) NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `name` varchar(100) NOT NULL,
+  `description` text DEFAULT NULL,
+  `is_default` tinyint(1) DEFAULT 0,
+  `created_at` datetime DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `kpis`
 --
 
@@ -81,6 +96,7 @@ CREATE TABLE `users` (
   `username` varchar(50) NOT NULL,
   `email` varchar(100) NOT NULL,
   `password_hash` varchar(255) NOT NULL,
+  `role` enum('admin','viewer') NOT NULL DEFAULT 'viewer',
   `created_at` datetime DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -88,8 +104,28 @@ CREATE TABLE `users` (
 -- Dumping data for table `users`
 --
 
-INSERT INTO `users` (`id`, `username`, `email`, `password_hash`, `created_at`) VALUES
-(2, 'lee', 'ketchup@gmail.com', '$2y$10$uAdkXaY.P4nGiEZWeIeKiudINcEPBZQVNAuokzgmY1aCwbm46/mJu', '2025-04-11 15:34:53');
+INSERT INTO `users` (`id`, `username`, `email`, `password_hash`, `role`, `created_at`) VALUES
+(2, 'lee', 'ketchup@gmail.com', '$2y$10$uAdkXaY.P4nGiEZWeIeKiudINcEPBZQVNAuokzgmY1aCwbm46/mJu', 'admin', '2025-04-11 15:34:53');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `widgets`
+--
+
+CREATE TABLE `widgets` (
+  `id` int(11) NOT NULL,
+  `dashboard_id` int(11) NOT NULL,
+  `kpi_id` int(11) NOT NULL,
+  `title` varchar(100) NOT NULL,
+  `widget_type` enum('line','bar','pie','donut','card') NOT NULL,
+  `position_x` int(11) NOT NULL DEFAULT 0,
+  `position_y` int(11) NOT NULL DEFAULT 0,
+  `width` int(11) NOT NULL DEFAULT 1,
+  `height` int(11) NOT NULL DEFAULT 1,
+  `settings` json DEFAULT NULL,
+  `created_at` datetime DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Indexes for dumped tables
@@ -101,6 +137,13 @@ INSERT INTO `users` (`id`, `username`, `email`, `password_hash`, `created_at`) V
 ALTER TABLE `categories`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `name` (`name`),
+  ADD KEY `user_id` (`user_id`);
+
+--
+-- Indexes for table `dashboards`
+--
+ALTER TABLE `dashboards`
+  ADD PRIMARY KEY (`id`),
   ADD KEY `user_id` (`user_id`);
 
 --
@@ -127,6 +170,14 @@ ALTER TABLE `users`
   ADD UNIQUE KEY `email` (`email`);
 
 --
+-- Indexes for table `widgets`
+--
+ALTER TABLE `widgets`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `dashboard_id` (`dashboard_id`),
+  ADD KEY `kpi_id` (`kpi_id`);
+
+--
 -- AUTO_INCREMENT for dumped tables
 --
 
@@ -135,6 +186,12 @@ ALTER TABLE `users`
 --
 ALTER TABLE `categories`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+
+--
+-- AUTO_INCREMENT for table `dashboards`
+--
+ALTER TABLE `dashboards`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `kpis`
@@ -155,6 +212,12 @@ ALTER TABLE `users`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
+-- AUTO_INCREMENT for table `widgets`
+--
+ALTER TABLE `widgets`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
 -- Constraints for dumped tables
 --
 
@@ -163,6 +226,12 @@ ALTER TABLE `users`
 --
 ALTER TABLE `categories`
   ADD CONSTRAINT `categories_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL;
+
+--
+-- Constraints for table `dashboards`
+--
+ALTER TABLE `dashboards`
+  ADD CONSTRAINT `dashboards_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `kpis`
@@ -176,6 +245,14 @@ ALTER TABLE `kpis`
 --
 ALTER TABLE `measurements`
   ADD CONSTRAINT `measurements_ibfk_1` FOREIGN KEY (`kpi_id`) REFERENCES `kpis` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `widgets`
+--
+ALTER TABLE `widgets`
+  ADD CONSTRAINT `widgets_ibfk_1` FOREIGN KEY (`dashboard_id`) REFERENCES `dashboards` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `widgets_ibfk_2` FOREIGN KEY (`kpi_id`) REFERENCES `kpis` (`id`) ON DELETE CASCADE;
+
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
