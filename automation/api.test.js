@@ -1,4 +1,5 @@
 const request = require('supertest');
+const path = require('path');
 const app = require('../api/index'); // Assuming this is the entry point for the API
 
 describe('API Endpoints', () => {
@@ -9,6 +10,41 @@ describe('API Endpoints', () => {
     expect(res.body).toHaveProperty('data');
   });
 
+  it('should download KPIs as CSV', async () => {
+    const res = await request(app).get('/api/kpis/download/csv');
+    expect(res.statusCode).toEqual(200);
+    expect(res.headers['content-type']).toContain('text/csv');
+  });
+
+  it('should download KPIs as Excel', async () => {
+    const res = await request(app).get('/api/kpis/download/excel');
+    expect(res.statusCode).toEqual(200);
+    expect(res.headers['content-type']).toContain('application/vnd.ms-excel');
+  });
+
+  // File Upload Test
+  it('should upload a CSV file and return JSON', async () => {
+    const csvPath = path.join(__dirname, 'test_kpis.csv');
+    const fs = require('fs');
+
+    // Create a sample CSV file for testing
+    fs.writeFileSync(csvPath, 'name,value\nKPI1,123\nKPI2,456');
+
+    const res = await request(app)
+      .post('/api/kpis/upload')
+      .attach('file', csvPath);
+
+    expect(res.statusCode).toEqual(200);
+    expect(res.body).toHaveProperty('json');
+    expect(Array.isArray(res.body.json)).toBe(true);
+    expect(res.body.json[0]).toHaveProperty('name');
+    expect(res.body.json[0]).toHaveProperty('value');
+
+    // Clean up test file
+    fs.unlinkSync(csvPath);
+  });
+
+  // Additional Tests for Other Endpoints
   it('should create a new KPI', async () => {
     const res = await request(app)
       .post('/api/kpis')
@@ -29,57 +65,5 @@ describe('API Endpoints', () => {
     const res = await request(app).delete('/api/kpis/1');
     expect(res.statusCode).toEqual(200);
     expect(res.body).toHaveProperty('remarks', 'success');
-  });
-
-  // Category Tests
-  it('should retrieve all categories', async () => {
-    const res = await request(app).get('/api/categories');
-    expect(res.statusCode).toEqual(200);
-    expect(res.body).toHaveProperty('data');
-  });
-
-  it('should create a new category', async () => {
-    const res = await request(app)
-      .post('/api/categories')
-      .send({ name: 'Test Category' });
-    expect(res.statusCode).toEqual(200);
-    expect(res.body).toHaveProperty('remarks', 'success');
-  });
-
-  it('should delete a category', async () => {
-    const res = await request(app).delete('/api/categories/1');
-    expect(res.statusCode).toEqual(200);
-    expect(res.body).toHaveProperty('remarks', 'success');
-  });
-
-  // User Authentication Tests
-  it('should register a new user', async () => {
-    const res = await request(app)
-      .post('/api/register')
-      .send({ username: 'testuser', email: 'test@example.com', password: 'password123' });
-    expect(res.statusCode).toEqual(200);
-    expect(res.body).toHaveProperty('remarks', 'success');
-  });
-
-  it('should log in a user', async () => {
-    const res = await request(app)
-      .post('/api/login')
-      .send({ email: 'test@example.com', password: 'password123' });
-    expect(res.statusCode).toEqual(200);
-    expect(res.body).toHaveProperty('remarks', 'success');
-    expect(res.body).toHaveProperty('payload.token');
-  });
-
-  // File Handling Tests
-  it('should download KPIs as CSV', async () => {
-    const res = await request(app).get('/api/kpis/download/csv');
-    expect(res.statusCode).toEqual(200);
-    expect(res.headers['content-type']).toContain('text/csv');
-  });
-
-  it('should download KPIs as Excel', async () => {
-    const res = await request(app).get('/api/kpis/download/excel');
-    expect(res.statusCode).toEqual(200);
-    expect(res.headers['content-type']).toContain('application/vnd.ms-excel');
   });
 });

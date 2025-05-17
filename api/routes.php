@@ -4,7 +4,7 @@ $allowedOrigins = [
     'http://localhost:4200',
 ];
 
-$origin = isset($_SERVER['HTTP_ORIGIN']) ? $_SERVER['HTTP_ORIGIN'] : '';
+$origin = $_SERVER['HTTP_ORIGIN'] ?? '';
 
 if (in_array($origin, $allowedOrigins)) {
     header("Access-Control-Allow-Origin: " . $origin);
@@ -19,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-/*API Endpoint Router*/
+/* API Endpoint Router */
 
 require_once "./modules/get.php";
 require_once "./modules/post.php";
@@ -38,18 +38,16 @@ $put = new Put($pdo);
 $delete = new Delete($pdo);
 $auth = new AuthMiddleware();
 
-
-// Check if 'request' parameter is set in the request
+// Parse the request
 if (isset($_REQUEST['request'])) {
-    // Split the request into an array based on '/'
     $request = explode('/', $_REQUEST['request']);
 } else {
-    // If 'request' parameter is not set, return a 404 response
     echo "Not Found";
     http_response_code(404);
+    exit();
 }
 
-// THIS IS THE MAIN SWITCH STATEMENT
+// ROUTING
 switch ($_SERVER['REQUEST_METHOD']) {
     case 'OPTIONS':
         http_response_code(200);
@@ -59,16 +57,16 @@ switch ($_SERVER['REQUEST_METHOD']) {
         switch ($request[0]) {
 
             case 'kpis':
-            if (count($request) > 1) {
-                if (isset($request[2]) && $request[2] === 'file') {
-                    echo json_encode($get->get_kpi_file($request[1]));
+                if (count($request) > 1) {
+                    if (isset($request[2]) && $request[2] === 'file') {
+                        echo json_encode($get->get_kpi_file($request[1]));
+                    } else {
+                        echo json_encode($get->get_kpis($request[1]));
+                    }
                 } else {
-                    echo json_encode($get->get_kpis($request[1]));
+                    echo json_encode($get->get_kpis());
                 }
-            } else {
-                echo json_encode($get->get_kpis());
-            }
-            break;
+                break;
 
             case 'measurements':
                 if (count($request) > 1) {
@@ -78,19 +76,25 @@ switch ($_SERVER['REQUEST_METHOD']) {
                 }
                 break;
 
-
             case 'categories':
                 echo json_encode($get->get_categories());
-            break;
+                break;
+
+            case 'download_kpi_excel':
+                if (isset($request[1])) {
+                    $get->download_kpi_excel($request[1]); // Direct output; no json_encode
+                } else {
+                    echo "KPI ID required for download.";
+                    http_response_code(400);
+                }
+                break;
 
             default:
-                // RESPONSE FOR UNSUPPORTED REQUESTS
                 echo "No Such Request";
                 http_response_code(403);
                 break;
         }
         break;
-
 
     case 'POST':
         $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
@@ -105,8 +109,20 @@ switch ($_SERVER['REQUEST_METHOD']) {
             http_response_code(415);
             exit();
         }
+
         switch ($request[0]) {
 
+            case 'upload_csv':
+                echo json_encode($post->uploadCSVAndConvertToJson($files ?? []));
+                break;
+
+            case 'upload_kpi_excel':
+                if (!empty($files)) {
+                    echo json_encode($post->upload_kpi_excel($files));
+                } else {
+                    echo json_encode(["error" => "No file uploaded"]);
+                }
+                break;
 
             case 'kpis':
                 echo json_encode($post->create_kpi($data));
@@ -117,8 +133,8 @@ switch ($_SERVER['REQUEST_METHOD']) {
                 break;
 
             case 'categories':
-                    echo json_encode($post->create_category($data));
-                    break;
+                echo json_encode($post->create_category($data));
+                break;
 
             case 'register':
                 echo json_encode($post->addUser($data));
@@ -129,69 +145,66 @@ switch ($_SERVER['REQUEST_METHOD']) {
                 break;
 
             default:
-                // RESPONSE FOR UNSUPPORTED REQUESTS
                 echo "No Such Request";
                 http_response_code(403);
                 break;
         }
         break;
 
-        case 'PUT':
-            switch ($request[0]) {
-    
-                case 'kpis':
-                    if (count($request) > 1) {
-                        echo json_encode($put->update_kpi($request[1]));
-                    } else {
-                        echo "Invalid KPI ID.";
-                    }
-                    break;
+    case 'PUT':
+        switch ($request[0]) {
 
-                    case 'measurements':
-                        if (count($request) > 1) {
-                            echo json_encode($put->update_measurement($request[1]));
-                        } else {
-                            echo "Invalid KPI ID.";
-                        }
-                        break;
-    
-                default:
-                    // Return a 403 response for unsupported requests
-                    echo "No Such Request";
-                    http_response_code(403);
-                    break;
-            }
-            break;
+            case 'kpis':
+                if (count($request) > 1) {
+                    echo json_encode($put->update_kpi($request[1]));
+                } else {
+                    echo "Invalid KPI ID.";
+                }
+                break;
+
+            case 'measurements':
+                if (count($request) > 1) {
+                    echo json_encode($put->update_measurement($request[1]));
+                } else {
+                    echo "Invalid KPI ID.";
+                }
+                break;
+
+            default:
+                echo "No Such Request";
+                http_response_code(403);
+                break;
+        }
+        break;
 
     case 'DELETE':
         switch ($request[0]) {
 
             case 'kpis':
-                    if (count($request) > 1) {
-                        echo json_encode($delete->delete_kpi($request[1]));
-                    } else {
-                        echo "Invalid KPI ID.";
-                    }
-                    break;
+                if (count($request) > 1) {
+                    echo json_encode($delete->delete_kpi($request[1]));
+                } else {
+                    echo "Invalid KPI ID.";
+                }
+                break;
 
-                case 'measurements':
-                        if (count($request) > 1) {
-                            echo json_encode($delete->delete_measurement($request[1]));
-                        } else {
-                            echo "Invalid KPI ID.";
-                        }
-                        break;
+            case 'measurements':
+                if (count($request) > 1) {
+                    echo json_encode($delete->delete_measurement($request[1]));
+                } else {
+                    echo "Invalid KPI ID.";
+                }
+                break;
 
-                case 'categories':
-                        if (count($request) > 1) {
-                            echo json_encode($delete->delete_category($request[1]));
-                        } else {
-                            echo "Invalid KPI ID.";
-                        }
-                        break;
+            case 'categories':
+                if (count($request) > 1) {
+                    echo json_encode($delete->delete_category($request[1]));
+                } else {
+                    echo "Invalid KPI ID.";
+                }
+                break;
 
             default:
-                // Return a 403 response for unsupported requests
                 echo "No Such Request";
                 http_response_code(403);
                 break;
@@ -199,9 +212,7 @@ switch ($_SERVER['REQUEST_METHOD']) {
         break;
 
     default:
-        // Return a 404 response for unsupported HTTP methods
         echo "Unsupported HTTP method";
         http_response_code(404);
         break;
 }
-

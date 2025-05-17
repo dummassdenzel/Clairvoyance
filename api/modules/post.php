@@ -123,7 +123,43 @@ class Post extends GlobalMethods
             return $this->sendPayload(null, "failed", $e->getMessage(), 400);
         }
     }
-    
+
+    public function uploadCSVAndConvertToJson()
+    {
+        try {
+            if (!isset($_FILES['csv_file'])) {
+                return $this->sendPayload(null, "failed", "No file uploaded", 400);
+            }
+
+            $file = $_FILES['csv_file'];
+
+            // Check for upload errors
+            if ($file['error'] !== UPLOAD_ERR_OK) {
+                return $this->sendPayload(null, "failed", "File upload error", 400);
+            }
+
+            // Validate file type (basic check for .csv extension)
+            $fileExt = pathinfo($file['name'], PATHINFO_EXTENSION);
+            if (strtolower($fileExt) !== 'csv') {
+                return $this->sendPayload(null, "failed", "Only CSV files are allowed", 400);
+            }
+
+            $csvData = [];
+            if (($handle = fopen($file['tmp_name'], "r")) !== false) {
+                $headers = fgetcsv($handle); // Get the first row as headers
+                while (($row = fgetcsv($handle)) !== false) {
+                    $csvData[] = array_combine($headers, $row);
+                }
+                fclose($handle);
+            } else {
+                return $this->sendPayload(null, "failed", "Could not read uploaded file", 400);
+            }
+
+            return $this->sendPayload($csvData, "success", "CSV file converted to JSON", 200);
+        } catch (Exception $e) {
+            return $this->sendPayload(null, "failed", $e->getMessage(), 500);
+        }
+    }
 }
 
 

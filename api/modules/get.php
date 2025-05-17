@@ -5,7 +5,6 @@ use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
-
 class Get extends GlobalMethods
 {
     private $pdo;
@@ -93,10 +92,10 @@ class Get extends GlobalMethods
         return $this->get_records('categories', $condition);
     }
 
-    public function get_kpi_file($kpi_id)
+    // ✅ NEW: Download KPI File by ID (serves the file directly)
+    public function download_kpi_file($kpi_id)
     {
         try {
-            // Get the file path from the database
             $sql = "SELECT file_path FROM kpis WHERE id = ?";
             $stmt = $this->pdo->prepare($sql);
             $stmt->execute([$kpi_id]);
@@ -106,7 +105,22 @@ class Get extends GlobalMethods
                 return $this->sendPayload(null, 'failed', "No file associated with this KPI.", 404);
             }
 
-            return $this->sendPayload(['file_path' => $result['file_path']], 'success', "File path retrieved.", 200);
+            $filePath = $result['file_path'];
+
+            if (!file_exists($filePath)) {
+                return $this->sendPayload(null, 'failed', "File not found on server.", 404);
+            }
+
+            // Output headers for direct file download
+            header('Content-Description: File Transfer');
+            header('Content-Type: application/octet-stream');
+            header('Content-Disposition: attachment; filename="' . basename($filePath) . '"');
+            header('Expires: 0');
+            header('Cache-Control: must-revalidate');
+            header('Pragma: public');
+            header('Content-Length: ' . filesize($filePath));
+            readfile($filePath);
+            exit;
         } catch (\Exception $e) {
             return $this->sendPayload(null, 'failed', $e->getMessage(), 500);
         }
@@ -115,24 +129,14 @@ class Get extends GlobalMethods
     public function download_kpis_as_csv()
     {
         try {
-            // Fetch KPI data from the database
             $kpis = $this->get_records('kpis')['data'];
-
-            // Define the file path
             $filePath = __DIR__ . '/../../uploads/kpis/kpis.csv';
-
-            // Open the file for writing
             $file = fopen($filePath, 'w');
 
-            // Add header row
             fputcsv($file, ['ID', 'Name', 'Value']);
-
-            // Add data rows
             foreach ($kpis as $kpi) {
                 fputcsv($file, [$kpi['id'], $kpi['name'], $kpi['value']]);
             }
-
-            // Close the file
             fclose($file);
 
             return $this->sendPayload(['file_path' => $filePath], 'success', 'KPI CSV file created successfully.', 200);
@@ -144,25 +148,26 @@ class Get extends GlobalMethods
     public function download_kpis_as_excel()
     {
         try {
-            // Fetch KPI data from the database
             $kpis = $this->get_records('kpis')['data'];
 
-            // Define the file path
-            $filePath = __DIR__ . '/../../uploads/kpis/kpis.xls';
+            $spreadsheet = new Spreadsheet();
+            $sheet = $spreadsheet->getActiveSheet();
 
-            // Open the file for writing
-            $file = fopen($filePath, 'w');
+            $sheet->setCellValue('A1', 'ID');
+            $sheet->setCellValue('B1', 'Name');
+            $sheet->setCellValue('C1', 'Value');
 
-            // Add header row
-            fwrite($file, "ID\tName\tValue\n");
-
-            // Add data rows
+            $row = 2;
             foreach ($kpis as $kpi) {
-                fwrite($file, "{$kpi['id']}\t{$kpi['name']}\t{$kpi['value']}\n");
+                $sheet->setCellValue("A$row", $kpi['id']);
+                $sheet->setCellValue("B$row", $kpi['name']);
+                $sheet->setCellValue("C$row", $kpi['value']);
+                $row++;
             }
 
-            // Close the file
-            fclose($file);
+            $filePath = __DIR__ . '/../../uploads/kpis/kpis.xlsx';
+            $writer = new Xlsx($spreadsheet);
+            $writer->save($filePath);
 
             return $this->sendPayload(['file_path' => $filePath], 'success', 'KPI Excel file created successfully.', 200);
         } catch (\Exception $e) {
@@ -173,7 +178,6 @@ class Get extends GlobalMethods
     public function process_uploaded_kpi_file($filePath)
     {
         try {
-            // Read the uploaded file (CSV or Excel)
             $fileExtension = pathinfo($filePath, PATHINFO_EXTENSION);
 
             if ($fileExtension === 'csv') {
@@ -184,14 +188,15 @@ class Get extends GlobalMethods
                 }
                 fclose($file);
             } else {
-                $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($filePath);
+                $spreadsheet = IOFactory::load($filePath);
                 $sheet = $spreadsheet->getActiveSheet();
                 $data = $sheet->toArray();
             }
 
-            // Process the data (e.g., save to database or display)
-            foreach ($data as $row) {
-                // Example: Save each row to the database
+            $startRow = ($data[0][0] === 'ID' || $data[0][0] === 'Name') ? 1 : 0;
+
+            for ($i = $startRow; $i < count($data); $i++) {
+                $row = $data[$i];
                 $this->executeQuery("INSERT INTO kpis (name, value) VALUES (?, ?)", [$row[0], $row[1]]);
             }
 
