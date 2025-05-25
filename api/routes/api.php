@@ -7,6 +7,7 @@ require_once __DIR__ . '/../controllers/KpiController.php';
 require_once __DIR__ . '/../controllers/DashboardController.php';
 require_once __DIR__ . '/../controllers/WidgetController.php';
 require_once __DIR__ . '/../controllers/ReportController.php';
+require_once __DIR__ . '/../controllers/UserController.php';
 require_once __DIR__ . '/../utils/Response.php';
 require_once __DIR__ . '/../middleware/RoleMiddleware.php';
 
@@ -25,6 +26,7 @@ $kpiController = new KpiController();
 $dashboardController = new DashboardController();
 $widgetController = new WidgetController();
 $reportController = new ReportController();
+$userController = new UserController();
 
 // Handle request based on the resource and method
 switch ($resource) {
@@ -144,6 +146,39 @@ switch ($resource) {
             
             $data = json_decode(file_get_contents('php://input'), true);
             $reportController->create($data, $user);
+        } else {
+            Response::error('Method not allowed', null, 405);
+        }
+        break;
+    
+    case 'users':
+        // User management endpoints - admin only
+        if ($method === 'GET') {
+            $user = $roleMiddleware->requireAdmin();
+            if (!$user) break;
+            
+            if ($id) {
+                $userController->getOne($id);
+            } else {
+                $userController->getAll();
+            }
+        } elseif ($method === 'POST') {
+            $user = $roleMiddleware->requireAdmin();
+            if (!$user) break;
+            
+            $data = json_decode(file_get_contents('php://input'), true);
+            $userController->create($data);
+        } elseif ($method === 'PUT') {
+            $user = $roleMiddleware->requireAdmin();
+            if (!$user) break;
+            
+            $data = json_decode(file_get_contents('php://input'), true);
+            $userController->update($id, $data);
+        } elseif ($method === 'DELETE') {
+            $user = $roleMiddleware->requireAdmin();
+            if (!$user) break;
+            
+            $userController->delete($id);
         } else {
             Response::error('Method not allowed', null, 405);
         }

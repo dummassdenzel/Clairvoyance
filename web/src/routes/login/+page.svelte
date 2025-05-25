@@ -1,15 +1,11 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { authStore } from '$lib/services/auth';
   import { goto } from '$app/navigation';
   import LoginForm from '$lib/components/auth/LoginForm.svelte';
   
-  // If already authenticated, redirect to dashboard
-  onMount(() => {
-    if ($authStore.isAuthenticated) {
-      goto('/user/dashboard');
-    }
-  });
+  $: if ($authStore.isAuthenticated) {
+    goto('/user/dashboard');
+  }
 </script>
 
 <div class="auth-page">

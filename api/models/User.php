@@ -4,7 +4,7 @@ require_once __DIR__ . '/../config/database.php';
 
 class User
 {
-    private $pdo;
+    public $pdo;
     
     public function __construct()
     {
@@ -12,6 +12,24 @@ class User
         $this->pdo = $conn->connect();
     }
     
+
+    /**
+     * Get all users
+     * 
+     * @return array List of users
+     */
+    public function getAll()
+    {
+        try {
+            $stmt = $this->pdo->prepare("SELECT id, username, email, role, created_at FROM users ORDER BY created_at DESC");
+            $stmt->execute();
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("Error fetching users: " . $e->getMessage());
+            return [];
+        }
+    }
+
     /**
      * Find a user by ID
      * 

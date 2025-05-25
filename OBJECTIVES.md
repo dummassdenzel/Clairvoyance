@@ -8,7 +8,7 @@ This project is a **KPI Visualization and Performance Tracking System** designed
 
 ## Tech Stack
 
-- **Frontend**: [SvelteKit](https://kit.svelte.dev) + [TailwindCSS](https://tailwindcss.com)
+- **Frontend**: SvelteKit + TailwindCSS
 - **Backend**: Vanilla PHP (REST API)
 - **Database**: MySQL (via XAMPP phpMyAdmin)
 - **Deployment**: Local XAMPP environment

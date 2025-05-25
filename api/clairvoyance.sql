@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Apr 11, 2025 at 09:47 AM
+-- Generation Time: May 25, 2025 at 11:32 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -105,7 +105,9 @@ CREATE TABLE `users` (
 --
 
 INSERT INTO `users` (`id`, `username`, `email`, `password_hash`, `role`, `created_at`) VALUES
-(2, 'lee', 'ketchup@gmail.com', '$2y$10$uAdkXaY.P4nGiEZWeIeKiudINcEPBZQVNAuokzgmY1aCwbm46/mJu', 'admin', '2025-04-11 15:34:53');
+(2, 'lee', 'ketchup@gmail.com', '$2y$10$uAdkXaY.P4nGiEZWeIeKiudINcEPBZQVNAuokzgmY1aCwbm46/mJu', 'admin', '2025-04-11 15:34:53'),
+(3, 'testuser', 'testuser@example.com', '$2y$10$IEAuJqjsgEsRzrZMk0t6TuM2o1zQzRNFtTj/.ru1CFdOxqCj/oIZy', 'viewer', '2025-05-16 18:23:27'),
+(4, 'enze', 'denzel@gmail.com', '$2y$10$Tt2Wh4vW4dHlsotFKk5vr.2u.CFRAs04alydE9aU1J.zb6UvCP.JS', 'viewer', '2025-05-18 13:26:25');
 
 -- --------------------------------------------------------
 
@@ -123,7 +125,7 @@ CREATE TABLE `widgets` (
   `position_y` int(11) NOT NULL DEFAULT 0,
   `width` int(11) NOT NULL DEFAULT 1,
   `height` int(11) NOT NULL DEFAULT 1,
-  `settings` json DEFAULT NULL,
+  `settings` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`settings`)),
   `created_at` datetime DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -209,7 +211,7 @@ ALTER TABLE `measurements`
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT for table `widgets`
@@ -252,7 +254,6 @@ ALTER TABLE `measurements`
 ALTER TABLE `widgets`
   ADD CONSTRAINT `widgets_ibfk_1` FOREIGN KEY (`dashboard_id`) REFERENCES `dashboards` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `widgets_ibfk_2` FOREIGN KEY (`kpi_id`) REFERENCES `kpis` (`id`) ON DELETE CASCADE;
-
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

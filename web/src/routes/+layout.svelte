@@ -1,8 +1,7 @@
 <script lang="ts">
 	import '../app.css';
 	import { onMount } from 'svelte';
-	import { verifySession, authStore } from '$lib/services/auth';
-	import Navbar from '$lib/components/Navbar.svelte';
+	import { verifySession } from '$lib/services/auth';
 	import { navigating } from '$app/stores';
 	
 	let isLoading = true;
