@@ -4,6 +4,9 @@
 import * as api from './api';
 import { writable, derived, get } from 'svelte/store';
 
+// Check if we're in a browser environment
+const browser = typeof window !== 'undefined';
+
 // Define user type
 export interface User {
   id: number;
@@ -24,8 +27,10 @@ export interface AuthState {
 const initialState: AuthState = {
   isAuthenticated: false,
   user: null,
-  token: localStorage.getItem('token'),
-  tokenExpiry: localStorage.getItem('tokenExpiry') ? parseInt(localStorage.getItem('tokenExpiry') || '0', 10) : null
+  token: browser ? localStorage.getItem('token') : null,
+  tokenExpiry: browser && localStorage.getItem('tokenExpiry') 
+    ? parseInt(localStorage.getItem('tokenExpiry') || '0', 10) 
+    : null
 };
 
 // Create Svelte store for auth state
@@ -39,7 +44,7 @@ function updateAuthState(state: Partial<AuthState>) {
   authStore.update(currentState => {
     const newState = { ...currentState, ...state };
     
-    if (state.token !== undefined) {
+    if (browser && state.token !== undefined) {
       if (state.token) {
         localStorage.setItem('token', state.token);
       } else {
@@ -47,7 +52,7 @@ function updateAuthState(state: Partial<AuthState>) {
       }
     }
     
-    if (state.tokenExpiry !== undefined) {
+    if (browser && state.tokenExpiry !== undefined) {
       if (state.tokenExpiry) {
         localStorage.setItem('tokenExpiry', state.tokenExpiry.toString());
       } else {

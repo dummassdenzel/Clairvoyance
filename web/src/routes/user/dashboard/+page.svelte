@@ -78,13 +78,13 @@
   
   // Navigate to create new dashboard page
   function handleCreateDashboard() {
-    goto('/dashboard/create');
+    goto('/user/dashboard/create');
   }
   
   // Navigate to create new widget page
   function handleCreateWidget() {
     if (selectedDashboardId) {
-      goto(`/dashboard/${selectedDashboardId}/widgets/create`);
+      goto(`/user/dashboard/${selectedDashboardId}/widgets/create`);
     }
   }
 </script>

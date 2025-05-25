@@ -1,0 +1,351 @@
+<script lang="ts">
+  import { onMount } from 'svelte';
+  import { authStore } from '$lib/services/auth';
+  import { createUser } from '$lib/services/user';
+  import { goto } from '$app/navigation';
+  
+  // Form data
+  let username = '';
+  let email = '';
+  let password = '';
+  let confirmPassword = '';
+  let role = 'user'; // Default role
+  
+  // Form state
+  let isSubmitting = false;
+  let error: string | null = null;
+  let formErrors: Record<string, string> = {};
+  
+  // Check if user is authenticated and is an admin
+  $: if (!$authStore.isAuthenticated) {
+    goto('/login');
+  } else if ($authStore.user && $authStore.user.role !== 'admin') {
+    goto('/dashboard'); // Redirect non-admin users
+  }
+  
+  function validateForm(): boolean {
+    formErrors = {};
+    
+    if (!username.trim()) {
+      formErrors.username = 'Username is required';
+    } else if (username.length < 3) {
+      formErrors.username = 'Username must be at least 3 characters';
+    }
+    
+    if (!email.trim()) {
+      formErrors.email = 'Email is required';
+    } else if (!/^\S+@\S+\.\S+$/.test(email)) {
+      formErrors.email = 'Email is invalid';
+    }
+    
+    if (!password) {
+      formErrors.password = 'Password is required';
+    } else if (password.length < 6) {
+      formErrors.password = 'Password must be at least 6 characters';
+    }
+    
+    if (password !== confirmPassword) {
+      formErrors.confirmPassword = 'Passwords do not match';
+    }
+    
+    if (!role) {
+      formErrors.role = 'Role is required';
+    }
+    
+    return Object.keys(formErrors).length === 0;
+  }
+  
+  async function handleSubmit() {
+    if (!validateForm()) {
+      return;
+    }
+    
+    isSubmitting = true;
+    error = null;
+    
+    try {
+      const userData = {
+        username,
+        email,
+        password,
+        role
+      };
+      
+      const result = await createUser(userData);
+      
+      if (result.success) {
+        // Redirect to user list with success message
+        goto('/admin/users?success=User created successfully');
+      } else {
+        error = result.message || 'Failed to create user';
+      }
+    } catch (err) {
+      console.error('Error creating user:', err);
+      error = err instanceof Error ? err.message : 'An unexpected error occurred';
+    } finally {
+      isSubmitting = false;
+    }
+  }
+  
+  function handleCancel() {
+    goto('/admin/users');
+  }
+</script>
+
+<div class="admin-page">
+  <header class="admin-header">
+    <h1>Create New User</h1>
+  </header>
+  
+  <div class="form-container">
+    {#if error}
+      <div class="error-alert">
+        {error}
+      </div>
+    {/if}
+    
+    <form on:submit|preventDefault={handleSubmit}>
+      <div class="form-group">
+        <label for="username">Username <span class="required">*</span></label>
+        <input 
+          type="text" 
+          id="username" 
+          bind:value={username} 
+          class="form-control" 
+          disabled={isSubmitting}
+          class:is-invalid={formErrors.username}
+        />
+        {#if formErrors.username}
+          <div class="error-message">{formErrors.username}</div>
+        {/if}
+      </div>
+      
+      <div class="form-group">
+        <label for="email">Email Address <span class="required">*</span></label>
+        <input 
+          type="email" 
+          id="email" 
+          bind:value={email} 
+          class="form-control" 
+          disabled={isSubmitting}
+          class:is-invalid={formErrors.email}
+        />
+        {#if formErrors.email}
+          <div class="error-message">{formErrors.email}</div>
+        {/if}
+      </div>
+      
+      <div class="form-group">
+        <label for="password">Password <span class="required">*</span></label>
+        <input 
+          type="password" 
+          id="password" 
+          bind:value={password} 
+          class="form-control" 
+          disabled={isSubmitting}
+          class:is-invalid={formErrors.password}
+        />
+        {#if formErrors.password}
+          <div class="error-message">{formErrors.password}</div>
+        {/if}
+      </div>
+      
+      <div class="form-group">
+        <label for="confirmPassword">Confirm Password <span class="required">*</span></label>
+        <input 
+          type="password" 
+          id="confirmPassword" 
+          bind:value={confirmPassword} 
+          class="form-control" 
+          disabled={isSubmitting}
+          class:is-invalid={formErrors.confirmPassword}
+        />
+        {#if formErrors.confirmPassword}
+          <div class="error-message">{formErrors.confirmPassword}</div>
+        {/if}
+      </div>
+      
+      <div class="form-group">
+        <label for="role">User Role <span class="required">*</span></label>
+        <select 
+          id="role" 
+          bind:value={role} 
+          class="form-control" 
+          disabled={isSubmitting}
+          class:is-invalid={formErrors.role}
+        >
+          <option value="user">User</option>
+          <option value="manager">Manager</option>
+          <option value="admin">Administrator</option>
+        </select>
+        {#if formErrors.role}
+          <div class="error-message">{formErrors.role}</div>
+        {/if}
+        
+        <div class="role-description">
+          {#if role === 'admin'}
+            <p><strong>Administrator:</strong> Full access to all features including user management.</p>
+          {:else if role === 'manager'}
+            <p><strong>Manager:</strong> Can manage KPIs, dashboards, and view all reports.</p>
+          {:else}
+            <p><strong>User:</strong> Can view assigned dashboards and KPIs.</p>
+          {/if}
+        </div>
+      </div>
+      
+      <div class="form-actions">
+        <button 
+          type="button" 
+          class="btn btn-secondary" 
+          on:click={handleCancel} 
+          disabled={isSubmitting}
+        >
+          Cancel
+        </button>
+        
+        <button 
+          type="submit" 
+          class="btn btn-primary" 
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? 'Creating User...' : 'Create User'}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<style>
+  .admin-page {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 1.5rem;
+  }
+  
+  .admin-header {
+    margin-bottom: 2rem;
+  }
+  
+  h1 {
+    margin: 0;
+    font-size: 1.75rem;
+    color: #333;
+  }
+  
+  .form-container {
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    padding: 2rem;
+  }
+  
+  .error-alert {
+    background-color: #f8d7da;
+    color: #721c24;
+    padding: 0.75rem 1rem;
+    border-radius: 4px;
+    margin-bottom: 1.5rem;
+  }
+  
+  .form-group {
+    margin-bottom: 1.5rem;
+  }
+  
+  label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: #333;
+  }
+  
+  .required {
+    color: #dc3545;
+  }
+  
+  .form-control {
+    width: 100%;
+    padding: 0.75rem;
+    font-size: 1rem;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+  }
+  
+  .form-control:focus {
+    border-color: #4a90e2;
+    box-shadow: 0 0 0 0.2rem rgba(74, 144, 226, 0.25);
+    outline: 0;
+  }
+  
+  .form-control.is-invalid {
+    border-color: #dc3545;
+  }
+  
+  .error-message {
+    color: #dc3545;
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+  }
+  
+  .role-description {
+    margin-top: 0.75rem;
+    padding: 0.75rem;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    font-size: 0.9rem;
+  }
+  
+  .role-description p {
+    margin: 0;
+    color: #495057;
+  }
+  
+  .form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    margin-top: 2rem;
+  }
+  
+  .btn {
+    padding: 0.75rem 1.5rem;
+    border-radius: 4px;
+    font-size: 1rem;
+    cursor: pointer;
+    border: none;
+    transition: background-color 0.2s;
+  }
+  
+  .btn:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+  }
+  
+  .btn-primary {
+    background-color: #4a90e2;
+    color: white;
+  }
+  
+  .btn-primary:hover:not(:disabled) {
+    background-color: #3a7bc8;
+  }
+  
+  .btn-secondary {
+    background-color: #6c757d;
+    color: white;
+  }
+  
+  .btn-secondary:hover:not(:disabled) {
+    background-color: #5a6268;
+  }
+  
+  @media (max-width: 768px) {
+    .form-actions {
+      flex-direction: column-reverse;
+    }
+    
+    .btn {
+      width: 100%;
+    }
+  }
+</style> 

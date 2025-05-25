@@ -45,15 +45,15 @@
   }
   
   function handleCreate() {
-    goto('/kpis/create');
+    goto('/user/kpis/create');
   }
   
   function handleEdit(event: CustomEvent<{ kpi: KPI }>) {
-    goto(`/kpis/edit/${event.detail.kpi.id}`);
+    goto(`/user/kpis/edit/${event.detail.kpi.id}`);
   }
   
   function handleView(event: CustomEvent<{ kpi: KPI }>) {
-    goto(`/kpis/${event.detail.kpi.id}`);
+    goto(`/user/kpis/${event.detail.kpi.id}`);
   }
   
   async function handleDelete(event: CustomEvent<{ kpi: KPI }>) {

@@ -20,7 +20,6 @@
 			<div class="loading-spinner">Loading...</div>
 		</div>
 	{:else}
-		<Navbar />
 		
 		<main class="main-content">
 			{#if $navigating}

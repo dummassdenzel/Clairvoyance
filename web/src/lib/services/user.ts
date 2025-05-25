@@ -1,52 +1,81 @@
 /**
  * User service for handling user-related operations
  */
-import * as api from './api';
 import { writable, derived } from 'svelte/store';
-import { token } from './auth';
+import { api } from './api';
+import { authStore } from './auth';
 
-// Types
-export interface User {
+export type User = {
   id: number;
   username: string;
   email: string;
-  role: 'admin' | 'manager' | 'user';
+  role: string;
   created_at: string;
-  updated_at: string;
-}
+  updated_at?: string;
+};
 
-// User store
-const userStore = writable<User[]>([]);
-export const users = derived(userStore, $users => $users);
+type UsersState = {
+  users: User[];
+  loading: boolean;
+  error: string | null;
+};
 
-let tokenValue: string | null = null;
-token.subscribe(value => {
-  tokenValue = value;
-});
+// Initialize users store
+const initialState: UsersState = {
+  users: [],
+  loading: false,
+  error: null
+};
+
+// Create a writable store
+const userStore = writable<UsersState>(initialState);
+
+// Create a derived store for just the users array
+export const users = derived(userStore, $store => $store.users);
 
 /**
- * Fetch all users (admin only)
+ * Fetch all users from the API
  */
 export async function fetchUsers() {
+  userStore.update(state => ({ ...state, loading: true, error: null }));
+  
   try {
-    if (!tokenValue) {
-      console.error('No token available');
+    const token = authStore.getToken();
+    
+    if (!token) {
+      userStore.update(state => ({
+        ...state,
+        loading: false,
+        error: 'Authentication required'
+      }));
       return { success: false, message: 'Authentication required' };
     }
-
-    const response = await api.get('users', tokenValue);
-    if (response.status === 'success' && response.data) {
-      userStore.set(response.data);
-      return { success: true };
+    
+    const response = await api.get('/users', token);
+    
+    if (response.success) {
+      userStore.update(state => ({
+        ...state,
+        users: response.data,
+        loading: false
+      }));
+      return { success: true, users: response.data };
+    } else {
+      userStore.update(state => ({
+        ...state,
+        loading: false,
+        error: response.message
+      }));
+      return { success: false, message: response.message };
     }
-
-    return { success: false, message: 'Failed to fetch users' };
   } catch (error) {
-    console.error('Error fetching users:', error);
-    return { 
-      success: false, 
-      message: error instanceof Error ? error.message : 'Failed to fetch users' 
-    };
+    const errorMessage = error instanceof Error ? error.message : 'Failed to fetch users';
+    userStore.update(state => ({
+      ...state,
+      loading: false,
+      error: errorMessage
+    }));
+    return { success: false, message: errorMessage };
   }
 }
 
@@ -55,116 +84,121 @@ export async function fetchUsers() {
  */
 export async function fetchUser(id: number) {
   try {
-    if (!tokenValue) {
-      console.error('No token available');
+    const token = authStore.getToken();
+    
+    if (!token) {
       return { success: false, message: 'Authentication required' };
     }
-
-    const response = await api.get(`users/${id}`, tokenValue);
-    if (response.status === 'success' && response.data) {
+    
+    const response = await api.get(`/users/${id}`, token);
+    
+    if (response.success) {
       return { success: true, user: response.data };
+    } else {
+      return { success: false, message: response.message };
     }
-
-    return { success: false, message: 'Failed to fetch user' };
   } catch (error) {
-    console.error(`Error fetching user ${id}:`, error);
-    return { 
-      success: false, 
-      message: error instanceof Error ? error.message : 'Failed to fetch user' 
-    };
+    const errorMessage = error instanceof Error ? error.message : 'Failed to fetch user';
+    return { success: false, message: errorMessage };
   }
 }
 
 /**
- * Create a new user (admin only)
+ * Create a new user
  */
-export async function createUser(data: { username: string; email: string; password: string; role: User['role'] }) {
+export async function createUser(userData: {
+  username: string;
+  email: string;
+  password: string;
+  role: string;
+}) {
   try {
-    if (!tokenValue) {
-      console.error('No token available');
+    const token = authStore.getToken();
+    
+    if (!token) {
       return { success: false, message: 'Authentication required' };
     }
-
-    const response = await api.post('users', data, tokenValue);
-    if (response.status === 'success' && response.data) {
-      // Update the store with the new user
-      userStore.update(users => [...users, response.data]);
+    
+    const response = await api.post('/users', userData, token);
+    
+    if (response.success) {
+      // Update the users store with the new user
+      userStore.update(state => ({
+        ...state,
+        users: [...state.users, response.data]
+      }));
       return { success: true, user: response.data };
+    } else {
+      return { success: false, message: response.message };
     }
-
-    return { 
-      success: false, 
-      message: response.message || 'Failed to create user' 
-    };
   } catch (error) {
-    console.error('Error creating user:', error);
-    return { 
-      success: false, 
-      message: error instanceof Error ? error.message : 'Failed to create user' 
-    };
+    const errorMessage = error instanceof Error ? error.message : 'Failed to create user';
+    return { success: false, message: errorMessage };
   }
 }
 
 /**
  * Update an existing user
  */
-export async function updateUser(id: number, data: Partial<User> & { password?: string }) {
+export async function updateUser(id: number, userData: {
+  username?: string;
+  email?: string;
+  password?: string;
+  role?: string;
+}) {
   try {
-    if (!tokenValue) {
-      console.error('No token available');
+    const token = authStore.getToken();
+    
+    if (!token) {
       return { success: false, message: 'Authentication required' };
     }
-
-    const response = await api.put(`users/${id}`, data, tokenValue);
-    if (response.status === 'success') {
-      // Update the store with the modified user
-      userStore.update(users => users.map(user => 
-        user.id === id ? { ...user, ...data } : user
-      ));
-      
-      return { success: true };
+    
+    const response = await api.put(`/users/${id}`, userData, token);
+    
+    if (response.success) {
+      // Update the user in the store
+      userStore.update(state => ({
+        ...state,
+        users: state.users.map(user => 
+          user.id === id ? { ...user, ...response.data } : user
+        )
+      }));
+      return { success: true, user: response.data };
+    } else {
+      return { success: false, message: response.message };
     }
-
-    return { 
-      success: false, 
-      message: response.message || 'Failed to update user' 
-    };
   } catch (error) {
-    console.error(`Error updating user ${id}:`, error);
-    return { 
-      success: false, 
-      message: error instanceof Error ? error.message : 'Failed to update user' 
-    };
+    const errorMessage = error instanceof Error ? error.message : 'Failed to update user';
+    return { success: false, message: errorMessage };
   }
 }
 
 /**
- * Delete a user (admin only)
+ * Delete a user
  */
 export async function deleteUser(id: number) {
   try {
-    if (!tokenValue) {
-      console.error('No token available');
+    const token = authStore.getToken();
+    
+    if (!token) {
       return { success: false, message: 'Authentication required' };
     }
-
-    const response = await api.del(`users/${id}`, tokenValue);
-    if (response.status === 'success') {
+    
+    const response = await api.del(`/users/${id}`, token);
+    
+    if (response.success) {
       // Remove the user from the store
-      userStore.update(users => users.filter(user => user.id !== id));
-      return { success: true };
+      userStore.update(state => ({
+        ...state,
+        users: state.users.filter(user => user.id !== id)
+      }));
+      return { success: true, message: 'User deleted successfully' };
+    } else {
+      return { success: false, message: response.message };
     }
-
-    return { 
-      success: false, 
-      message: response.message || 'Failed to delete user' 
-    };
   } catch (error) {
-    console.error(`Error deleting user ${id}:`, error);
-    return { 
-      success: false, 
-      message: error instanceof Error ? error.message : 'Failed to delete user' 
-    };
+    const errorMessage = error instanceof Error ? error.message : 'Failed to delete user';
+    return { success: false, message: errorMessage };
   }
 }
 
@@ -173,12 +207,13 @@ export async function deleteUser(id: number) {
  */
 export async function updateProfile(data: { username?: string; email?: string; current_password?: string; new_password?: string }) {
   try {
-    if (!tokenValue) {
-      console.error('No token available');
+    const token = authStore.getToken();
+    
+    if (!token) {
       return { success: false, message: 'Authentication required' };
     }
 
-    const response = await api.put('profile', data, tokenValue);
+    const response = await api.put('profile', data, token);
     if (response.status === 'success') {
       return { success: true };
     }
@@ -194,4 +229,38 @@ export async function updateProfile(data: { username?: string; email?: string; c
       message: error instanceof Error ? error.message : 'Failed to update profile' 
     };
   }
+}
+
+// Mock functions for development (will use the API in production)
+if (import.meta.env.DEV) {
+  // Override the functions with mock implementations
+  const mockUsers: User[] = [
+    {
+      id: 1,
+      username: 'admin',
+      email: 'admin@example.com',
+      role: 'admin',
+      created_at: '2023-01-01T00:00:00Z'
+    },
+    {
+      id: 2,
+      username: 'manager',
+      email: 'manager@example.com',
+      role: 'manager',
+      created_at: '2023-01-02T00:00:00Z'
+    },
+    {
+      id: 3,
+      username: 'user',
+      email: 'user@example.com',
+      role: 'user',
+      created_at: '2023-01-03T00:00:00Z'
+    }
+  ];
+  
+  // Initialize the store with mock data
+  userStore.update(state => ({
+    ...state,
+    users: mockUsers
+  }));
 } 

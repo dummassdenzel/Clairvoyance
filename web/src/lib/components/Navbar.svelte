@@ -25,8 +25,8 @@
   <div class="navbar-menu" class:is-active={isMenuOpen}>
     {#if $authStore.isAuthenticated}
       <div class="navbar-start">
-        <a href="/dashboard" class="navbar-item">Dashboard</a>
-        <a href="/kpis" class="navbar-item">KPIs</a>
+        <a href="/user/dashboard" class="navbar-item">Dashboard</a>
+        <a href="/user/kpis" class="navbar-item">KPIs</a>
         {#if $authStore.user?.role === 'admin'}
           <a href="/admin" class="navbar-item">Admin</a>
         {/if}

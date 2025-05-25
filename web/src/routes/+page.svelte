@@ -1,6 +1,14 @@
 <script lang="ts">
   import { authStore } from '$lib/services/auth';
   import { goto } from '$app/navigation';
+
+
+  $: if ($authStore.isAuthenticated) {
+    goto('/user/dashboard');
+  }
+
+
+
 </script>
 
 <div class="home-page">
@@ -12,10 +20,10 @@
       
       {#if $authStore.isAuthenticated}
         <div class="cta-buttons">
-          <button class="btn btn-primary" on:click={() => goto('/dashboard')}>
+          <button class="btn btn-primary" on:click={() => goto('/user/dashboard')}>
             Go to Dashboard
           </button>
-          <button class="btn btn-secondary" on:click={() => goto('/kpis')}>
+          <button class="btn btn-secondary" on:click={() => goto('/user/kpis')}>
             Manage KPIs
           </button>
         </div>
@@ -31,38 +39,7 @@
       {/if}
     </div>
   </div>
-  
-  <div class="features-section">
-    <div class="container">
-      <h2>Key Features</h2>
-      
-      <div class="features-grid">
-        <div class="feature-card">
-          <div class="feature-icon">📊</div>
-          <h3>Intuitive Dashboards</h3>
-          <p>Create custom dashboards with drag-and-drop widgets to visualize your most important metrics</p>
-        </div>
-        
-        <div class="feature-card">
-          <div class="feature-icon">📈</div>
-          <h3>KPI Tracking</h3>
-          <p>Define and track your key performance indicators with targets, measurements and trends</p>
-        </div>
-        
-        <div class="feature-card">
-          <div class="feature-icon">📱</div>
-          <h3>Responsive Design</h3>
-          <p>Access your dashboards from any device with our mobile-friendly interface</p>
-        </div>
-        
-        <div class="feature-card">
-          <div class="feature-icon">🔒</div>
-          <h3>Secure Access</h3>
-          <p>Role-based permissions ensure your data is only accessible to authorized users</p>
-        </div>
-      </div>
-    </div>
-  </div>
+
 </div>
 
 <style>
