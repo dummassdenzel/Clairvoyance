@@ -5,6 +5,7 @@ require_once __DIR__ . '/../models/Kpi.php';
 require_once __DIR__ . '/../models/Dashboard.php';
 require_once __DIR__ . '/../utils/Response.php';
 require_once __DIR__ . '/../utils/Validator.php';
+require_once __DIR__ . '/../utils/FileUtils.php';
 
 class ExportController
 {
@@ -66,19 +67,19 @@ class ExportController
             if ($format === 'csv') {
                 $exportFile = $this->exportService->exportKpiToCsv($kpiId, $timeRange);
                 $contentType = 'text/csv';
-                $downloadFilename = sanitizeFilename($kpi['name']) . '_export_' . date('Ymd') . '.csv';
+                $downloadFilename = FileUtils::sanitizeFilename($kpi['name']) . '_export_' . date('Ymd') . '.csv';
             } else if ($format === 'xlsx') {
                 $exportFile = $this->exportService->exportKpiToExcel($kpiId, $timeRange);
                 $contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-                $downloadFilename = sanitizeFilename($kpi['name']) . '_export_' . date('Ymd') . '.xlsx';
+                $downloadFilename = FileUtils::sanitizeFilename($kpi['name']) . '_export_' . date('Ymd') . '.xlsx';
             } else if ($format === 'pdf') {
                 $exportFile = $this->exportService->exportKpiToPdf($kpiId, $timeRange);
                 $contentType = 'application/pdf';
-                $downloadFilename = sanitizeFilename($kpi['name']) . '_export_' . date('Ymd') . '.pdf';
+                $downloadFilename = FileUtils::sanitizeFilename($kpi['name']) . '_export_' . date('Ymd') . '.pdf';
             } else if ($format === 'json') {
                 $exportFile = $this->exportService->exportKpiToJson($kpiId, $timeRange);
                 $contentType = 'application/json';
-                $downloadFilename = sanitizeFilename($kpi['name']) . '_export_' . date('Ymd') . '.json';
+                $downloadFilename = FileUtils::sanitizeFilename($kpi['name']) . '_export_' . date('Ymd') . '.json';
             }
             
             // Check if export was successful
@@ -293,17 +294,4 @@ class ExportController
     }
 }
 
-/**
- * Helper function to sanitize filename
- * 
- * @param string $filename Filename to sanitize
- * @return string Sanitized filename
- */
-function sanitizeFilename($filename)
-{
-    // Remove any character that is not alphanumeric, underscore, dash, or dot
-    $filename = preg_replace('/[^\w\-\.]/', '_', $filename);
-    // Remove multiple consecutive underscores
-    $filename = preg_replace('/_+/', '_', $filename);
-    return $filename;
-}
+// Using FileUtils::sanitizeFilename instead of local function

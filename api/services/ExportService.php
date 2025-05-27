@@ -596,6 +596,495 @@ class ExportService
     }
     
     /**
+     * Export dashboard data to Excel
+     * 
+     * @param int $dashboardId Dashboard ID
+     * @param array $timeRange Optional time range filter
+     * @return string Path to the generated Excel file
+     */
+    public function exportDashboardToExcel($dashboardId, $timeRange = null)
+    {
+        // Get dashboard data
+        $dashboardModel = new Dashboard();
+        $dashboard = $dashboardModel->getById($dashboardId);
+        
+        if (!$dashboard) {
+            throw new \Exception('Dashboard not found');
+        }
+        
+        // Get widgets for the dashboard
+        $sql = "
+            SELECT w.id, w.title, w.kpi_id, k.name as kpi_name, k.unit, k.target
+            FROM widgets w
+            JOIN kpis k ON w.kpi_id = k.id
+            WHERE w.dashboard_id = :dashboard_id
+        ";
+        
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->bindParam(':dashboard_id', $dashboardId, PDO::PARAM_INT);
+        $stmt->execute();
+        $widgets = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Create a new spreadsheet
+        $spreadsheet = new Spreadsheet();
+        $spreadsheet->getProperties()
+            ->setCreator('Clairvoyance KPI System')
+            ->setLastModifiedBy('Clairvoyance KPI System')
+            ->setTitle($dashboard['name'] . ' Report')
+            ->setSubject('Dashboard Export')
+            ->setDescription('Export of dashboard data from Clairvoyance KPI System');
+        
+        // Set up the main sheet
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Dashboard Summary');
+        
+        // Add dashboard info
+        $sheet->setCellValue('A1', 'Dashboard Report: ' . $dashboard['name']);
+        $sheet->mergeCells('A1:F1');
+        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(16);
+        $sheet->getStyle('A1')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        
+        $sheet->setCellValue('A3', 'Dashboard:');
+        $sheet->setCellValue('B3', $dashboard['name']);
+        $sheet->setCellValue('A4', 'Description:');
+        $sheet->setCellValue('B4', $dashboard['description'] ?? '');
+        $sheet->setCellValue('A5', 'Export Date:');
+        $sheet->setCellValue('B5', date('Y-m-d H:i:s'));
+        
+        if ($timeRange && isset($timeRange['start']) && isset($timeRange['end'])) {
+            $sheet->setCellValue('A6', 'Time Range:');
+            $sheet->setCellValue('B6', $timeRange['start'] . ' to ' . $timeRange['end']);
+        }
+        
+        // Add widgets summary
+        $sheet->setCellValue('A8', 'Widgets Summary');
+        $sheet->mergeCells('A8:F8');
+        $sheet->getStyle('A8')->getFont()->setBold(true)->setSize(14);
+        
+        // Headers for widgets table
+        $sheet->setCellValue('A10', 'Widget ID');
+        $sheet->setCellValue('B10', 'Title');
+        $sheet->setCellValue('C10', 'KPI');
+        $sheet->setCellValue('D10', 'Unit');
+        $sheet->setCellValue('E10', 'Target');
+        $sheet->setCellValue('F10', 'Latest Value');
+        
+        // Style header row
+        $headerStyle = [
+            'font' => [
+                'bold' => true,
+                'color' => ['rgb' => 'FFFFFF'],
+            ],
+            'fill' => [
+                'fillType' => Fill::FILL_SOLID,
+                'startColor' => ['rgb' => '4472C4'],
+            ],
+            'borders' => [
+                'allBorders' => [
+                    'borderStyle' => Border::BORDER_THIN,
+                ],
+            ],
+        ];
+        
+        $sheet->getStyle('A10:F10')->applyFromArray($headerStyle);
+        
+        // Add widget data
+        $row = 11;
+        foreach ($widgets as $widget) {
+            // Get latest measurement for the KPI
+            $sql = "
+                SELECT value, timestamp
+                FROM measurements
+                WHERE kpi_id = :kpi_id
+                ORDER BY timestamp DESC
+                LIMIT 1
+            ";
+            
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->bindParam(':kpi_id', $widget['kpi_id'], PDO::PARAM_INT);
+            $stmt->execute();
+            $latestMeasurement = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            $sheet->setCellValue('A' . $row, $widget['id']);
+            $sheet->setCellValue('B' . $row, $widget['title']);
+            $sheet->setCellValue('C' . $row, $widget['kpi_name']);
+            $sheet->setCellValue('D' . $row, $widget['unit'] ?? '');
+            $sheet->setCellValue('E' . $row, $widget['target'] ?? '');
+            $sheet->setCellValue('F' . $row, $latestMeasurement ? $latestMeasurement['value'] : 'N/A');
+            
+            $row++;
+        }
+        
+        // Auto-size columns
+        foreach (range('A', 'F') as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+        
+        // Create a sheet for each widget with its data
+        foreach ($widgets as $index => $widget) {
+            // Get measurements for the KPI
+            $sql = "
+                SELECT value, timestamp
+                FROM measurements
+                WHERE kpi_id = :kpi_id
+            ";
+            
+            $params = [':kpi_id' => $widget['kpi_id']];
+            
+            // Add time range filter if provided
+            if ($timeRange && isset($timeRange['start']) && isset($timeRange['end'])) {
+                $sql .= " AND timestamp BETWEEN :start_date AND :end_date";
+                $params[':start_date'] = $timeRange['start'];
+                $params[':end_date'] = $timeRange['end'];
+            }
+            
+            $sql .= " ORDER BY timestamp ASC";
+            
+            // Execute query
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->execute($params);
+            $measurements = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            // Skip if no measurements
+            if (empty($measurements)) {
+                continue;
+            }
+            
+            // Create a new sheet for this widget
+            $widgetSheet = $spreadsheet->createSheet();
+            $widgetSheet->setTitle(substr('Widget ' . ($index + 1), 0, 31)); // Max 31 chars for sheet title
+            
+            // Add widget info
+            $widgetSheet->setCellValue('A1', 'Widget: ' . $widget['title']);
+            $widgetSheet->mergeCells('A1:D1');
+            $widgetSheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
+            
+            $widgetSheet->setCellValue('A3', 'KPI:');
+            $widgetSheet->setCellValue('B3', $widget['kpi_name']);
+            $widgetSheet->setCellValue('A4', 'Unit:');
+            $widgetSheet->setCellValue('B4', $widget['unit'] ?? '');
+            $widgetSheet->setCellValue('A5', 'Target:');
+            $widgetSheet->setCellValue('B5', $widget['target'] ?? '');
+            
+            // Add data headers
+            $widgetSheet->setCellValue('A7', 'Timestamp');
+            $widgetSheet->setCellValue('B7', 'Value');
+            $widgetSheet->getStyle('A7:B7')->applyFromArray($headerStyle);
+            
+            // Add measurement data
+            $dataRow = 8;
+            $timestamps = [];
+            $values = [];
+            
+            foreach ($measurements as $measurement) {
+                $widgetSheet->setCellValue('A' . $dataRow, $measurement['timestamp']);
+                $widgetSheet->setCellValue('B' . $dataRow, $measurement['value']);
+                
+                $timestamps[] = date('M d', strtotime($measurement['timestamp']));
+                $values[] = $measurement['value'];
+                
+                $dataRow++;
+            }
+            
+            // Auto-size columns
+            foreach (range('A', 'B') as $col) {
+                $widgetSheet->getColumnDimension($col)->setAutoSize(true);
+            }
+            
+            // Add a chart if there are measurements
+            if (count($measurements) > 0) {
+                $dataSeriesLabels = [new DataSeriesValues(DataSeriesValues::DATASERIES_TYPE_STRING, 'Widget ' . ($index + 1) . '!$B$7', null, 1)];
+                
+                // Create X-axis labels (timestamps)
+                $xAxisTickValues = [new DataSeriesValues(DataSeriesValues::DATASERIES_TYPE_STRING, 'Widget ' . ($index + 1) . '!$A$8:$A$' . ($dataRow - 1), null, count($measurements))];
+                
+                // Create data series
+                $dataSeriesValues = [new DataSeriesValues(DataSeriesValues::DATASERIES_TYPE_NUMBER, 'Widget ' . ($index + 1) . '!$B$8:$B$' . ($dataRow - 1), null, count($measurements))];
+                
+                // Build the dataseries
+                $series = new DataSeries(
+                    DataSeries::TYPE_LINECHART,
+                    DataSeries::GROUPING_STANDARD,
+                    range(0, count($dataSeriesValues) - 1),
+                    $dataSeriesLabels,
+                    $xAxisTickValues,
+                    $dataSeriesValues
+                );
+                
+                // Set up the chart
+                $plotArea = new PlotArea(null, [$series]);
+                $legend = new Legend(Legend::POSITION_RIGHT, null, false);
+                $title = new Title($widget['kpi_name'] . ' Trend');
+                
+                // Create the chart
+                $chart = new Chart(
+                    'chart' . ($index + 1),
+                    $title,
+                    $legend,
+                    $plotArea
+                );
+                
+                // Set the position where the chart should appear
+                $chart->setTopLeftPosition('D3');
+                $chart->setBottomRightPosition('J20');
+                
+                // Add the chart to the worksheet
+                $widgetSheet->addChart($chart);
+            }
+        }
+        
+        // Set active sheet to the first sheet
+        $spreadsheet->setActiveSheetIndex(0);
+        
+        // Create temporary file
+        $tempFile = tempnam(sys_get_temp_dir(), 'dashboard_export_');
+        $excelFile = $tempFile . '.xlsx';
+        rename($tempFile, $excelFile);
+        
+        // Save to Excel file
+        $writer = new Xlsx($spreadsheet);
+        $writer->setIncludeCharts(true);
+        $writer->save($excelFile);
+        
+        return $excelFile;
+    }
+    
+    /**
+     * Export dashboard data to PDF
+     * 
+     * @param int $dashboardId Dashboard ID
+     * @param array $timeRange Optional time range filter
+     * @return string Path to the generated PDF file
+     */
+    public function exportDashboardToPdf($dashboardId, $timeRange = null)
+    {
+        // Get dashboard data
+        $dashboardModel = new Dashboard();
+        $dashboard = $dashboardModel->getById($dashboardId);
+        
+        if (!$dashboard) {
+            throw new \Exception('Dashboard not found');
+        }
+        
+        // Get widgets for the dashboard
+        $sql = "
+            SELECT w.id, w.title, w.kpi_id, k.name as kpi_name, k.unit, k.target
+            FROM widgets w
+            JOIN kpis k ON w.kpi_id = k.id
+            WHERE w.dashboard_id = :dashboard_id
+        ";
+        
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->bindParam(':dashboard_id', $dashboardId, PDO::PARAM_INT);
+        $stmt->execute();
+        $widgets = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Create new PDF document
+        $pdf = new \TCPDF(PDF_PAGE_ORIENTATION, PDF_UNIT, PDF_PAGE_FORMAT, true, 'UTF-8', false);
+        
+        // Set document information
+        $pdf->SetCreator('Clairvoyance KPI System');
+        $pdf->SetAuthor('Clairvoyance');
+        $pdf->SetTitle($dashboard['name'] . ' Report');
+        $pdf->SetSubject('Dashboard Report');
+        
+        // Set default header data
+        $pdf->SetHeaderData('', 0, 'Clairvoyance Dashboard Report', $dashboard['name'] . ' - Generated on ' . date('Y-m-d H:i:s'));
+        
+        // Set header and footer fonts
+        $pdf->setHeaderFont(['helvetica', '', 10]);
+        $pdf->setFooterFont(['helvetica', '', 8]);
+        
+        // Set default monospaced font
+        $pdf->SetDefaultMonospacedFont('courier');
+        
+        // Set margins
+        $pdf->SetMargins(15, 27, 15);
+        $pdf->SetHeaderMargin(5);
+        $pdf->SetFooterMargin(10);
+        
+        // Set auto page breaks
+        $pdf->SetAutoPageBreak(TRUE, 25);
+        
+        // Set image scale factor
+        $pdf->setImageScale(1.25);
+        
+        // Add a page
+        $pdf->AddPage();
+        
+        // Set font
+        $pdf->SetFont('helvetica', 'B', 16);
+        
+        // Title
+        $pdf->Cell(0, 10, $dashboard['name'] . ' Dashboard Report', 0, 1, 'C');
+        $pdf->Ln(5);
+        
+        // Dashboard details
+        $pdf->SetFont('helvetica', 'B', 12);
+        $pdf->Cell(0, 10, 'Dashboard Details:', 0, 1);
+        
+        $pdf->SetFont('helvetica', '', 10);
+        $pdf->Cell(40, 7, 'Name:', 0, 0);
+        $pdf->Cell(0, 7, $dashboard['name'], 0, 1);
+        $pdf->Cell(40, 7, 'Description:', 0, 0);
+        $pdf->Cell(0, 7, $dashboard['description'] ?? 'N/A', 0, 1);
+        
+        if ($timeRange && isset($timeRange['start']) && isset($timeRange['end'])) {
+            $pdf->Cell(40, 7, 'Time Range:', 0, 0);
+            $pdf->Cell(0, 7, $timeRange['start'] . ' to ' . $timeRange['end'], 0, 1);
+        }
+        
+        $pdf->Ln(5);
+        
+        // Widgets summary
+        $pdf->SetFont('helvetica', 'B', 12);
+        $pdf->Cell(0, 10, 'Widgets Summary:', 0, 1);
+        
+        // Table header
+        $pdf->SetFont('helvetica', 'B', 10);
+        $pdf->SetFillColor(71, 114, 196);
+        $pdf->SetTextColor(255);
+        $pdf->Cell(15, 7, 'ID', 1, 0, 'C', 1);
+        $pdf->Cell(50, 7, 'Title', 1, 0, 'C', 1);
+        $pdf->Cell(50, 7, 'KPI', 1, 0, 'C', 1);
+        $pdf->Cell(25, 7, 'Unit', 1, 0, 'C', 1);
+        $pdf->Cell(25, 7, 'Target', 1, 0, 'C', 1);
+        $pdf->Ln();
+        
+        // Table data
+        $pdf->SetFont('helvetica', '', 10);
+        $pdf->SetTextColor(0);
+        $fill = false;
+        
+        foreach ($widgets as $widget) {
+            $pdf->SetFillColor(224, 235, 255);
+            $pdf->Cell(15, 7, $widget['id'], 1, 0, 'C', $fill);
+            $pdf->Cell(50, 7, $widget['title'], 1, 0, 'L', $fill);
+            $pdf->Cell(50, 7, $widget['kpi_name'], 1, 0, 'L', $fill);
+            $pdf->Cell(25, 7, $widget['unit'] ?? '', 1, 0, 'C', $fill);
+            $pdf->Cell(25, 7, $widget['target'] ?? '', 1, 0, 'C', $fill);
+            $pdf->Ln();
+            $fill = !$fill;
+        }
+        
+        // Add a page for each widget with its data
+        foreach ($widgets as $widget) {
+            // Get measurements for the KPI
+            $sql = "
+                SELECT value, timestamp
+                FROM measurements
+                WHERE kpi_id = :kpi_id
+            ";
+            
+            $params = [':kpi_id' => $widget['kpi_id']];
+            
+            // Add time range filter if provided
+            if ($timeRange && isset($timeRange['start']) && isset($timeRange['end'])) {
+                $sql .= " AND timestamp BETWEEN :start_date AND :end_date";
+                $params[':start_date'] = $timeRange['start'];
+                $params[':end_date'] = $timeRange['end'];
+            }
+            
+            $sql .= " ORDER BY timestamp ASC";
+            
+            // Execute query
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->execute($params);
+            $measurements = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            // Skip if no measurements
+            if (empty($measurements)) {
+                continue;
+            }
+            
+            // Add a new page for this widget
+            $pdf->AddPage();
+            
+            // Widget title
+            $pdf->SetFont('helvetica', 'B', 14);
+            $pdf->Cell(0, 10, 'Widget: ' . $widget['title'], 0, 1, 'C');
+            $pdf->Ln(5);
+            
+            // Widget details
+            $pdf->SetFont('helvetica', 'B', 12);
+            $pdf->Cell(0, 10, 'KPI Details:', 0, 1);
+            
+            $pdf->SetFont('helvetica', '', 10);
+            $pdf->Cell(40, 7, 'KPI Name:', 0, 0);
+            $pdf->Cell(0, 7, $widget['kpi_name'], 0, 1);
+            $pdf->Cell(40, 7, 'Unit:', 0, 0);
+            $pdf->Cell(0, 7, $widget['unit'] ?? 'N/A', 0, 1);
+            $pdf->Cell(40, 7, 'Target:', 0, 0);
+            $pdf->Cell(0, 7, $widget['target'] ?? 'N/A', 0, 1);
+            
+            $pdf->Ln(5);
+            
+            // Measurements table
+            $pdf->SetFont('helvetica', 'B', 12);
+            $pdf->Cell(0, 10, 'Measurements:', 0, 1);
+            
+            // Table header
+            $pdf->SetFont('helvetica', 'B', 10);
+            $pdf->SetFillColor(71, 114, 196);
+            $pdf->SetTextColor(255);
+            $pdf->Cell(80, 7, 'Timestamp', 1, 0, 'C', 1);
+            $pdf->Cell(80, 7, 'Value', 1, 0, 'C', 1);
+            $pdf->Ln();
+            
+            // Table data
+            $pdf->SetFont('helvetica', '', 10);
+            $pdf->SetTextColor(0);
+            $fill = false;
+            
+            // Extract data for the chart
+            $timestamps = [];
+            $values = [];
+            
+            // Only show up to 20 measurements in the table to avoid overwhelming the PDF
+            $displayMeasurements = array_slice($measurements, -20);
+            
+            foreach ($displayMeasurements as $measurement) {
+                $pdf->SetFillColor(224, 235, 255);
+                $pdf->Cell(80, 7, $measurement['timestamp'], 1, 0, 'L', $fill);
+                $pdf->Cell(80, 7, $measurement['value'] . ' ' . ($widget['unit'] ?? ''), 1, 0, 'R', $fill);
+                $pdf->Ln();
+                $fill = !$fill;
+                
+                $timestamps[] = date('M d', strtotime($measurement['timestamp']));
+                $values[] = $measurement['value'];
+            }
+            
+            // Add chart if there are measurements
+            if (count($measurements) > 0) {
+                $pdf->AddPage();
+                $pdf->SetFont('helvetica', 'B', 12);
+                $pdf->Cell(0, 10, $widget['kpi_name'] . ' Trend Chart:', 0, 1);
+                
+                // Create temporary image file for the chart
+                $chartFile = $this->createChartImage($widget['kpi_name'], $timestamps, $values, $widget['target'] ?? null);
+                
+                if ($chartFile) {
+                    // Add the chart image to PDF
+                    $pdf->Image($chartFile, 15, 50, 180, 100, 'PNG');
+                    
+                    // Clean up the temporary file
+                    @unlink($chartFile);
+                }
+            }
+        }
+        
+        // Create temporary file
+        $tempFile = tempnam(sys_get_temp_dir(), 'dashboard_export_');
+        $pdfFile = $tempFile . '.pdf';
+        rename($tempFile, $pdfFile);
+        
+        // Save to PDF file
+        $pdf->Output($pdfFile, 'F');
+        
+        return $pdfFile;
+    }
+    
+    /**
      * Export dashboard data to CSV
      * 
      * @param int $dashboardId Dashboard ID
