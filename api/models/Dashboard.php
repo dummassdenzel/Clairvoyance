@@ -111,7 +111,7 @@ class Dashboard
             
             $stmt->bindParam(':user_id', $data['user_id'], PDO::PARAM_INT);
             $stmt->bindParam(':name', $data['name'], PDO::PARAM_STR);
-            $stmt->bindParam(':description', $data['description'] ?? null, PDO::PARAM_STR);
+            $stmt->bindParam(':description', $data['description'], PDO::PARAM_STR);
             $isDefault = isset($data['is_default']) ? ($data['is_default'] ? 1 : 0) : 0;
             $stmt->bindParam(':is_default', $isDefault, PDO::PARAM_INT);
             

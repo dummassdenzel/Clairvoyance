@@ -26,9 +26,6 @@ Filter and sort KPI data by date ranges
 Compare KPIs against targets
 Export specific visualizations or reports
 2. Missing Components in Current Implementation
-Category Management
-The database has a categories table, but there are no API endpoints to manage categories
-This creates a dependency issue: KPIs require a category_id, but users can't create categories
 Data Import Flow
 No endpoints for uploading and processing CSV/Excel/JSON files
 Missing validation and mapping logic for imported data
@@ -40,12 +37,6 @@ Need clearer flows for users to create and customize their dashboards
 Widget positioning and layout management needs API support
 3. Recommended Flow Improvements
 Add Category Management
-CopyInsert
-GET /categories - List all categories
-GET /categories/{id} - Get a specific category
-POST /categories - Create a new category
-PUT /categories/{id} - Update a category
-DELETE /categories/{id} - Delete a category
 Enhance KPI Creation Flow
 Allow creating KPIs with optional category
 Add bulk KPI creation option

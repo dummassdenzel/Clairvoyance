@@ -75,11 +75,18 @@ class Kpi
                 VALUES (:user_id, :category_id, :name, :unit, :target)
             ");
             
-            $stmt->bindParam(':user_id', $data['user_id'], PDO::PARAM_INT);
-            $stmt->bindParam(':category_id', $data['category_id'], PDO::PARAM_INT);
-            $stmt->bindParam(':name', $data['name'], PDO::PARAM_STR);
-            $stmt->bindParam(':unit', $data['unit'] ?? null, PDO::PARAM_STR);
-            $stmt->bindParam(':target', $data['target'] ?? null, PDO::PARAM_STR);
+            // Prepare variables for binding (can't use expressions directly with bindParam)
+            $userId = $data['user_id'];
+            $categoryId = $data['category_id'];
+            $name = $data['name'];
+            $unit = isset($data['unit']) ? $data['unit'] : null;
+            $target = isset($data['target']) ? $data['target'] : null;
+            
+            $stmt->bindParam(':user_id', $userId, PDO::PARAM_INT);
+            $stmt->bindParam(':category_id', $categoryId, PDO::PARAM_INT);
+            $stmt->bindParam(':name', $name, PDO::PARAM_STR);
+            $stmt->bindParam(':unit', $unit, PDO::PARAM_STR);
+            $stmt->bindParam(':target', $target, PDO::PARAM_STR);
             
             $result = $stmt->execute();
             if ($result) {

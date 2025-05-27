@@ -9,6 +9,8 @@ require_once __DIR__ . '/../controllers/WidgetController.php';
 require_once __DIR__ . '/../controllers/ReportController.php';
 require_once __DIR__ . '/../controllers/UserController.php';
 require_once __DIR__ . '/../controllers/CategoryController.php';
+require_once __DIR__ . '/../controllers/ImportController.php';
+require_once __DIR__ . '/../controllers/ExportController.php';
 require_once __DIR__ . '/../utils/Response.php';
 require_once __DIR__ . '/../middleware/RoleMiddleware.php';
 
@@ -29,6 +31,8 @@ $widgetController = new WidgetController();
 $reportController = new ReportController();
 $userController = new UserController();
 $categoryController = new CategoryController();
+$importController = new ImportController();
+$exportController = new ExportController();
 
 // Handle request based on the resource and method
 switch ($resource) {
@@ -218,6 +222,85 @@ switch ($resource) {
             if (!$user) break;
             
             $categoryController->delete($id, $user);
+        } else {
+            Response::error('Method not allowed', null, 405);
+        }
+        break;
+
+    case 'import':
+        // Data import endpoints - admin only
+        if ($method === 'POST') {
+            $user = $roleMiddleware->requireAdmin();
+            if (!$user) break;
+            
+            if ($subResource === 'validate') {
+                $importController->validateImport($_POST);
+            } else {
+                $importController->importData($_POST, $user);
+            }
+        } elseif ($method === 'GET' && $id === 'templates') {
+            $user = $roleMiddleware->requireViewer();
+            if (!$user) break;
+            
+            $importController->getTemplates();
+        } else {
+            Response::error('Method not allowed', null, 405);
+        }
+        break;
+        
+    case 'export':
+        // Data export endpoints
+        if ($method === 'GET') {
+            $user = $roleMiddleware->requireViewer();
+            if (!$user) break;
+            
+            if ($id === 'kpi' && isset($request[1]) && is_numeric($request[1])) {
+                $kpiId = $request[1];
+                $data = isset($_GET) ? $_GET : [];
+                $exportController->exportKpi($kpiId, $data, $user);
+            } elseif ($id === 'dashboard' && isset($request[1]) && is_numeric($request[1])) {
+                $dashboardId = $request[1];
+                $data = isset($_GET) ? $_GET : [];
+                $exportController->exportDashboard($dashboardId, $data, $user);
+            } else {
+                Response::notFound('Export resource not found');
+            }
+        } else {
+            Response::error('Method not allowed', null, 405);
+        }
+        break;
+    
+    case 'reports':
+        // Report endpoints
+        if ($method === 'GET') {
+            $user = $roleMiddleware->requireViewer();
+            if (!$user) break;
+            
+            if ($id) {
+                if ($subResource === 'download') {
+                    $reportController->downloadReport($id, $user);
+                } else {
+                    $reportController->getOne($id, $user);
+                }
+            } else {
+                $reportController->getAll($user);
+            }
+        } elseif ($method === 'POST') {
+            $user = $roleMiddleware->requireViewer();
+            if (!$user) break;
+            
+            if ($id === 'generate') {
+                $data = json_decode(file_get_contents('php://input'), true);
+                $exportController->generateReport($data, $user);
+            } else {
+                $data = json_decode(file_get_contents('php://input'), true);
+                $reportController->create($data, $user);
+            }
+        } elseif ($method === 'DELETE') {
+            $user = $roleMiddleware->requireViewer();
+            if (!$user) break;
+            
+            $reportController->delete($id, $user);
         } else {
             Response::error('Method not allowed', null, 405);
         }

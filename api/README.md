@@ -315,7 +315,7 @@ Delete a specific category by ID (Admin only)
 ```
 
 ### KPIs: 
-#### `GET /kpis`
+###  `GET /kpis`
 Get all KPIs
 
 **Response:**
@@ -981,3 +981,180 @@ Multipart form data with:
   },
   "message": "Data imported successfully"
 }
+```
+
+## Data Import/Export API
+
+### Import Endpoints
+
+#### `POST /import/data`
+Import KPI data from a file (CSV, Excel, or JSON)
+
+**Request:**
+Multipart form data with:
+- `file`: The file to upload
+- `kpi_id`: The KPI ID to associate with the data
+- `mapping`: JSON string defining column mappings
+
+**Example CSV/Excel mapping:**
+```json
+{
+  "timestamp_column": "Date",
+  "value_column": "Value",
+  "timestamp_format": "Y-m-d"
+}
+```
+
+**Example JSON mapping:**
+```json
+{
+  "timestamp_field": "date",
+  "value_field": "value",
+  "timestamp_format": "Y-m-d"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "imported_rows": 24,
+    "skipped_rows": 2,
+    "errors": [],
+    "kpi": {
+      "id": 3,
+      "name": "Customer Satisfaction",
+      "unit": "score",
+      "target": 4.5
+    }
+  },
+  "message": "Data imported successfully"
+}
+```
+
+#### `POST /import/validate`
+Validate import data before actual import
+
+**Request:**
+Multipart form data with:
+- `file`: The file to upload
+- `kpi_id`: The KPI ID to associate with the data
+- `mapping`: JSON string defining column mappings
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "file_name": "satisfaction_data.csv",
+    "file_size": 1024,
+    "file_type": "csv",
+    "kpi": {
+      "id": 3,
+      "name": "Customer Satisfaction",
+      "unit": "score",
+      "target": 4.5
+    },
+    "mapping": {
+      "timestamp_column": "Date",
+      "value_column": "Value",
+      "timestamp_format": "Y-m-d"
+    }
+  },
+  "message": "File and mapping validated successfully"
+}
+```
+
+#### `GET /import/templates`
+Get import templates
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "csv": {
+      "description": "CSV template for KPI data import",
+      "format": "CSV (Comma Separated Values)",
+      "example": "Date,Value\n2025-01-01,100\n2025-01-02,105\n2025-01-03,110",
+      "mapping_example": {
+        "timestamp_column": "Date",
+        "value_column": "Value",
+        "timestamp_format": "Y-m-d"
+      }
+    },
+    "json": {
+      "description": "JSON template for KPI data import",
+      "format": "JSON (JavaScript Object Notation)",
+      "example": "[{\"date\":\"2025-01-01\",\"value\":100},{\"date\":\"2025-01-02\",\"value\":105},{\"date\":\"2025-01-03\",\"value\":110}]",
+      "mapping_example": {
+        "timestamp_field": "date",
+        "value_field": "value",
+        "timestamp_format": "Y-m-d"
+      }
+    }
+  },
+  "message": "Import templates retrieved successfully"
+}
+```
+
+### Export Endpoints
+
+#### `GET /export/kpi/{id}`
+Export KPI data to CSV, Excel, PDF or JSON
+
+**Query Parameters:**
+- `format`: Export format (csv, xlsx, pdf, or json, default: csv)
+- `time_range[start]`: Start date for filtering data (optional)
+- `time_range[end]`: End date for filtering data (optional)
+
+**Response:**
+File download with appropriate Content-Type header
+
+#### `GET /export/dashboard/{id}`
+Export dashboard data to CSV, Excel, PDF or JSON
+
+**Query Parameters:**
+- `format`: Export format (csv, xlsx, pdf, or json, default: csv)
+- `time_range[start]`: Start date for filtering data (optional)
+- `time_range[end]`: End date for filtering data (optional)
+
+**Response:**
+File download with appropriate Content-Type header
+
+#### `POST /reports/generate`
+Generate a report for a dashboard
+
+**Request:**
+```json
+{
+  "dashboard_id": 3,
+  "name": "Sales Performance - May 2025",
+  "format": "xlsx",
+  "time_range": {
+    "start": "2025-05-01",
+    "end": "2025-05-31"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": 5,
+    "name": "Sales Performance - May 2025",
+    "format": "csv",
+    "download_url": "/api/reports/5/download"
+  },
+  "message": "Report generated successfully"
+}
+```
+
+#### `GET /reports/{id}/download`
+Download a generated report
+
+**Response:**
+File download with appropriate Content-Type header
