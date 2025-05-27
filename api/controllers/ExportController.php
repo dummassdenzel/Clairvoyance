@@ -3,21 +3,29 @@
 require_once __DIR__ . '/../services/ExportService.php';
 require_once __DIR__ . '/../models/Kpi.php';
 require_once __DIR__ . '/../models/Dashboard.php';
+require_once __DIR__ . '/../models/Report.php';
 require_once __DIR__ . '/../utils/Response.php';
 require_once __DIR__ . '/../utils/Validator.php';
 require_once __DIR__ . '/../utils/FileUtils.php';
+require_once __DIR__ . '/../config/database.php';
 
 class ExportController
 {
     private $exportService;
     private $kpiModel;
     private $dashboardModel;
+    private $reportModel;
+    private $pdo;
     
     public function __construct()
     {
         $this->exportService = new ExportService();
         $this->kpiModel = new Kpi();
         $this->dashboardModel = new Dashboard();
+        $this->reportModel = new Report();
+        
+        $conn = new Connection();
+        $this->pdo = $conn->connect();
     }
     
     /**
@@ -161,11 +169,19 @@ class ExportController
             if ($format === 'csv') {
                 $exportFile = $this->exportService->exportDashboardToCsv($dashboardId, $timeRange);
                 $contentType = 'text/csv';
-                $downloadFilename = sanitizeFilename($dashboard['name']) . '_export_' . date('Ymd') . '.csv';
+                $downloadFilename = FileUtils::sanitizeFilename($dashboard['name']) . '_export_' . date('Ymd') . '.csv';
+            } else if ($format === 'xlsx') {
+                $exportFile = $this->exportService->exportDashboardToExcel($dashboardId, $timeRange);
+                $contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+                $downloadFilename = FileUtils::sanitizeFilename($dashboard['name']) . '_export_' . date('Ymd') . '.xlsx';
+            } else if ($format === 'pdf') {
+                $exportFile = $this->exportService->exportDashboardToPdf($dashboardId, $timeRange);
+                $contentType = 'application/pdf';
+                $downloadFilename = FileUtils::sanitizeFilename($dashboard['name']) . '_export_' . date('Ymd') . '.pdf';
             } else if ($format === 'json') {
                 $exportFile = $this->exportService->exportDashboardToJson($dashboardId, $timeRange);
                 $contentType = 'application/json';
-                $downloadFilename = sanitizeFilename($dashboard['name']) . '_export_' . date('Ymd') . '.json';
+                $downloadFilename = FileUtils::sanitizeFilename($dashboard['name']) . '_export_' . date('Ymd') . '.json';
             }
             
             // Check if export was successful
@@ -244,6 +260,10 @@ class ExportController
             // Generate report based on format
             if ($format === 'csv') {
                 $exportFile = $this->exportService->exportDashboardToCsv($data['dashboard_id'], $timeRange);
+            } else if ($format === 'xlsx') {
+                $exportFile = $this->exportService->exportDashboardToExcel($data['dashboard_id'], $timeRange);
+            } else if ($format === 'pdf') {
+                $exportFile = $this->exportService->exportDashboardToPdf($data['dashboard_id'], $timeRange);
             } else if ($format === 'json') {
                 $exportFile = $this->exportService->exportDashboardToJson($data['dashboard_id'], $timeRange);
             }
@@ -257,28 +277,20 @@ class ExportController
             // Create report record in database
             $reportName = isset($data['name']) ? $data['name'] : $dashboard['name'] . ' Report - ' . date('Y-m-d');
             
-            $stmt = $this->pdo->prepare("
-                INSERT INTO reports (user_id, dashboard_id, name, format, file_path, created_at)
-                VALUES (:user_id, :dashboard_id, :name, :format, :file_path, NOW())
-            ");
+            $reportData = [
+                'user_id' => $user->id,
+                'dashboard_id' => $data['dashboard_id'],
+                'name' => $reportName,
+                'format' => $format,
+                'file_path' => $exportFile
+            ];
             
-            $userId = $user->id;
-            $dashboardId = $data['dashboard_id'];
-            $formatParam = $format;
-            $filePath = $exportFile;
+            $reportId = $this->reportModel->create($reportData);
             
-            $stmt->bindParam(':user_id', $userId, PDO::PARAM_INT);
-            $stmt->bindParam(':dashboard_id', $dashboardId, PDO::PARAM_INT);
-            $stmt->bindParam(':name', $reportName, PDO::PARAM_STR);
-            $stmt->bindParam(':format', $formatParam, PDO::PARAM_STR);
-            $stmt->bindParam(':file_path', $filePath, PDO::PARAM_STR);
-            
-            if (!$stmt->execute()) {
+            if (!$reportId) {
                 Response::error('Failed to save report record');
                 return;
             }
-            
-            $reportId = $this->pdo->lastInsertId();
             
             // Return success response
             Response::success('Report generated successfully', [

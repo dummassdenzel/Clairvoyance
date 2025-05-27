@@ -142,16 +142,30 @@ switch ($resource) {
             if (!$user) break;
             
             if ($id) {
-                $reportController->generate($id, $user);
+                if ($subResource === 'download') {
+                    $reportController->downloadReport($id, $user);
+                } else {
+                    $reportController->getOne($id, $user);
+                }
             } else {
-                $reportController->listReports($user);
+                $reportController->getAll($user);
             }
         } elseif ($method === 'POST') {
             $user = $roleMiddleware->requireViewer();
             if (!$user) break;
             
-            $data = json_decode(file_get_contents('php://input'), true);
-            $reportController->create($data, $user);
+            if ($id === 'generate') {
+                $data = json_decode(file_get_contents('php://input'), true);
+                $reportController->create($data, $user);
+            } else {
+                $data = json_decode(file_get_contents('php://input'), true);
+                $reportController->create($data, $user);
+            }
+        } elseif ($method === 'DELETE') {
+            $user = $roleMiddleware->requireViewer();
+            if (!$user) break;
+            
+            $reportController->delete($id, $user);
         } else {
             Response::error('Method not allowed', null, 405);
         }
@@ -291,7 +305,7 @@ switch ($resource) {
             
             if ($id === 'generate') {
                 $data = json_decode(file_get_contents('php://input'), true);
-                $exportController->generateReport($data, $user);
+                $reportController->create($data, $user);
             } else {
                 $data = json_decode(file_get_contents('php://input'), true);
                 $reportController->create($data, $user);
