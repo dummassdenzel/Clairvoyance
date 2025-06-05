@@ -46,12 +46,22 @@ class RoleMiddleware
     }
     
     /**
-     * Check if the user is a viewer or admin
+     * Check if the user is an editor or admin
      * 
-     * @return object The authenticated user if they are a viewer or admin
+     * @return object The authenticated user if they are an editor or admin
+     */
+    public function requireEditor()
+    {
+        return $this->requireRole(['admin', 'editor']);
+    }
+    
+    /**
+     * Check if the user is a viewer, editor, or admin
+     * 
+     * @return object The authenticated user if they are a viewer, editor, or admin
      */
     public function requireViewer()
     {
-        return $this->requireRole(['admin', 'viewer']);
+        return $this->requireRole(['admin', 'editor', 'viewer']);
     }
-} 
+}

@@ -90,8 +90,8 @@ class UserController
         }
         
         // Validate role
-        if (!in_array($data['role'], ['admin', 'viewer'])) {
-            Response::error('Invalid role. Must be "admin" or "viewer"');
+        if (!in_array($data['role'], ['admin', 'editor', 'viewer'])) {
+            Response::error('Invalid role. Must be "admin", "editor", or "viewer"');
             return;
         }
         
@@ -156,8 +156,8 @@ class UserController
         }
         
         // Validate role if provided
-        if (isset($data['role']) && !in_array($data['role'], ['admin', 'viewer'])) {
-            Response::error('Invalid role. Must be "admin" or "viewer"');
+        if (isset($data['role']) && !in_array($data['role'], ['admin', 'editor', 'viewer'])) {
+            Response::error('Invalid role. Must be "admin", "editor", or "viewer"');
             return;
         }
         

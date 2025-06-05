@@ -1,3 +1,5 @@
+# Clairvoyance API Documentation
+
 The Clairvoyance API is a RESTful service that powers a KPI (Key Performance Indicator) visualization and tracking system. It provides endpoints for managing users, dashboards, KPIs, widgets, and reports with role-based access control.
 
 ## Base URL
@@ -9,6 +11,13 @@ All endpoints (except login) require a valid JWT token in the Authorization head
 ```
 Authorization: Bearer <token>
 ```
+
+## Roles and Permissions
+The API supports three user roles with different permission levels:
+
+1. **Admin** - Full access to all features and data
+2. **Editor** - Can create and edit most resources, but cannot delete critical data or manage users
+3. **Viewer** - Read-only access to dashboards, KPIs, and reports
 
 ## Response Format
 All API responses follow a standard format:
@@ -57,7 +66,7 @@ Login with username and password
       "id": 1,
       "username": "testuser",
       "email": "user@example.com",
-      "role": "viewer"
+      "role": "editor"
     }
   },
   "message": "Login successful"
@@ -119,7 +128,7 @@ Create a new user (Admin only)
   "username": "newuser",
   "email": "newuser@example.com",
   "password": "securepassword",
-  "role": "viewer"
+  "role": "editor"
 }
 ```
 
@@ -131,7 +140,7 @@ Create a new user (Admin only)
     "id": 5,
     "username": "newuser",
     "email": "newuser@example.com",
-    "role": "viewer",
+    "role": "editor",
     "created_at": "2025-05-25 18:00:00"
   },
   "message": "User created successfully"
@@ -145,7 +154,7 @@ Update a specific user by ID (Admin only)
 ```json
 {
   "email": "updated@example.com",
-  "role": "admin"
+  "role": "editor"
 }
 ```
 
@@ -601,7 +610,7 @@ Delete a specific dashboard by ID
 
 ### WIDGETS: 
 #### `GET /widgets`
-Get all widgets
+Get all widgets for the authenticated user
 
 **Response:**
 ```json
@@ -656,7 +665,7 @@ Get all widgets
 ```
 
 #### `GET /widgets/{id}`
-Get a specific widget by ID
+Get a specific widget by ID (user must have access to the widget's dashboard)
 
 **Response:**
 ```json
@@ -699,7 +708,7 @@ Get a specific widget by ID
 ```
 
 #### `POST /widgets`
-Create a new widget
+Create a new widget (user must have access to the specified dashboard)
 
 **Request:**
 ```json
@@ -746,7 +755,7 @@ Create a new widget
 ```
 
 #### `PUT /widgets/{id}`
-Update a specific widget by ID
+Update a specific widget by ID (user must have access to the widget's dashboard)
 
 **Request:**
 ```json
@@ -787,7 +796,7 @@ Update a specific widget by ID
 ```
 
 #### `DELETE /widgets/{id}`
-Delete a specific widget by ID
+Delete a specific widget by ID (user must have access to the widget's dashboard)
 
 **Response:**
 ```json

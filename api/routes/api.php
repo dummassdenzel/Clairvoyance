@@ -37,7 +37,7 @@ $exportController = new ExportController();
 // Handle request based on the resource and method
 switch ($resource) {
     case 'kpis':
-        // KPI endpoints - all users can view, only admins can modify
+        // KPI endpoints - all users can view, editors and admins can modify
         if ($method === 'GET') {
             $user = $roleMiddleware->requireViewer();
             if (!$user) break;
@@ -48,13 +48,13 @@ switch ($resource) {
                 $kpiController->getAll();
             }
         } elseif ($method === 'POST') {
-            $user = $roleMiddleware->requireAdmin();
+            $user = $roleMiddleware->requireEditor();
             if (!$user) break;
             
             $data = json_decode(file_get_contents('php://input'), true);
             $kpiController->create($data, $user);
         } elseif ($method === 'PUT') {
-            $user = $roleMiddleware->requireAdmin();
+            $user = $roleMiddleware->requireEditor();
             if (!$user) break;
             
             $data = json_decode(file_get_contents('php://input'), true);
@@ -205,7 +205,7 @@ switch ($resource) {
         break;
     
     case 'categories':
-        // Category endpoints - all users can view, only admins can modify
+        // Category endpoints - all users can view, editors can create/update, only admins can delete
         if ($method === 'GET') {
             $user = $roleMiddleware->requireViewer();
             if (!$user) break;
@@ -220,13 +220,13 @@ switch ($resource) {
                 $categoryController->getAll();
             }
         } elseif ($method === 'POST') {
-            $user = $roleMiddleware->requireAdmin();
+            $user = $roleMiddleware->requireEditor();
             if (!$user) break;
             
             $data = json_decode(file_get_contents('php://input'), true);
             $categoryController->create($data, $user);
         } elseif ($method === 'PUT') {
-            $user = $roleMiddleware->requireAdmin();
+            $user = $roleMiddleware->requireEditor();
             if (!$user) break;
             
             $data = json_decode(file_get_contents('php://input'), true);
@@ -242,9 +242,9 @@ switch ($resource) {
         break;
 
     case 'import':
-        // Data import endpoints - admin only
+        // Data import endpoints - editors and admins can import, all users can view templates
         if ($method === 'POST') {
-            $user = $roleMiddleware->requireAdmin();
+            $user = $roleMiddleware->requireEditor();
             if (!$user) break;
             
             if ($subResource === 'validate') {
