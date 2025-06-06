@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { authStore } from '$lib/services/auth';
+  import { authStore } from '$lib/stores/auth';
   import { goto } from '$app/navigation';
   import RegisterForm from '$lib/components/auth/RegisterForm.svelte';
   

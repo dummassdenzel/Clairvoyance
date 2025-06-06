@@ -6,6 +6,31 @@ import { writable, derived, get } from 'svelte/store';
 import { token } from './auth';
 import type { Widget } from './dashboard';
 
+// Input types
+export interface WidgetCreateInput {
+  dashboard_id: number;
+  kpi_id: number;
+  title: string;
+  widget_type: 'line' | 'bar' | 'pie' | 'donut' | 'card';
+  position_x?: number;
+  position_y?: number;
+  width?: number;
+  height?: number;
+  settings?: Record<string, any>;
+}
+
+export interface WidgetUpdateInput {
+  kpi_id?: number;
+  title?: string;
+  widget_type?: 'line' | 'bar' | 'pie' | 'donut' | 'card';
+  position_x?: number;
+  position_y?: number;
+  width?: number;
+  height?: number;
+  settings?: Record<string, any>;
+  dashboard_id?: number; // If allowing moving widget to another dashboard, backend must support this field for PUT /widgets/{id}
+}
+
 // Current widget being edited
 const currentWidgetStore = writable<Widget | null>(null);
 export const currentWidget = derived(currentWidgetStore, $widget => $widget);
@@ -13,7 +38,7 @@ export const currentWidget = derived(currentWidgetStore, $widget => $widget);
 /**
  * Create a new widget
  */
-export async function createWidget(dashboardId: number, data: Pick<Widget, 'kpi_id' | 'title' | 'widget_type' | 'position_x' | 'position_y' | 'width' | 'height' | 'settings'>) {
+export async function createWidget(data: WidgetCreateInput) {
   try {
     const currentToken = get(token);
     if (!currentToken) {
@@ -23,12 +48,9 @@ export async function createWidget(dashboardId: number, data: Pick<Widget, 'kpi_
 
     // dashboard_id is part of the URL, but the API might also expect it in the body for POST /widgets.
     // The API spec for POST /widgets includes dashboard_id in the body.
-    const widgetPayload = {
-      ...data,
-      dashboard_id: dashboardId // Ensure dashboard_id is in the payload if required by the specific controller action
-    };
+    const widgetPayload = data;
 
-    const newWidget = await api.post(`dashboards/${dashboardId}/widgets`, widgetPayload, currentToken) as Widget;
+    const newWidget = await api.post('widgets', widgetPayload, currentToken) as Widget;
     return { success: true, widget: newWidget };
 
   } catch (error) {
@@ -43,7 +65,7 @@ export async function createWidget(dashboardId: number, data: Pick<Widget, 'kpi_
 /**
  * Update an existing widget
  */
-export async function updateWidget(dashboardId: number, widgetId: number, data: Partial<Pick<Widget, 'kpi_id' | 'title' | 'widget_type' | 'position_x' | 'position_y' | 'width' | 'height' | 'settings'>>) {
+export async function updateWidget(widgetId: number, data: WidgetUpdateInput) {
   try {
     const currentToken = get(token);
     if (!currentToken) {
@@ -51,7 +73,7 @@ export async function updateWidget(dashboardId: number, widgetId: number, data: 
       return { success: false, message: 'Authentication required' };
     }
 
-    const updatedWidget = await api.put(`dashboards/${dashboardId}/widgets/${widgetId}`, data, currentToken) as Widget;
+    const updatedWidget = await api.put(`widgets/${widgetId}`, data, currentToken) as Widget;
     // Update currentWidget if necessary
     currentWidgetStore.update(current => 
       current && current.id === widgetId ? updatedWidget : current
@@ -71,7 +93,7 @@ export async function updateWidget(dashboardId: number, widgetId: number, data: 
 /**
  * Delete a widget
  */
-export async function deleteWidget(dashboardId: number, widgetId: number) {
+export async function deleteWidget(widgetId: number) {
   try {
     const currentToken = get(token);
     if (!currentToken) {
@@ -79,7 +101,7 @@ export async function deleteWidget(dashboardId: number, widgetId: number) {
       return { success: false, message: 'Authentication required' };
     }
 
-    await api.del(`dashboards/${dashboardId}/widgets/${widgetId}`, currentToken);
+    await api.del(`widgets/${widgetId}`, currentToken);
     // Clear currentWidget if necessary
     currentWidgetStore.update(current => 
       current && current.id === widgetId ? null : current
@@ -99,6 +121,55 @@ export async function deleteWidget(dashboardId: number, widgetId: number) {
 /**
  * Set the current widget for editing
  */
+/**
+ * Fetch a single widget by ID
+ */
+export async function fetchWidgetById(widgetId: number): Promise<Widget | null> {
+  try {
+    const currentToken = get(token);
+    if (!currentToken) {
+      console.error('No token available for fetchWidgetById');
+      // Return null or throw error, depends on desired error handling for components
+      return null; 
+    }
+
+    const widgetData = await api.get(`widgets/${widgetId}`, currentToken) as Widget;
+    currentWidgetStore.set(widgetData); // Optionally update current widget if it's the one being fetched
+    return widgetData;
+
+  } catch (error) {
+    console.error(`Error fetching widget ${widgetId}:`, error);
+    // Return null or throw, ensure components handle this
+    return null; 
+  }
+}
+
+/**
+ * Fetch all widgets accessible by the user
+ * Note: The backend endpoint GET /widgets should implement logic to return widgets
+ * based on user's permissions (e.g., widgets from their own dashboards or shared ones).
+ */
+export async function fetchAllWidgetsForUser(): Promise<Widget[]> {
+  try {
+    const currentToken = get(token);
+    if (!currentToken) {
+      console.error('No token available for fetchAllWidgetsForUser');
+      return [];
+    }
+
+    // Assuming GET /widgets returns an array of widgets the user can access.
+    // This might require a specific backend implementation for GET /widgets.
+    const widgets = await api.get('widgets', currentToken) as Widget[];
+    // This function doesn't directly update a global store of 'all widgets'
+    // as that might be very large. It returns the data for specific use cases.
+    return widgets;
+
+  } catch (error) {
+    console.error('Error fetching all widgets for user:', error);
+    return [];
+  }
+}
+
 export function setCurrentWidget(widget: Widget | null) {
   currentWidgetStore.set(widget);
 }

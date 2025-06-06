@@ -152,6 +152,45 @@ export async function updateDashboard(id: number, data: Partial<{ name: string; 
 /**
  * Delete a dashboard
  */
+/**
+ * Fetch all widgets for a specific dashboard
+ */
+export async function fetchWidgetsForDashboard(dashboardId: number): Promise<Widget[]> {
+  try {
+    const currentToken = get(token);
+    if (!currentToken) {
+      console.error('No token available for fetchWidgetsForDashboard');
+      return [];
+    }
+
+    const fetchedWidgets = await api.get(`dashboards/${dashboardId}/widgets`, currentToken) as Widget[];
+
+    // Update the specific dashboard in the main store
+    dashboardStore.update(dashboards => 
+      dashboards.map(d => 
+        d.id === dashboardId ? { ...d, widgets: fetchedWidgets } : d
+      )
+    );
+
+    // Update currentDashboard if it's the one we fetched widgets for
+    currentDashboardStore.update(current => {
+      if (current && current.id === dashboardId) {
+        return { ...current, widgets: fetchedWidgets };
+      }
+      return current;
+    });
+
+    return fetchedWidgets;
+
+  } catch (error) {
+    console.error(`Error fetching widgets for dashboard ${dashboardId}:`, error);
+    return [];
+  }
+}
+
+/**
+ * Delete a dashboard
+ */
 export async function deleteDashboard(id: number) {
   try {
     const currentToken = get(token);
