@@ -7,69 +7,24 @@
   // If already authenticated, redirect to dashboard
   onMount(() => {
     if ($authStore.isAuthenticated) {
-      goto('/dashboard');
+      // Consider redirecting to a role-specific dashboard if applicable
+      // e.g., based on $authStore.user?.role
+      goto('/user/dashboard'); // Defaulting to /user/dashboard as per previous patterns
     }
   });
 </script>
 
-<div class="auth-page">
-  <div class="auth-container">
-    <div class="auth-header">
-      <h1>Create Your Account</h1>
-      <p>Join Clairvoyance to start tracking your KPIs</p>
+<div class="min-h-screen flex items-center justify-center bg-gray-100 p-4">
+  <div class="w-full max-w-md bg-white p-8 rounded-lg shadow-lg">
+    <div class="text-center mb-8">
+      <h1 class="mb-2 text-2xl font-semibold text-gray-800">Create Your Account</h1>
+      <p class="text-gray-600">Join Clairvoyance to start tracking your KPIs</p>
     </div>
     
     <RegisterForm />
     
-    <div class="auth-footer">
-      <p>Already have an account? <a href="/login">Sign in</a></p>
+    <div class="text-center mt-8 text-sm text-gray-600">
+      <p>Already have an account? <a href="/login" class="text-blue-600 hover:underline">Sign in</a></p>
     </div>
   </div>
 </div>
-
-<style>
-  .auth-page {
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background-color: #f8f9fa;
-    padding: 1rem;
-  }
-  
-  .auth-container {
-    width: 100%;
-    max-width: 500px;
-  }
-  
-  .auth-header {
-    text-align: center;
-    margin-bottom: 2rem;
-  }
-  
-  .auth-header h1 {
-    margin: 0 0 0.5rem 0;
-    color: #333;
-    font-size: 1.75rem;
-  }
-  
-  .auth-header p {
-    color: #6c757d;
-    margin: 0;
-  }
-  
-  .auth-footer {
-    text-align: center;
-    margin-top: 2rem;
-    color: #6c757d;
-  }
-  
-  .auth-footer a {
-    color: #4a90e2;
-    text-decoration: none;
-  }
-  
-  .auth-footer a:hover {
-    text-decoration: underline;
-  }
-</style> 

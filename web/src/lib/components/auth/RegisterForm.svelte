@@ -24,7 +24,7 @@
     try {
       const result = await register(username, email, password);
       if (result.success) {
-        goto('/dashboard');
+        goto('/user/dashboard'); // Default redirect, can be enhanced with role-based logic from authStore if needed
       } else {
         errorMessage = result.message || 'Registration failed. Please try again.';
       }
@@ -37,18 +37,18 @@
   }
 </script>
 
-<div class="register-form">
-  <h2>Create Account</h2>
+<div class="bg-white p-8 rounded-lg shadow-md max-w-md mx-auto my-8">
+  <h2 class="text-2xl font-bold text-center mb-6 text-gray-800">Create Account</h2>
   
   {#if errorMessage}
-    <div class="error-message">
+    <div class="bg-red-50 text-red-600 p-3 rounded-md mb-4 text-sm">
       {errorMessage}
     </div>
   {/if}
   
-  <form on:submit|preventDefault={handleSubmit}>
-    <div class="form-group">
-      <label for="username">Username</label>
+  <form on:submit|preventDefault={handleSubmit} class="space-y-6">
+    <div>
+      <label for="username" class="block mb-2 text-sm font-medium text-gray-700">Username</label>
       <input 
         type="text" 
         id="username" 
@@ -56,11 +56,12 @@
         required 
         disabled={isLoading}
         placeholder="Choose a username"
+        class="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
       />
     </div>
     
-    <div class="form-group">
-      <label for="email">Email</label>
+    <div>
+      <label for="email" class="block mb-2 text-sm font-medium text-gray-700">Email</label>
       <input 
         type="email" 
         id="email" 
@@ -68,11 +69,12 @@
         required 
         disabled={isLoading}
         placeholder="Enter your email"
+        class="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
       />
     </div>
     
-    <div class="form-group">
-      <label for="password">Password</label>
+    <div>
+      <label for="password" class="block mb-2 text-sm font-medium text-gray-700">Password</label>
       <input 
         type="password" 
         id="password" 
@@ -81,11 +83,12 @@
         disabled={isLoading}
         placeholder="Choose a password"
         minlength="8"
+        class="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
       />
     </div>
     
-    <div class="form-group">
-      <label for="confirmPassword">Confirm Password</label>
+    <div>
+      <label for="confirmPassword" class="block mb-2 text-sm font-medium text-gray-700">Confirm Password</label>
       <input 
         type="password" 
         id="confirmPassword" 
@@ -93,103 +96,27 @@
         required 
         disabled={isLoading}
         placeholder="Confirm your password"
-        class:error={!passwordsMatch && confirmPassword}
+        class="w-full p-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed {(!passwordsMatch && confirmPassword !== '') ? 'border-red-500' : 'border-gray-300'}"
       />
-      {#if !passwordsMatch && confirmPassword}
-        <small class="password-mismatch">Passwords do not match</small>
+      {#if !passwordsMatch && confirmPassword !== ''}
+        <small class="block mt-1 text-xs text-red-600">Passwords do not match</small>
       {/if}
     </div>
     
-    <button type="submit" class="btn-primary" disabled={isLoading || !passwordsMatch}>
+    <button 
+      type="submit" 
+      class="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-300 disabled:cursor-not-allowed"
+      disabled={isLoading || !passwordsMatch || password === ''}
+    >
       {#if isLoading}
-        Loading...
+        <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        Processing...
       {:else}
         Register
       {/if}
     </button>
   </form>
 </div>
-
-<style>
-  .register-form {
-    background: #fff;
-    padding: 2rem;
-    border-radius: 8px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    max-width: 400px;
-    margin: 2rem auto;
-  }
-  
-  h2 {
-    text-align: center;
-    margin-bottom: 1.5rem;
-    color: #333;
-  }
-  
-  .form-group {
-    margin-bottom: 1rem;
-  }
-  
-  label {
-    display: block;
-    margin-bottom: 0.5rem;
-    font-weight: 500;
-    color: #555;
-  }
-  
-  input {
-    width: 100%;
-    padding: 0.75rem;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    font-size: 1rem;
-  }
-  
-  input:focus {
-    outline: none;
-    border-color: #4a90e2;
-    box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.2);
-  }
-  
-  input.error {
-    border-color: #e53935;
-  }
-  
-  .btn-primary {
-    width: 100%;
-    padding: 0.75rem;
-    background-color: #4a90e2;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    font-size: 1rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background-color 0.2s;
-  }
-  
-  .btn-primary:hover {
-    background-color: #3a7bc8;
-  }
-  
-  .btn-primary:disabled {
-    background-color: #96bff0;
-    cursor: not-allowed;
-  }
-  
-  .error-message {
-    background-color: #fff0f0;
-    color: #e53935;
-    padding: 0.75rem;
-    border-radius: 4px;
-    margin-bottom: 1rem;
-    font-size: 0.9rem;
-  }
-  
-  .password-mismatch {
-    color: #e53935;
-    font-size: 0.8rem;
-    margin-top: 0.25rem;
-    display: block;
-  }
-</style> 
