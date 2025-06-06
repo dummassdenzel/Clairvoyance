@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { getWidgetData } from '$lib/services/widget';
-  import type { Widget } from '$lib/services/dashboard';
+  import { getWidgetData } from '$lib/stores/widget';
+  import type { Widget } from '$lib/stores/dashboard';
   
   export let widget: Widget;
   export let dashboardId: number;

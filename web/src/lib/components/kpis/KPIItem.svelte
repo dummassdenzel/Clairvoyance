@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import type { KPI } from '$lib/services/kpi';
+  import type { KPI } from '$lib/stores/kpi';
   
   export let kpi: KPI;
   export let showActions = true;

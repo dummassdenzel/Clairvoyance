@@ -1,7 +1,7 @@
 <script lang="ts">
   import { authStore } from '$lib/stores/auth';
   import { goto } from '$app/navigation';
-  import Login from "./login/+page.svelte";
+  import Login from "./auth/login/+page.svelte";
 
 
   

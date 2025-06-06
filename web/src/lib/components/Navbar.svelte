@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { authStore, logout } from '$lib/services/auth';
+  import { authStore, logout } from '$lib/stores/auth';
   import { goto } from '$app/navigation';
   
   let isMenuOpen = false;
