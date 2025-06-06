@@ -623,6 +623,77 @@ Get a specific dashboard by ID with its widgets
 }
 ```
 
+#### `GET /dashboards/{id}/widgets`
+Get all widgets for a specific dashboard.
+
+**Roles:** Viewer, Editor, Admin
+
+**Path Parameters:**
+- `id` (integer, required): The ID of the dashboard.
+
+**Response (Success 200):**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 101,
+      "dashboard_id": 1,
+      "kpi_id": 5,
+      "title": "Monthly Active Users Widget",
+      "widget_type": "line",
+      "settings": "{\"color\": \"blue\", \"show_average\": true}",
+      "position_x": 0,
+      "position_y": 0,
+      "width": 6,
+      "height": 4,
+      "created_at": "2025-06-01 10:00:00",
+      "updated_at": "2025-06-01 10:00:00"
+    },
+    {
+      "id": 102,
+      "dashboard_id": 1,
+      "kpi_id": 8,
+      "title": "Revenue Growth Widget",
+      "widget_type": "bar",
+      "settings": "{\"goal_line\": 50000}",
+      "position_x": 6,
+      "position_y": 0,
+      "width": 6,
+      "height": 4,
+      "created_at": "2025-06-01 10:05:00",
+      "updated_at": "2025-06-01 10:05:00"
+    }
+  ],
+  "message": "Widgets for dashboard retrieved successfully"
+}
+```
+
+**Response (Error 401 - Unauthorized):**
+If the user does not have permission to access the dashboard.
+```json
+{
+  "success": false,
+  "error": {
+    "code": 401,
+    "message": "You do not have permission to access this dashboard's widgets"
+  }
+}
+```
+
+**Response (Error 404 - Not Found):**
+If the dashboard ID does not exist.
+```json
+{
+  "success": false,
+  "error": {
+    "code": 404,
+    "message": "Dashboard not found"
+  }
+}
+```
+
+
 #### `POST /dashboards`
 Create a new dashboard
 

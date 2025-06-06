@@ -3,14 +3,17 @@
 require_once __DIR__ . '/../models/Dashboard.php';
 require_once __DIR__ . '/../utils/Response.php';
 require_once __DIR__ . '/../utils/Validator.php';
+require_once __DIR__ . '/../models/Widget.php';
 
 class DashboardController
 {
     private $dashboardModel;
+    private $widgetModel;
     
     public function __construct()
     {
         $this->dashboardModel = new Dashboard();
+        $this->widgetModel = new Widget();
     }
     
     /**
@@ -158,4 +161,34 @@ class DashboardController
         
         Response::success('Dashboard deleted successfully');
     }
-} 
+
+    /**
+     * Get all widgets for a specific dashboard
+     * 
+     * @param int $dashboard_id Dashboard ID
+     * @param object $user Current user
+     */
+    public function getWidgetsForDashboard($dashboard_id, $user)
+    {
+        if (!Validator::isNumeric($dashboard_id)) {
+            Response::error('Invalid dashboard ID');
+            return;
+        }
+
+        // First, check if dashboard exists and user has access to it
+        $dashboard = $this->dashboardModel->getById($dashboard_id);
+        if (!$dashboard) {
+            Response::notFound('Dashboard not found');
+            return;
+        }
+
+        if ($dashboard['user_id'] != $user->id && $user->role !== 'admin') {
+            Response::unauthorized('You do not have permission to access this dashboard\'s widgets');
+            return;
+        }
+
+        // Assuming WidgetModel will have a method like this
+        $widgets = $this->widgetModel->getAllForDashboard($dashboard_id); 
+        Response::success('Widgets for dashboard retrieved successfully', $widgets);
+    }
+}

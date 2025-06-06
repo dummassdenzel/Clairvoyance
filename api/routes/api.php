@@ -87,7 +87,9 @@ switch ($resource) {
             $user = $roleMiddleware->requireViewer();
             if (!$user) break;
             
-            if ($id) {
+            if ($id && $subResource === 'widgets') {
+                $dashboardController->getWidgetsForDashboard($id, $user); // $id is dashboard_id
+            } elseif ($id) {
                 $dashboardController->getOne($id, $user);
             } else {
                 $dashboardController->getAll($user);
