@@ -12,16 +12,39 @@ const DEFAULT_HEADERS = {
 
 // Helper function to handle API responses
 async function handleResponse(response: Response) {
-  const responseData = await response.json();
+  // Ensure response body is read only once.
+  const responseData = await response.json().catch(() => {
+    // Handle cases where response is not JSON or empty.
+    if (!response.ok) throw new Error(`HTTP error ${response.status}: ${response.statusText}`);
+    // If response.ok but not JSON, it's an API contract issue.
+    throw new Error('API response was not valid JSON or was empty.');
+  });
 
-  if (!response.ok || !responseData.success) {
-    // If response.ok is false, or if response.ok is true but backend indicates failure (responseData.success === false)
-    const errorMessage = responseData.error?.message || responseData.message || 'API request failed';
+  // Special handling for login: if backend says "Login successful" and provides a token,
+  // and HTTP status is OK, trust this as success.
+  // This is a targeted workaround for potential backend inconsistency.
+  if (response.ok && responseData.message === 'Login successful' && responseData.data?.token) {
+    // Log a warning if the 'success' flag was not explicitly true, to help backend diagnosis.
+    if (responseData.success !== true) {
+      console.warn(
+        "Auth Service: Login API reported success via message and token, but 'success' flag was not true. Value:",
+        responseData.success
+      );
+    }
+    return responseData.data; // Proceed as successful login
+  }
+
+  // Standard response handling:
+  // Error if HTTP response not OK, or if 'success' flag in JSON is not explicitly true.
+  if (!response.ok || responseData.success !== true) {
+    const errorMessage =
+      responseData.error?.message ||
+      responseData.message ||
+      `API request failed with status ${response.status}`;
     throw new Error(errorMessage);
   }
 
-  // For successful responses, the actual payload is in responseData.data
-  // Some successful operations might not return data (e.g., DELETE), so data can be null/undefined.
+  // For all other successful responses (response.ok is true AND responseData.success is true)
   return responseData.data;
 }
 

@@ -56,7 +56,7 @@
     
     try {
       if (selectedDashboardId) {
-        const result = await deleteWidget(selectedDashboardId, widget.id);
+        const result = await deleteWidget(widget.id);
         
         if (result.success) {
           // Refresh the dashboard after deletion
