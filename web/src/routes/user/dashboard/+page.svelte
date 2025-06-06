@@ -1,10 +1,10 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { fetchDashboards, currentDashboard, dashboards, type Widget } from '$lib/services/dashboard';
-  import { deleteWidget } from '$lib/services/widget';
+  import { fetchDashboards, dashboards, type Widget } from '$lib/stores/dashboard';
+  import { deleteWidget } from '$lib/stores/widget';
   import DashboardWidget from '$lib/components/widgets/DashboardWidget.svelte';
   import { goto } from '$app/navigation';
-  import { authStore } from '$lib/services/auth';
+  import { authStore } from '$lib/stores/auth';
   
   let isLoading = true;
   let error: string | null = null;

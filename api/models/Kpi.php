@@ -152,4 +152,85 @@ class Kpi
             return false;
         }
     }
+
+    /**
+     * Add a new measurement for a KPI
+     * 
+     * @param array $data Measurement data (kpi_id, value, date, notes)
+     * @return array|bool Created measurement data or false on failure
+     */
+    public function addMeasurement($data)
+    {
+        try {
+            // Assuming $data['timestamp'] will be provided by the controller
+            // and is already in the correct format for your 'timestamp' column.
+            $stmt = $this->pdo->prepare("
+                INSERT INTO measurements (kpi_id, value, timestamp)
+                VALUES (:kpi_id, :value, :timestamp)
+            ");
+            
+            $stmt->bindParam(':kpi_id', $data['kpi_id'], PDO::PARAM_INT);
+            $stmt->bindParam(':value', $data['value'], PDO::PARAM_STR); 
+            $stmt->bindParam(':timestamp', $data['timestamp'], PDO::PARAM_STR);
+            
+            $result = $stmt->execute();
+            if ($result) {
+                $id = $this->pdo->lastInsertId();
+                return $this->_getMeasurementById((int)$id);
+            }
+            return false;
+        } catch (PDOException $e) {
+            error_log("Error adding measurement: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Get a single measurement by its ID
+     * Helper function for addMeasurement
+     * 
+     * @param int $id Measurement ID
+     * @return array|null Measurement data or null if not found
+     */
+    private function _getMeasurementById($id)
+    {
+        try {
+            $stmt = $this->pdo->prepare("
+                SELECT * 
+                FROM measurements
+                WHERE id = :id
+            ");
+            $stmt->bindParam(':id', $id, PDO::PARAM_INT);
+            $stmt->execute();
+            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+            return $result ?: null;
+        } catch (PDOException $e) {
+            error_log("Error fetching measurement by ID: " . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Get all measurements for a specific KPI
+     * 
+     * @param int $kpi_id KPI ID
+     * @return array Array of measurements or empty array on failure/no results
+     */
+    public function getMeasurementsByKpiId($kpi_id)
+    {
+        try {
+            $stmt = $this->pdo->prepare("
+                SELECT * 
+                FROM measurements
+                WHERE kpi_id = :kpi_id
+                ORDER BY timestamp DESC
+            ");
+            $stmt->bindParam(':kpi_id', $kpi_id, PDO::PARAM_INT);
+            $stmt->execute();
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("Error fetching measurements for KPI ID " . $kpi_id . ": " . $e->getMessage());
+            return [];
+        }
+    }
 } 

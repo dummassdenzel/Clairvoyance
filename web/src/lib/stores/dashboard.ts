@@ -1,8 +1,8 @@
 /**
  * Dashboard service for handling dashboard-related operations
  */
-import * as api from './api';
-import { writable, derived } from 'svelte/store';
+import * as api from '../services/api';
+import { writable, derived, get } from 'svelte/store';
 import { token } from './auth';
 
 // Types
@@ -21,16 +21,18 @@ export interface Widget {
   id: number;
   dashboard_id: number;
   kpi_id: number;
-  kpi_name?: string;
-  kpi_unit?: string;
+  kpi_name?: string; // Joined from KPIs table
+  kpi_unit?: string; // Joined from KPIs table
   title: string;
   widget_type: 'line' | 'bar' | 'pie' | 'donut' | 'card';
   position_x: number;
   position_y: number;
   width: number;
   height: number;
-  settings: any;
+  settings: Record<string, any>; // JSON object for widget-specific settings
+  user_id?: number; // Added by backend, reflects ownership or creator context
   created_at: string;
+  updated_at?: string; // Added from API spec
 }
 
 // Dashboard store
@@ -41,28 +43,21 @@ export const dashboards = derived(dashboardStore, $dashboards => $dashboards);
 const currentDashboardStore = writable<Dashboard | null>(null);
 export const currentDashboard = derived(currentDashboardStore, $dashboard => $dashboard);
 
-let tokenValue: string | null = null;
-token.subscribe(value => {
-  tokenValue = value;
-});
-
 /**
  * Fetch all dashboards
  */
 export async function fetchDashboards() {
   try {
-    if (!tokenValue) {
+    const currentToken = get(token);
+    if (!currentToken) {
       console.error('No token available');
       return { success: false, message: 'Authentication required' };
     }
 
-    const response = await api.get('dashboards', tokenValue);
-    if (response.status === 'success' && response.data) {
-      dashboardStore.set(response.data);
-      return { success: true };
-    }
+    const fetchedDashboards = await api.get('dashboards', currentToken) as Dashboard[];
+    dashboardStore.set(fetchedDashboards);
+    return { success: true, data: fetchedDashboards };
 
-    return { success: false, message: 'Failed to fetch dashboards' };
   } catch (error) {
     console.error('Error fetching dashboards:', error);
     return { 
@@ -77,18 +72,16 @@ export async function fetchDashboards() {
  */
 export async function fetchDashboard(id: number) {
   try {
-    if (!tokenValue) {
+    const currentToken = get(token);
+    if (!currentToken) {
       console.error('No token available');
       return { success: false, message: 'Authentication required' };
     }
 
-    const response = await api.get(`dashboards/${id}`, tokenValue);
-    if (response.status === 'success' && response.data) {
-      currentDashboardStore.set(response.data);
-      return { success: true, dashboard: response.data };
-    }
+    const dashboardData = await api.get(`dashboards/${id}`, currentToken) as Dashboard;
+    currentDashboardStore.set(dashboardData);
+    return { success: true, dashboard: dashboardData };
 
-    return { success: false, message: 'Failed to fetch dashboard' };
   } catch (error) {
     console.error(`Error fetching dashboard ${id}:`, error);
     return { 
@@ -103,19 +96,17 @@ export async function fetchDashboard(id: number) {
  */
 export async function createDashboard(data: Pick<Dashboard, 'name' | 'description' | 'is_default'>) {
   try {
-    if (!tokenValue) {
+    const currentToken = get(token);
+    if (!currentToken) {
       console.error('No token available');
       return { success: false, message: 'Authentication required' };
     }
 
-    const response = await api.post('dashboards', data, tokenValue);
-    if (response.status === 'success' && response.data) {
-      // Update the store with the new dashboard
-      dashboardStore.update(dashboards => [...dashboards, response.data]);
-      return { success: true, dashboard: response.data };
-    }
+    const newDashboard = await api.post('dashboards', data, currentToken) as Dashboard;
+    // Update the store with the new dashboard
+    dashboardStore.update(dashboards => [...dashboards, newDashboard]);
+    return { success: true, dashboard: newDashboard };
 
-    return { success: false, message: 'Failed to create dashboard' };
   } catch (error) {
     console.error('Error creating dashboard:', error);
     return { 
@@ -128,29 +119,27 @@ export async function createDashboard(data: Pick<Dashboard, 'name' | 'descriptio
 /**
  * Update an existing dashboard
  */
-export async function updateDashboard(id: number, data: Partial<Dashboard>) {
+export async function updateDashboard(id: number, data: Partial<{ name: string; description?: string; is_default: boolean; }>) {
   try {
-    if (!tokenValue) {
+    const currentToken = get(token);
+    if (!currentToken) {
       console.error('No token available');
       return { success: false, message: 'Authentication required' };
     }
 
-    const response = await api.put(`dashboards/${id}`, data, tokenValue);
-    if (response.status === 'success') {
-      // Update the store with the modified dashboard
-      dashboardStore.update(dashboards => dashboards.map(dashboard => 
-        dashboard.id === id ? { ...dashboard, ...data } : dashboard
-      ));
-      
-      // Update currentDashboard if necessary
-      currentDashboardStore.update(dashboard => 
-        dashboard && dashboard.id === id ? { ...dashboard, ...data } : dashboard
-      );
-      
-      return { success: true };
-    }
+    const updatedDashboard = await api.put(`dashboards/${id}`, data, currentToken) as Dashboard;
+    // Update the store with the modified dashboard
+    dashboardStore.update(dashboards => dashboards.map(dashboard => 
+      dashboard.id === id ? updatedDashboard : dashboard
+    ));
+    
+    // Update currentDashboard if necessary
+    currentDashboardStore.update(current => 
+      current && current.id === id ? updatedDashboard : current
+    );
+    
+    return { success: true, dashboard: updatedDashboard };
 
-    return { success: false, message: 'Failed to update dashboard' };
   } catch (error) {
     console.error(`Error updating dashboard ${id}:`, error);
     return { 
@@ -165,25 +154,23 @@ export async function updateDashboard(id: number, data: Partial<Dashboard>) {
  */
 export async function deleteDashboard(id: number) {
   try {
-    if (!tokenValue) {
+    const currentToken = get(token);
+    if (!currentToken) {
       console.error('No token available');
       return { success: false, message: 'Authentication required' };
     }
 
-    const response = await api.del(`dashboards/${id}`, tokenValue);
-    if (response.status === 'success') {
-      // Remove the dashboard from the store
-      dashboardStore.update(dashboards => dashboards.filter(dashboard => dashboard.id !== id));
-      
-      // Clear currentDashboard if necessary
-      currentDashboardStore.update(dashboard => 
-        dashboard && dashboard.id === id ? null : dashboard
-      );
-      
-      return { success: true };
-    }
+    await api.del(`dashboards/${id}`, currentToken);
+    // Remove the dashboard from the store
+    dashboardStore.update(dashboards => dashboards.filter(dashboard => dashboard.id !== id));
+    
+    // Clear currentDashboard if necessary
+    currentDashboardStore.update(current => 
+      current && current.id === id ? null : current
+    );
+    
+    return { success: true };
 
-    return { success: false, message: 'Failed to delete dashboard' };
   } catch (error) {
     console.error(`Error deleting dashboard ${id}:`, error);
     return { 
@@ -191,4 +178,4 @@ export async function deleteDashboard(id: number) {
       message: error instanceof Error ? error.message : 'Failed to delete dashboard' 
     };
   }
-} 
+}

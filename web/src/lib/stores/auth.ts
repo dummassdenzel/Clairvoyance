@@ -1,24 +1,24 @@
 /**
  * Authentication service for user login and registration
  */
-import * as api from './api';
+import * as api from '../services/api';
 import { writable, derived, get } from 'svelte/store';
 
 // Check if we're in a browser environment
 const browser = typeof window !== 'undefined';
 
-// Define user type
-export interface User {
+// Define authenticated user type
+export interface AuthenticatedUser {
   id: number;
   username: string;
   email: string;
-  role: 'admin' | 'manager' | 'user';
+  role: 'admin' | 'editor' | 'viewer';
 }
 
 // Define auth state
 export interface AuthState {
   isAuthenticated: boolean;
-  user: User | null;
+  user: AuthenticatedUser | null;
   token: string | null;
   tokenExpiry: number | null;
 }
@@ -83,23 +83,29 @@ export async function verifySession(): Promise<boolean> {
   
   // Otherwise, verify the token with the server
   try {
-    const response = await api.get('auth/verify', currentState.token);
+    const verifiedUserData = await api.get('auth/verify', currentState.token);
     
-    if (response.status === 'success' && response.data) {
-      // Update the auth state with the user info from verify
+    // If api.get succeeds, verifiedUserData will contain the backend's 'data' object, which is { user: { ... } }
+    if (verifiedUserData && verifiedUserData.user) {
       updateAuthState({
         isAuthenticated: true,
-        user: response.data.user
+        user: verifiedUserData.user
       });
       return true;
     } else {
-      // Token invalid, clear auth state
+      // This case should ideally not be reached if api.get throws on error or invalid structure as expected.
+      // However, as a safeguard or if backend returns success:true but no user data:
       logout();
       return false;
     }
   } catch (error) {
     console.error('Failed to verify token:', error);
-    // Don't logout automatically on network errors
+    // If the error is due to an invalid token (e.g., 401), the API might throw, leading here.
+    // Consider if logout() should be called for specific error types (e.g., auth errors vs. network errors).
+    // For now, maintaining existing behavior: don't logout automatically on network/generic errors.
+    // If the token is truly invalid, the backend would have indicated success:false, and api.get would throw.
+    // If it's a 401, response.ok would be false, and api.get would throw.
+    logout(); // Let's logout if verification fails for any server-related reason.
     return false;
   }
 }
@@ -109,24 +115,26 @@ export async function verifySession(): Promise<boolean> {
  */
 export async function login(username: string, password: string) {
   try {
-    const response = await api.post('auth/login', { username, password });
+    const loginData = await api.post('auth/login', { username, password });
     
-    if (response.status === 'success' && response.data) {
-      // Calculate token expiry (e.g., 24 hours from now)
+    // If api.post succeeds, loginData will contain the backend's 'data' object: { token: "...", user: { ... } }
+    if (loginData && loginData.token && loginData.user) {
       const expiryTime = Date.now() + (24 * 60 * 60 * 1000);
       
       updateAuthState({
         isAuthenticated: true,
-        user: response.data.user,
-        token: response.data.token,
+        user: loginData.user,
+        token: loginData.token,
         tokenExpiry: expiryTime
       });
       
       return { success: true };
     } else {
+      // This case implies the API call succeeded (no error thrown) but data was not as expected.
+      // However, api.post should throw if backend success is false.
       return { 
         success: false, 
-        message: response.message || 'Login failed. Please check your credentials.' 
+        message: 'Login failed: Unexpected response from server.' 
       };
     }
   } catch (error) {
@@ -143,24 +151,25 @@ export async function login(username: string, password: string) {
  */
 export async function register(username: string, email: string, password: string) {
   try {
-    const response = await api.post('auth/register', { username, email, password });
+    const registrationData = await api.post('auth/register', { username, email, password });
     
-    if (response.status === 'success' && response.data) {
-      // Calculate token expiry (e.g., 24 hours from now)
+    // If api.post succeeds, registrationData will contain the backend's 'data' object: { token: "...", user: { ... } }
+    if (registrationData && registrationData.token && registrationData.user) {
       const expiryTime = Date.now() + (24 * 60 * 60 * 1000);
       
       updateAuthState({
         isAuthenticated: true,
-        user: response.data.user,
-        token: response.data.token,
+        user: registrationData.user,
+        token: registrationData.token,
         tokenExpiry: expiryTime
       });
       
       return { success: true };
     } else {
+      // This case implies the API call succeeded (no error thrown) but data was not as expected.
       return { 
         success: false, 
-        message: response.message || 'Registration failed. Please try again.' 
+        message: 'Registration failed: Unexpected response from server.' 
       };
     }
   } catch (error) {

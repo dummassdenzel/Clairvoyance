@@ -42,17 +42,29 @@ switch ($resource) {
             $user = $roleMiddleware->requireViewer();
             if (!$user) break;
             
-            if ($id) {
+            if ($id && $subResource === 'measurements') { // This is for GET /kpis/{kpi_id}/measurements
+                $kpiController->getMeasurements($id, $user); // $id is kpi_id
+            } elseif ($id) { // This is for GET /kpis/{kpi_id}
                 $kpiController->getOne($id);
-            } else {
+            } else { // This is for GET /kpis
                 $kpiController->getAll();
             }
         } elseif ($method === 'POST') {
-            $user = $roleMiddleware->requireEditor();
-            if (!$user) break;
-            
-            $data = json_decode(file_get_contents('php://input'), true);
-            $kpiController->create($data, $user);
+            if ($subResource === 'measurements' && $id) { // $id is kpi_id
+                $user = $roleMiddleware->requireEditor();
+                if (!$user) break;
+                
+                $data = json_decode(file_get_contents('php://input'), true);
+                $kpiController->addMeasurement($id, $data, $user); // $id is kpi_id
+            } elseif (!$id && !$subResource) { // This is for creating a NEW KPI
+                $user = $roleMiddleware->requireEditor();
+                if (!$user) break;
+                
+                $data = json_decode(file_get_contents('php://input'), true);
+                $kpiController->create($data, $user);
+            } else {
+                Response::error('Invalid POST request for KPIs. Use /kpis to create a KPI or /kpis/{id}/measurements to add a measurement.', null, 400);
+            }
         } elseif ($method === 'PUT') {
             $user = $roleMiddleware->requireEditor();
             if (!$user) break;
@@ -65,7 +77,7 @@ switch ($resource) {
             
             $kpiController->delete($id);
         } else {
-            Response::error('Method not allowed', null, 405);
+            Response::error('Method not allowed for KPIs', null, 405);
         }
         break;
     

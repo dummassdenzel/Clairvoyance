@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { fetchUsers, deleteUser, type User } from '$lib/services/user';
-  import { authStore } from '$lib/services/auth';
+  import { fetchUsers, deleteUser, type UserProfile as User } from '$lib/stores/user'; // aliased UserProfile to User
+  import { authStore } from '$lib/stores/auth';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   
@@ -48,7 +48,7 @@
       const result = await fetchUsers();
       
       if (result.success) {
-        users = result.users || [];
+        users = result.users || []; // Reverted to use result.users
       } else {
         error = result.message || 'Failed to load users';
       }
@@ -99,10 +99,12 @@
     switch (role) {
       case 'admin':
         return 'badge-admin';
-      case 'manager':
-        return 'badge-manager';
+      case 'editor':
+        return 'badge-editor'; // Updated 'manager' to 'editor'
+      case 'viewer':
+        return 'badge-viewer'; // Added 'viewer'
       default:
-        return 'badge-user';
+        return 'badge-user'; // Fallback for any other role (e.g. 'user' if it exists or default)
     }
   }
 </script>
@@ -187,6 +189,7 @@
                   class="btn-icon" 
                   on:click={() => handleEdit(user.id)}
                   title="Edit user"
+                  aria-label="Edit user"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
@@ -198,6 +201,7 @@
                   class="btn-icon btn-delete" 
                   on:click={() => handleDelete(user)}
                   title="Delete user"
+                  aria-label="Delete user"
                   disabled={user.id === $authStore.user?.id} 
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

@@ -135,4 +135,99 @@ class KpiController
         
         Response::success('KPI deleted successfully');
     }
-} 
+
+    /**
+     * Get all measurements for a specific KPI
+     * 
+     * @param int $kpi_id KPI ID
+     * @param object $user Current user (not used in this method but good for consistency)
+     */
+    public function getMeasurements($kpi_id, $user)
+    {
+        if (!Validator::isNumeric($kpi_id)) {
+            Response::error('Invalid KPI ID');
+            return;
+        }
+        
+        // Check if KPI exists
+        $kpi = $this->kpiModel->getById($kpi_id);
+        if (!$kpi) {
+            Response::notFound('KPI not found, cannot retrieve measurements.');
+            return;
+        }
+        
+        $measurements = $this->kpiModel->getMeasurementsByKpiId($kpi_id);
+        
+        // The model method returns [] on error or no results, which is fine.
+        Response::success('Measurements retrieved successfully', $measurements);
+    }
+
+    /**
+     * Add a measurement to a KPI
+     * 
+     * @param int $kpi_id KPI ID
+     * @param array $data Measurement data (value, date, notes)
+     * @param object $user Current user (for logging or ownership if needed, though measurements are usually tied to KPI)
+     */
+    public function addMeasurement($kpi_id, $data, $user)
+    {
+        if (!Validator::isNumeric($kpi_id)) {
+            Response::error('Invalid KPI ID');
+            return;
+        }
+
+        // Check if KPI exists
+        $kpi = $this->kpiModel->getById($kpi_id);
+        if (!$kpi) {
+            Response::notFound('KPI not found, cannot add measurement.');
+            return;
+        }
+
+        // Validate required fields for measurement
+        $validation = Validator::validateRequired($data, ['value', 'date']);
+        if (!$validation['isValid']) {
+            Response::error($validation['message']);
+            return;
+        }
+
+        // Validate data types
+        if (!Validator::isNumeric($data['value'])) {
+            Response::error('Measurement value must be numeric.');
+            return;
+        }
+        if (!Validator::isValidDate($data['date'])) {
+            Response::error('Invalid date format for measurement. Use YYYY-MM-DD.');
+            return;
+        }
+
+        // Sanitize data
+        $data = Validator::sanitize($data);
+
+        // Prepare data for the model, aligning with the 'measurements' table schema
+        $measurementData = [
+            'kpi_id' => (int)$kpi_id,
+            'value' => (float)$data['value'], // Assuming 'value' is sanitized by parseFloat or is numeric
+            'timestamp' => $data['date'] // Use the input 'date' for the 'timestamp' column
+            // 'notes' field is omitted as the table does not have it
+        ];
+
+        // Temporary logging before calling the model
+        error_log('[KpiController] Attempting to add measurement. KPI ID: ' . $kpi_id . '. Data: ' . json_encode($measurementData));
+
+        $result = $this->kpiModel->addMeasurement($measurementData);
+
+        // Temporary logging after calling the model
+        error_log('[KpiController] Result from kpiModel->addMeasurement: ' . json_encode($result));
+
+        if (!$result) {
+            Response::error('Failed to add measurement');
+            return;
+        }
+        
+        // Optionally, update the KPI's current_value if applicable
+        // This might involve a separate model call or a trigger in the DB
+        // For now, just return the created measurement
+        
+        Response::success('Measurement added successfully', $result, 201);
+    }
+}

@@ -469,6 +469,88 @@ Delete a specific KPI by ID (Admin only)
 }
 ```
 
+#### `POST /kpis/{kpi_id}/measurements`
+Add a new measurement to a specific KPI (Editor or Admin role required)
+
+**Request:**
+```json
+{
+  "value": 123.45,
+  "date": "YYYY-MM-DD",
+  Your kpi.ts store is now equipped to fetch measurements for a KPI from the backend. You can use this fetchKpiMeasurements function in your Svelte components where you need to display a list of measurements for a particular KPI.
+  
+  What would you like to work on next? We could:
+  
+  Integrate this new function into a Svelte page to display measurements.
+  Write tests for the backend or frontend.
+  Move on to ano
+  "notes": "Optional notes about this measurement"
+}
+```
+
+**Response (Success 201):**
+```json
+{
+  "success": true,
+  "data": {
+    "id": 1,
+    "kpi_id": 123,
+    "value": 123.45,
+    "date": "YYYY-MM-DD",
+    "notes": "Optional notes about this measurement",
+    "created_at": "YYYY-MM-DD HH:MM:SS"
+  },
+  "message": "Measurement added successfully"
+}
+```
+
+**Response (Error 400/404/500):**
+```json
+{
+  "success": false,
+  "error": {
+    "code": 400,
+    "message": "Error description (e.g., Invalid KPI ID, Value is required, KPI not found)"
+  }
+}
+```
+
+#### `GET /kpis/{kpi_id}/measurements`
+Retrieve all measurements for a specific KPI (Viewer, Editor, or Admin role required)
+
+**Response (Success 200):**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 2,
+      "kpi_id": 123,
+      "value": "150.00", 
+      "timestamp": "2025-06-05", 
+      "created_at": "2025-06-05 10:00:00"
+    },
+    {
+      "id": 1,
+      "kpi_id": 123,
+      "value": "123.45",
+      "timestamp": "2025-06-04",
+      "created_at": "2025-06-04 09:00:00"
+    }
+  ],
+  "message": "Measurements retrieved successfully"
+}
+```
+
+**Response (Error 404 - KPI Not Found):**
+```json
+{
+  "success": false,
+  "data": null,
+  "message": "KPI not found, cannot retrieve measurements."
+}
+```
+
 ### DASHBOARDS: 
 #### `GET /dashboards`
 Get all dashboards for the current user

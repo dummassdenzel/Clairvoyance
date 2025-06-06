@@ -98,3 +98,13 @@ Editors can create content; Viewers consume content
 Editors can import data; Viewers can only export
 Editors can create shared dashboards; Viewers can only personalize their view
 This role structure aligns with the project objectives by implementing proper role-based access control while adding the Editor role mentioned in the "Future Enhancements" section. It creates a clear hierarchy of responsibilities and permissions that supports organizational needs from executive oversight to team management to individual contributors.
+
+Dashboard and Widget Management:
+Backend: API endpoints for CRUD operations on dashboards and widgets (e.g., POST /dashboards, GET /dashboards/{id}/widgets, POST /dashboards/{id}/widgets, PUT /widgets/{id}, DELETE /widgets/{id}).
+Frontend: Stores (dashboard.ts, widget.ts) to manage this data, including associating widgets with KPIs and their configurations.
+Data Import Feature:
+Backend: API endpoint(s) for file upload, parsing, validation, and data insertion.
+Frontend: Store (data.ts) and service calls for handling file uploads.
+Report Generation:
+Backend: API endpoint(s) for generating and serving PDF/Excel reports.
+Frontend: Store functions to request reports.

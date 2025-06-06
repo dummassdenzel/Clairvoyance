@@ -3,7 +3,7 @@
  */
 
 // API base URL
-const API_URL = 'http://localhost/clairvoyance/api';
+export const API_URL = 'http://localhost/clairvoyance/api';
 
 // Default headers
 const DEFAULT_HEADERS = {
@@ -12,13 +12,17 @@ const DEFAULT_HEADERS = {
 
 // Helper function to handle API responses
 async function handleResponse(response: Response) {
-  const data = await response.json();
-  
-  if (!response.ok) {
-    throw new Error(data.message || 'API request failed');
+  const responseData = await response.json();
+
+  if (!response.ok || !responseData.success) {
+    // If response.ok is false, or if response.ok is true but backend indicates failure (responseData.success === false)
+    const errorMessage = responseData.error?.message || responseData.message || 'API request failed';
+    throw new Error(errorMessage);
   }
-  
-  return data;
+
+  // For successful responses, the actual payload is in responseData.data
+  // Some successful operations might not return data (e.g., DELETE), so data can be null/undefined.
+  return responseData.data;
 }
 
 /**

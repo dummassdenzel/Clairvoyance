@@ -1,16 +1,18 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { authStore } from '$lib/services/auth';
-  import { fetchUser, updateUser } from '$lib/services/user';
+  import { authStore } from '$lib/stores/auth';
+  import { fetchUser, updateUser, type UserProfile } from '$lib/stores/user';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
+
+  type UserRoleType = 'admin' | 'editor' | 'viewer';
   
   // Form data
   let username = '';
   let email = '';
   let password = '';
   let confirmPassword = '';
-  let role = '';
+  let role: UserRoleType | '' = ''; // Initialize with '' for unloaded state, then UserRoleType
   let userId: number;
   
   // Form state
@@ -99,7 +101,7 @@
       const userData = {
         username,
         email,
-        role,
+        role: role as UserRoleType, // Explicitly cast role
         // Only include password if it was changed
         ...(password ? { password } : {})
       };
@@ -222,11 +224,11 @@
             id="role" 
             bind:value={role} 
             class="form-control" 
-            disabled={isSubmitting || userId === $authStore.user?.id} 
+            disabled={isSubmitting}
             class:is-invalid={formErrors.role}
           >
-            <option value="user">User</option>
-            <option value="manager">Manager</option>
+            <option value="viewer">Viewer</option>
+            <option value="editor">Editor</option>
             <option value="admin">Administrator</option>
           </select>
           {#if formErrors.role}
@@ -241,11 +243,13 @@
           
           <div class="role-description">
             {#if role === 'admin'}
-              <p><strong>Administrator:</strong> Full access to all features including user management.</p>
-            {:else if role === 'manager'}
-              <p><strong>Manager:</strong> Can manage KPIs, dashboards, and view all reports.</p>
+              <p><strong>Administrator:</strong> Complete system management, user management, critical data governance. Can create, edit, delete dashboards, KPIs, users, categories. Can import/export data and manage data retention.</p>
+            {:else if role === 'editor'}
+              <p><strong>Editor:</strong> Content creation and curation. Can create and edit dashboards, KPIs, widgets. Can import data and generate reports. Cannot delete critical data or manage users.</p>
+            {:else if role === 'viewer'}
+              <p><strong>Viewer:</strong> Monitor performance metrics, access assigned dashboards. Can view dashboards and create personal dashboards. Can export data and generate standard reports. Cannot create or modify shared content.</p>
             {:else}
-              <p><strong>User:</strong> Can view assigned dashboards and KPIs.</p>
+              <p>Select a role to see its description.</p> 
             {/if}
           </div>
         </div>

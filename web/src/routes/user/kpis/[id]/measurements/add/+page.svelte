@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
-  import { fetchKPI } from '$lib/services/kpi';
-  import { authStore } from '$lib/services/auth';
+  import { fetchKPI, type KPI, addKpiMeasurement, type KpiMeasurementInput } from '$lib/stores/kpi';
+  import { authStore } from '$lib/stores/auth';
   import { goto } from '$app/navigation';
   
   // Get KPI ID from URL params
@@ -10,7 +10,7 @@
   
   let isLoading = true;
   let error: string | null = null;
-  let kpi: any = null;
+  let kpi: KPI | null = null;
   let formData = {
     value: '',
     date: new Date().toISOString().split('T')[0], // Today's date in YYYY-MM-DD format
@@ -34,7 +34,7 @@
       const result = await fetchKPI(kpiId);
       
       if (result.success) {
-        kpi = result.kpi;
+        kpi = result.kpi ?? null;
       } else {
         error = result.message || 'Failed to load KPI';
       }
@@ -47,26 +47,38 @@
   }
   
   async function handleSubmit() {
+    if (!formData.value || !formData.date) {
+      error = "Value and Date are required.";
+      return;
+    }
+    if (isNaN(parseFloat(formData.value))) {
+      error = "Value must be a number.";
+      return;
+    }
+
     isLoading = true;
-    error = null;
-    
+    error = null; // Clear previous errors
+
+    const measurementData: KpiMeasurementInput = {
+      value: parseFloat(formData.value),
+      date: formData.date,
+      notes: formData.notes || undefined
+    };
+
     try {
-      // This would be replaced with an actual API call
-      const measurementData = {
-        kpi_id: kpiId,
-        value: parseFloat(formData.value),
-        date: formData.date,
-        notes: formData.notes
-      };
-      
-      // Simulate API call
-      console.log('Adding measurement:', measurementData);
-      
-      // Navigate back to KPI details
-      goto(`/user/kpis/${kpiId}`);
+      const result = await addKpiMeasurement(kpiId, measurementData);
+
+      if (result.success) {
+        // Optionally: show success message (e.g., alert or toast)
+        // alert('Measurement added successfully!');
+        goto(`/user/kpis/${kpiId}`);
+      } else {
+        error = result.message || 'Failed to add measurement.';
+      }
     } catch (err) {
       console.error('Error adding measurement:', err);
-      error = err instanceof Error ? err.message : 'An unexpected error occurred';
+      error = err instanceof Error ? err.message : 'An unexpected error occurred during submission.';
+    } finally {
       isLoading = false;
     }
   }
