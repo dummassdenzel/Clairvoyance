@@ -1,11 +1,6 @@
 <script lang="ts">
-  import { authStore } from '$lib/stores/auth';
-  import { goto } from '$app/navigation';
   import LoginForm from '$lib/components/auth/LoginForm.svelte';
   
-  $: if ($authStore.isAuthenticated) {
-    goto('/user/dashboard');
-  }
 </script>
 
 <div class="auth-page">

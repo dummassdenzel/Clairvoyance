@@ -115,23 +115,24 @@ export async function verifySession(): Promise<boolean> {
  */
 export async function login(username: string, password: string) {
   try {
-    const loginData = await api.post('auth/login', { username, password });
+    const response = await api.post('auth/login', { username, password });
     
-    // If api.post succeeds, loginData will contain the backend's 'data' object: { token: "...", user: { ... } }
-    if (loginData && loginData.token && loginData.user) {
+    // The API returns { status: 'success', message: string, data: { user: {...}, token: string } }
+    if (response && response.user && response.token) {
       const expiryTime = Date.now() + (24 * 60 * 60 * 1000);
       
       updateAuthState({
         isAuthenticated: true,
-        user: loginData.user,
-        token: loginData.token,
+        user: response.user,
+        token: response.token,
         tokenExpiry: expiryTime
       });
       
-      return { success: true };
+      return { 
+        success: true,
+        user: response.user
+      };
     } else {
-      // This case implies the API call succeeded (no error thrown) but data was not as expected.
-      // However, api.post should throw if backend success is false.
       return { 
         success: false, 
         message: 'Login failed: Unexpected response from server.' 

@@ -1,22 +1,4 @@
 <script lang="ts">
-  import { authStore } from '$lib/stores/auth';
-  import { goto } from '$app/navigation';
-  import { onMount } from 'svelte';
-
-  onMount(() => {
-    const auth = $authStore; // Read store value once for efficiency and to avoid potential reactivity issues in onMount
-    if (auth.isAuthenticated) {
-      if (auth.user?.role === 'admin') {
-        goto('/admin/dashboard', { replaceState: true });
-      } else {
-        // Default for any other authenticated user (editor, viewer, etc.)
-        goto('/user/dashboard', { replaceState: true });
-      }
-    } else {
-      // If not authenticated, redirect to the login page
-      goto('/auth/login', { replaceState: true });
-    }
-  });
 </script>
 
 <!-- This content will briefly appear before redirection, or if JS is disabled. -->

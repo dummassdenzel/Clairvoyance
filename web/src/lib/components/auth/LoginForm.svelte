@@ -14,7 +14,20 @@
     try {
       const result = await login(username, password);
       if (result.success) {
-        goto('/dashboard');
+        // Role-based redirects
+        switch (result.user?.role) {
+          case 'admin':
+            goto('/admin/dashboard');
+            break;
+          case 'editor':
+            goto('/editor/dashboard');
+            break;
+          case 'viewer':
+            goto('/dashboard');
+            break;
+          default:
+            goto('/dashboard');
+        }
       } else {
         errorMessage = result.message || 'Login failed. Please check your credentials.';
       }

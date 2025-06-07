@@ -20,32 +20,14 @@ async function handleResponse(response: Response) {
     throw new Error('API response was not valid JSON or was empty.');
   });
 
-  // Special handling for login: if backend says "Login successful" and provides a token,
-  // and HTTP status is OK, trust this as success.
-  // This is a targeted workaround for potential backend inconsistency.
-  if (response.ok && responseData.message === 'Login successful' && responseData.data?.token) {
-    // Log a warning if the 'success' flag was not explicitly true, to help backend diagnosis.
-    if (responseData.success !== true) {
-      console.warn(
-        "Auth Service: Login API reported success via message and token, but 'success' flag was not true. Value:",
-        responseData.success
-      );
-    }
-    return responseData.data; // Proceed as successful login
+  // Check if the response indicates success
+  if (response.ok && responseData.status === 'success') {
+    return responseData.data;
   }
 
-  // Standard response handling:
-  // Error if HTTP response not OK, or if 'success' flag in JSON is not explicitly true.
-  if (!response.ok || responseData.success !== true) {
-    const errorMessage =
-      responseData.error?.message ||
-      responseData.message ||
-      `API request failed with status ${response.status}`;
-    throw new Error(errorMessage);
-  }
-
-  // For all other successful responses (response.ok is true AND responseData.success is true)
-  return responseData.data;
+  // If we get here, either the response wasn't OK or the status wasn't success
+  const errorMessage = responseData.message || `API request failed with status ${response.status}`;
+  throw new Error(errorMessage);
 }
 
 /**
