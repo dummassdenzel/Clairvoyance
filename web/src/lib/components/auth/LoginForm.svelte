@@ -17,16 +17,16 @@
         // Role-based redirects
         switch (result.user?.role) {
           case 'admin':
-            goto('/admin/dashboard');
+            goto('/app/admin/dashboard');
             break;
           case 'editor':
-            goto('/editor/dashboard');
+            goto('/app/editor/dashboard');
             break;
           case 'viewer':
-            goto('/dashboard');
+            goto('/app/viewer/dashboard');
             break;
           default:
-            goto('/dashboard');
+            goto('/app/viewer/dashboard');
         }
       } else {
         errorMessage = result.message || 'Login failed. Please check your credentials.';

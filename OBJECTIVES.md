@@ -39,8 +39,27 @@ This project is a **KPI Visualization and Performance Tracking System** designed
 - Live updates to charts and widgets without full reload.
 
 ### 5. Role-Based Access Control
-- **Admin**: Full access to dashboard configuration and data import.
-- **Viewer**: Read-only access to view KPIs and reports.
+- **Admin Role**:
+    - Complete system management and configuration.
+    - User management and access control.
+    - Critical data governance.
+    - Can create, edit, delete dashboards, KPIs, users, categories.
+    - Can import/export data and manage data retention.
+    - Has audit capabilities.
+- **Editor Role**:
+    - Content creation and curation.
+    - Team-specific KPI management.
+    - Report generation and analysis.
+    - Can create and edit dashboards, KPIs, widgets.
+    - Can import data and generate reports.
+    - Cannot delete critical data or manage users.
+- **Viewer Role**:
+    - Monitor performance metrics.
+    - Access assigned dashboards.
+    - Generate basic reports.
+    - Can view dashboards and create personal dashboards.
+    - Can export data and generate standard reports.
+    - Cannot create or modify shared content.
 - Middleware logic in PHP API to manage permissions.
 - SvelteKit layouts/components respond based on role.
 
@@ -71,14 +90,3 @@ This project is a **KPI Visualization and Performance Tracking System** designed
   - Export logic for reports
 - Track real-time state sync and manual refresh mechanisms.
 - Optimize dashboard layout using responsive design and TailwindCSS grids.
-
----
-
-## Future Enhancements (Optional Ideas)
-
-- KPI trend prediction with basic AI/ML models.
-- Notifications when KPIs fall below/above threshold.
-- Support for more user roles (e.g., Editor, Auditor).
-- Audit log for changes made by admins.
-
----

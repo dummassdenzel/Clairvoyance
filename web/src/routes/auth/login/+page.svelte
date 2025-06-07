@@ -13,7 +13,7 @@
     <LoginForm />
     
     <div class="auth-footer">
-      <p>Don't have an account? <a href="/register">Register</a></p>
+      <p>Don't have an account? <a href="/auth/register">Register</a></p>
     </div>
   </div>
 </div>

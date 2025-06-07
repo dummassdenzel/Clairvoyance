@@ -4,18 +4,16 @@
 import * as api from '../services/api';
 import { writable, derived, get } from 'svelte/store';
 
-// Check if we're in a browser environment
-const browser = typeof window !== 'undefined';
+// Types
+export type UserRole = 'admin' | 'editor' | 'viewer';
 
-// Define authenticated user type
 export interface AuthenticatedUser {
   id: number;
   username: string;
   email: string;
-  role: 'admin' | 'editor' | 'viewer';
+  role: UserRole;
 }
 
-// Define auth state
 export interface AuthState {
   isAuthenticated: boolean;
   user: AuthenticatedUser | null;
@@ -23,14 +21,62 @@ export interface AuthState {
   tokenExpiry: number | null;
 }
 
+export interface AuthResponse {
+  success: boolean;
+  message?: string;
+  user?: AuthenticatedUser;
+}
+
+// Constants
+const TOKEN_KEY = 'auth_token';
+const TOKEN_EXPIRY_KEY = 'auth_token_expiry';
+const TOKEN_EXPIRY_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+
+// Check if we're in a browser environment
+const isBrowser = typeof window !== 'undefined';
+
+// Token management
+const TokenManager = {
+  getToken: (): string | null => 
+    isBrowser ? localStorage.getItem(TOKEN_KEY) : null,
+    
+  setToken: (token: string | null): void => {
+    if (!isBrowser) return;
+    if (token) {
+      localStorage.setItem(TOKEN_KEY, token);
+    } else {
+      localStorage.removeItem(TOKEN_KEY);
+    }
+  },
+  
+  getExpiry: (): number | null => {
+    if (!isBrowser) return null;
+    const expiry = localStorage.getItem(TOKEN_EXPIRY_KEY);
+    return expiry ? parseInt(expiry, 10) : null;
+  },
+  
+  setExpiry: (expiry: number | null): void => {
+    if (!isBrowser) return;
+    if (expiry) {
+      localStorage.setItem(TOKEN_EXPIRY_KEY, expiry.toString());
+    } else {
+      localStorage.removeItem(TOKEN_EXPIRY_KEY);
+    }
+  },
+  
+  clear: (): void => {
+    if (!isBrowser) return;
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(TOKEN_EXPIRY_KEY);
+  }
+};
+
 // Initial auth state
 const initialState: AuthState = {
   isAuthenticated: false,
   user: null,
-  token: browser ? localStorage.getItem('token') : null,
-  tokenExpiry: browser && localStorage.getItem('tokenExpiry') 
-    ? parseInt(localStorage.getItem('tokenExpiry') || '0', 10) 
-    : null
+  token: TokenManager.getToken(),
+  tokenExpiry: TokenManager.getExpiry()
 };
 
 // Create Svelte store for auth state
@@ -40,24 +86,16 @@ export const token = derived(authStore, $authStore => $authStore.token);
 /**
  * Update the authentication state
  */
-function updateAuthState(state: Partial<AuthState>) {
+function updateAuthState(state: Partial<AuthState>): void {
   authStore.update(currentState => {
     const newState = { ...currentState, ...state };
     
-    if (browser && state.token !== undefined) {
-      if (state.token) {
-        localStorage.setItem('token', state.token);
-      } else {
-        localStorage.removeItem('token');
-      }
+    if (state.token !== undefined) {
+      TokenManager.setToken(state.token);
     }
     
-    if (browser && state.tokenExpiry !== undefined) {
-      if (state.tokenExpiry) {
-        localStorage.setItem('tokenExpiry', state.tokenExpiry.toString());
-      } else {
-        localStorage.removeItem('tokenExpiry');
-      }
+    if (state.tokenExpiry !== undefined) {
+      TokenManager.setExpiry(state.tokenExpiry);
     }
     
     return newState;
@@ -70,42 +108,32 @@ function updateAuthState(state: Partial<AuthState>) {
 export async function verifySession(): Promise<boolean> {
   const currentState = get(authStore);
   
-  // If no token, clearly not authenticated
   if (!currentState.token) {
     return false;
   }
   
-  // If token has expired, clear it
   if (currentState.tokenExpiry && currentState.tokenExpiry < Date.now()) {
-    logout();
+    await logout();
     return false;
   }
   
-  // Otherwise, verify the token with the server
   try {
-    const verifiedUserData = await api.get('auth/verify', currentState.token);
+    const response = await api.get('auth/verify', currentState.token);
     
-    // If api.get succeeds, verifiedUserData will contain the backend's 'data' object, which is { user: { ... } }
-    if (verifiedUserData && verifiedUserData.user) {
-      updateAuthState({
-        isAuthenticated: true,
-        user: verifiedUserData.user
-      });
-      return true;
-    } else {
-      // This case should ideally not be reached if api.get throws on error or invalid structure as expected.
-      // However, as a safeguard or if backend returns success:true but no user data:
-      logout();
+    if (!response?.user) {
+      await logout();
       return false;
     }
+    
+    updateAuthState({
+      isAuthenticated: true,
+      user: response.user
+    });
+    
+    return true;
   } catch (error) {
-    console.error('Failed to verify token:', error);
-    // If the error is due to an invalid token (e.g., 401), the API might throw, leading here.
-    // Consider if logout() should be called for specific error types (e.g., auth errors vs. network errors).
-    // For now, maintaining existing behavior: don't logout automatically on network/generic errors.
-    // If the token is truly invalid, the backend would have indicated success:false, and api.get would throw.
-    // If it's a 401, response.ok would be false, and api.get would throw.
-    logout(); // Let's logout if verification fails for any server-related reason.
+    console.error('Session verification failed:', error);
+    await logout();
     return false;
   }
 }
@@ -113,36 +141,35 @@ export async function verifySession(): Promise<boolean> {
 /**
  * Log in a user
  */
-export async function login(username: string, password: string) {
+export async function login(username: string, password: string): Promise<AuthResponse> {
   try {
     const response = await api.post('auth/login', { username, password });
     
-    // The API returns { status: 'success', message: string, data: { user: {...}, token: string } }
-    if (response && response.user && response.token) {
-      const expiryTime = Date.now() + (24 * 60 * 60 * 1000);
-      
-      updateAuthState({
-        isAuthenticated: true,
-        user: response.user,
-        token: response.token,
-        tokenExpiry: expiryTime
-      });
-      
-      return { 
-        success: true,
-        user: response.user
-      };
-    } else {
-      return { 
-        success: false, 
-        message: 'Login failed: Unexpected response from server.' 
+    if (!response?.user || !response?.token) {
+      return {
+        success: false,
+        message: 'Invalid server response'
       };
     }
+    
+    const expiryTime = Date.now() + TOKEN_EXPIRY_DURATION;
+    
+    updateAuthState({
+      isAuthenticated: true,
+      user: response.user,
+      token: response.token,
+      tokenExpiry: expiryTime
+    });
+    
+    return {
+      success: true,
+      user: response.user
+    };
   } catch (error) {
-    console.error('Login error:', error);
-    return { 
-      success: false, 
-      message: error instanceof Error ? error.message : 'Failed to connect to the server' 
+    console.error('Login failed:', error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Authentication failed'
     };
   }
 }
@@ -150,34 +177,39 @@ export async function login(username: string, password: string) {
 /**
  * Register a new user
  */
-export async function register(username: string, email: string, password: string) {
+export async function register(
+  username: string,
+  email: string,
+  password: string
+): Promise<AuthResponse> {
   try {
-    const registrationData = await api.post('auth/register', { username, email, password });
+    const response = await api.post('auth/register', { username, email, password });
     
-    // If api.post succeeds, registrationData will contain the backend's 'data' object: { token: "...", user: { ... } }
-    if (registrationData && registrationData.token && registrationData.user) {
-      const expiryTime = Date.now() + (24 * 60 * 60 * 1000);
-      
-      updateAuthState({
-        isAuthenticated: true,
-        user: registrationData.user,
-        token: registrationData.token,
-        tokenExpiry: expiryTime
-      });
-      
-      return { success: true };
-    } else {
-      // This case implies the API call succeeded (no error thrown) but data was not as expected.
-      return { 
-        success: false, 
-        message: 'Registration failed: Unexpected response from server.' 
+    if (!response?.user || !response?.token) {
+      return {
+        success: false,
+        message: 'Invalid server response'
       };
     }
+    
+    const expiryTime = Date.now() + TOKEN_EXPIRY_DURATION;
+    
+    updateAuthState({
+      isAuthenticated: true,
+      user: response.user,
+      token: response.token,
+      tokenExpiry: expiryTime
+    });
+    
+    return {
+      success: true,
+      user: response.user
+    };
   } catch (error) {
-    console.error('Registration error:', error);
-    return { 
-      success: false, 
-      message: error instanceof Error ? error.message : 'Failed to connect to the server' 
+    console.error('Registration failed:', error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Registration failed'
     };
   }
 }
@@ -185,8 +217,9 @@ export async function register(username: string, email: string, password: string
 /**
  * Log out the current user
  */
-export async function logout() {
-  // Clear the auth state
+export async function logout(): Promise<AuthResponse> {
+  TokenManager.clear();
+  
   updateAuthState({
     isAuthenticated: false,
     user: null,

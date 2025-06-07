@@ -35,7 +35,7 @@ This document summarizes the current development status of the Clairvoyance KPI 
 
 ### 3.2. Frontend (SvelteKit)
 
--   **API Service (`web/src/lib/services/api.ts`)**: A generic service handles all HTTP requests (GET, POST, PUT, DELETE) to the backend API. It manages base URL, headers (including Authorization with JWT token), and standardized response/error handling (expects `{success: true/false, ...}` from backend).
+-   **API Service (`web/src/lib/services/api.ts`)**: A generic service handles all HTTP requests (GET, POST, PUT, DELETE) to the backend API. It manages base URL, headers (including Authorization with JWT token)
 
 -   **Svelte Stores (`web/src/lib/stores/`)**: These stores manage application state and provide functions to interact with the backend API. All major entities have corresponding stores:
     -   `auth.ts`: Manages user authentication state (token, user object, isAuthenticated), login/logout, session verification.
@@ -55,7 +55,6 @@ This document summarizes the current development status of the Clairvoyance KPI 
 -   **State Management**: Svelte stores are the primary mechanism for managing client-side state and reactivity.
 -   **RESTful API**: The backend exposes a RESTful API, which the frontend consumes.
 -   **Token-based Authentication**: JWTs are used for securing API endpoints.
--   **Standardized API Responses**: Frontend expects consistent JSON responses (`{success: boolean, data: ..., message: ...}` or `{success: false, error: ...}`).
 
 ## 5. Next Steps: UI Implementation Plan
 
