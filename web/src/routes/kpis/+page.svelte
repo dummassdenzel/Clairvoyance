@@ -78,20 +78,15 @@
     {#if isEditor}
       <form class="space-y-2 bg-white rounded shadow p-4" on:submit={handleCreate}>
         <h2 class="font-semibold mb-2">Create KPI</h2>
-        <input class="input input-bordered w-full" type="text" placeholder="KPI Name" bind:value={name} required />
-        <input class="input input-bordered w-full" type="number" placeholder="Target" bind:value={target} required />
-        <input class="input input-bordered w-full" type="number" placeholder="RAG Red" bind:value={rag_red} required />
-        <input class="input input-bordered w-full" type="number" placeholder="RAG Amber" bind:value={rag_amber} required />
+        <input class="border rounded px-3 py-2 w-full" type="text" placeholder="KPI Name" bind:value={name} required />
+        <input class="border rounded px-3 py-2 w-full" type="number" placeholder="Target" bind:value={target} required />
+        <input class="border rounded px-3 py-2 w-full" type="number" placeholder="RAG Red" bind:value={rag_red} required />
+        <input class="border rounded px-3 py-2 w-full" type="number" placeholder="RAG Amber" bind:value={rag_amber} required />
         {#if createError}
           <div class="text-red-500 text-sm">{createError}</div>
         {/if}
-        <button class="btn btn-primary w-full" type="submit" disabled={creating}>{creating ? 'Creating...' : 'Create KPI'}</button>
+        <button class="rounded bg-blue-600 text-white font-semibold px-4 py-2 hover:bg-blue-700 transition disabled:opacity-50 w-full" type="submit" disabled={creating}>{creating ? 'Creating...' : 'Create KPI'}</button>
       </form>
     {/if}
   {/if}
-</div>
-
-<style>
-  .input { @apply border rounded px-3 py-2; }
-  .btn { @apply rounded bg-blue-600 text-white font-semibold px-4 py-2 hover:bg-blue-700 transition disabled:opacity-50; }
-</style> 
+</div> 

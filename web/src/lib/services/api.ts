@@ -1,6 +1,6 @@
 import { browser } from '$app/environment';
 
-const API_BASE = '/api/routes';
+const API_BASE = 'http://localhost/clairvoyance-v3/api';
 
 export async function login(data: { email: string; password: string }) {
   const res = await fetch(`${API_BASE}/auth.php`, {

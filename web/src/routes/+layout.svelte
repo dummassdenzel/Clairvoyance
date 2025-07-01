@@ -1,6 +1,7 @@
 <script lang="ts">
   import { user, logout } from '$lib/stores/auth';
   import { goto } from '$app/navigation';
+  import '../app.css';
   let loggingOut = false;
   async function handleLogout() {
     loggingOut = true;
@@ -19,19 +20,14 @@
   <div class="flex items-center gap-4">
     {#if $user}
       <span class="text-sm text-gray-600">{$user.email} ({$user.role})</span>
-      <button class="btn btn-primary px-3 py-1" on:click={handleLogout} disabled={loggingOut}>
+      <button class="rounded-md bg-blue-600 text-white font-semibold hover:bg-blue-700 transition disabled:opacity-50 px-3 py-1" on:click={handleLogout} disabled={loggingOut}>
         {loggingOut ? 'Logging out...' : 'Logout'}
       </button>
     {:else}
-      <a href="/auth/login" class="btn btn-primary px-3 py-1">Login</a>
-      <a href="/auth/register" class="btn btn-outline px-3 py-1">Register</a>
+      <a href="/auth/login" class="rounded-md bg-blue-600 text-white font-semibold hover:bg-blue-700 transition disabled:opacity-50 px-3 py-1">Login</a>
+      <a href="/auth/register" class="rounded-md border border-blue-600 text-blue-600 bg-white hover:bg-blue-50 px-3 py-1">Register</a>
     {/if}
   </div>
 </nav>
 
 <slot />
-
-<style>
-  .btn { @apply rounded bg-blue-600 text-white font-semibold hover:bg-blue-700 transition disabled:opacity-50; }
-  .btn-outline { @apply border border-blue-600 text-blue-600 bg-white hover:bg-blue-50; }
-</style>

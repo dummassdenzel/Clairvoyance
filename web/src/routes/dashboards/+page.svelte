@@ -52,11 +52,7 @@
 
   {#if isEditor && $user}
     <div class="mt-6 text-right">
-      <a href="/dashboards/create" class="btn btn-primary">+ Create Dashboard</a>
+      <a href="/dashboards/create" class="rounded bg-blue-600 text-white font-semibold px-4 py-2 hover:bg-blue-700 transition disabled:opacity-50">+ Create Dashboard</a>
     </div>
   {/if}
-</div>
-
-<style>
-  .btn { @apply rounded bg-blue-600 text-white font-semibold px-4 py-2 hover:bg-blue-700 transition disabled:opacity-50; }
-</style> 
+</div> 

@@ -238,7 +238,7 @@
           {#each $dashboard.viewers as v}
             <li class="flex items-center gap-2">{v.email}
               {#if isEditor}
-                <button class="btn btn-xs btn-outline" on:click={() => handleRemoveViewer(v.id)} disabled={removingViewerId === v.id}>
+                <button class="border border-blue-600 text-blue-600 bg-white hover:bg-blue-50 text-xs px-2 py-1 rounded" on:click={() => handleRemoveViewer(v.id)} disabled={removingViewerId === v.id}>
                   {removingViewerId === v.id ? 'Removing...' : 'Remove'}
                 </button>
               {/if}
@@ -255,8 +255,8 @@
           if (input && input.files && input.files.length > 0) {
             csvFile = input.files[0];
           }
-        }} class="input input-bordered w-full" required />
-        <button class="btn btn-primary" type="submit" disabled={uploading}>{uploading ? 'Uploading...' : 'Upload CSV'}</button>
+        }} class="border rounded px-3 py-2 w-full" required />
+        <button class="rounded bg-blue-600 text-white font-semibold px-4 py-2 hover:bg-blue-700 transition disabled:opacity-50" type="submit" disabled={uploading}>{uploading ? 'Uploading...' : 'Upload CSV'}</button>
       </form>
       {#if csvResult}
         <div class="mt-2 text-sm">
@@ -275,13 +275,13 @@
       <!-- Dashboard Sharing UI -->
       <form class="mt-6 space-y-2" on:submit={handleAssignViewer}>
         <label class="block text-sm font-medium text-gray-700">Assign Viewer</label>
-        <select class="input input-bordered w-full" bind:value={selectedViewer} required>
+        <select class="border rounded px-3 py-2 w-full" bind:value={selectedViewer} required>
           <option value="" disabled selected>Select a viewer...</option>
           {#each $users.filter(u => u.role === 'viewer') as viewer}
             <option value={viewer.id}>{viewer.email}</option>
           {/each}
         </select>
-        <button class="btn btn-primary" type="submit" disabled={sharing || !selectedViewer}>{sharing ? 'Assigning...' : 'Assign Viewer'}</button>
+        <button class="rounded bg-blue-600 text-white font-semibold px-4 py-2 hover:bg-blue-700 transition disabled:opacity-50" type="submit" disabled={sharing || !selectedViewer}>{sharing ? 'Assigning...' : 'Assign Viewer'}</button>
         {#if shareError}
           <div class="text-red-500 text-sm">{shareError}</div>
         {/if}
@@ -292,11 +292,4 @@
       <!-- End Dashboard Sharing UI -->
     {/if}
   {/if}
-</div>
-
-<style>
-  .input { @apply border rounded px-3 py-2; }
-  .btn { @apply rounded bg-blue-600 text-white font-semibold px-4 py-2 hover:bg-blue-700 transition disabled:opacity-50; }
-  .btn-outline { @apply border border-blue-600 text-blue-600 bg-white hover:bg-blue-50; }
-  .btn-xs { @apply text-xs px-2 py-1; }
-</style> 
+</div> 
