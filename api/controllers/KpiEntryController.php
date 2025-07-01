@@ -43,4 +43,18 @@ class KpiEntryController {
         http_response_code(200);
         echo json_encode($result);
     }
+
+    public function listByKpiId() {
+        require_once __DIR__ . '/../models/KpiEntry.php';
+        if (!isset($_GET['kpi_id'])) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Missing kpi_id parameter']);
+            return;
+        }
+        $kpi_id = intval($_GET['kpi_id']);
+        $entry = new KpiEntry();
+        $result = $entry->listByKpiId($kpi_id);
+        http_response_code(200);
+        echo json_encode($result);
+    }
 } 

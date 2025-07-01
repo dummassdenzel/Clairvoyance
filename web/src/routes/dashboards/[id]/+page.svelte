@@ -3,6 +3,8 @@
   import { user } from '$lib/stores/auth';
   import { onMount } from 'svelte';
   import { writable, get } from 'svelte/store';
+  import Chart from 'chart.js/auto';
+  import { onDestroy } from 'svelte';
 
   const dashboard = writable<any>(null);
   const loading = writable(true);
@@ -20,6 +22,12 @@
   let sharing = false;
 
   let removingViewerId: string | null = null;
+
+  let chartInstances: Chart[] = [];
+
+  // Store KPI data for widgets
+  let widgetKpiData: Record<number, { labels: string[]; values: number[] }> = {};
+  let widgetDataLoading = false;
 
   $: dashboardId = $page.params.id;
   $: isEditor = $user?.role === 'editor';
@@ -112,6 +120,56 @@
     fetchDashboard();
   }
 
+  async function fetchWidgetKpiData(widgets: any[]) {
+    widgetKpiData = {};
+    widgetDataLoading = true;
+    await Promise.all(widgets.map(async (widget: any) => {
+      if (widget.kpi_id) {
+        const res = await fetch(`/api/routes/kpi_entries.php?kpi_id=${widget.kpi_id}`, { credentials: 'include' });
+        const data = await res.json();
+        widgetKpiData[widget.kpi_id] = {
+          labels: data.map((d: any) => d.date),
+          values: data.map((d: any) => Number(d.value))
+        };
+      }
+    }));
+    widgetDataLoading = false;
+  }
+
+  function renderCharts(widgets: any[]) {
+    // Clean up previous charts
+    chartInstances.forEach(c => c.destroy());
+    chartInstances = [];
+    widgets?.forEach((widget: any, i: number) => {
+      if (widget.type === 'bar' || widget.type === 'line') {
+        const ctx = document.getElementById(`widget-chart-${i}`) as HTMLCanvasElement;
+        if (ctx) {
+          let labels = ['Jan', 'Feb', 'Mar', 'Apr'];
+          let values = [10, 20, 15, 30];
+          if (widget.kpi_id && widgetKpiData[widget.kpi_id]) {
+            labels = widgetKpiData[widget.kpi_id].labels;
+            values = widgetKpiData[widget.kpi_id].values;
+          }
+          const chart = new Chart(ctx, {
+            type: widget.type,
+            data: {
+              labels,
+              datasets: [{
+                label: widget.title || 'Sample',
+                data: values,
+                backgroundColor: 'rgba(59, 130, 246, 0.5)',
+                borderColor: 'rgba(59, 130, 246, 1)',
+                borderWidth: 2
+              }]
+            },
+            options: { responsive: true, plugins: { legend: { display: true } } }
+          });
+          chartInstances.push(chart);
+        }
+      }
+    });
+  }
+
   onMount(() => {
     fetchDashboard();
     if (isEditor) {
@@ -119,6 +177,11 @@
     }
   });
   $: if (isEditor && $users) fetchViewers();
+  $: widgetsArr = $dashboard?.widgets || $dashboard?.layout || [];
+  $: if (widgetsArr && widgetsArr.length > 0) {
+    fetchWidgetKpiData(widgetsArr).then(() => setTimeout(() => renderCharts(widgetsArr), 0));
+  }
+  onDestroy(() => { chartInstances.forEach(c => c.destroy()); });
 </script>
 
 <div class="max-w-2xl mx-auto mt-8 p-4">
@@ -132,6 +195,38 @@
     <div class="text-gray-600">Dashboard not found or you do not have access.</div>
   {:else}
     <h1 class="text-2xl font-bold mb-4">{$dashboard.name}</h1>
+    <!-- Widget Visualization -->
+    {#if widgetsArr.length > 0}
+      {#if widgetDataLoading}
+        <div class="mb-6">Loading widget data...</div>
+      {:else}
+        <div class="grid gap-6 mb-6">
+          {#each widgetsArr as widget, i}
+            <div class="bg-white rounded shadow p-4">
+              <div class="font-semibold mb-2">{widget.title || widget.type}</div>
+              {#if widget.type === 'bar' || widget.type === 'line'}
+                <canvas id={`widget-chart-${i}`} class="w-full h-64"></canvas>
+              {:else if widget.type === 'table'}
+                <div class="overflow-x-auto">
+                  <table class="min-w-full text-xs border">
+                    <thead>
+                      <tr><th class="border px-2 py-1">Header 1</th><th class="border px-2 py-1">Header 2</th></tr>
+                    </thead>
+                    <tbody>
+                      <tr><td class="border px-2 py-1">Value 1</td><td class="border px-2 py-1">Value 2</td></tr>
+                      <tr><td class="border px-2 py-1">Value 3</td><td class="border px-2 py-1">Value 4</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              {:else}
+                <div class="text-gray-400">Unknown widget type: {widget.type}</div>
+              {/if}
+            </div>
+          {/each}
+        </div>
+      {/if}
+    {/if}
+    <!-- End Widget Visualization -->
     <div class="mb-4">
       <label class="block text-sm font-medium text-gray-700 mb-1">Widgets (JSON)</label>
       <pre class="bg-gray-100 rounded p-2 text-xs overflow-x-auto">{JSON.stringify($dashboard.widgets || $dashboard.layout, null, 2)}</pre>

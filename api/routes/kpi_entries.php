@@ -9,6 +9,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         (new KpiEntryController())->create();
     }
+} elseif ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    if (isset($_GET['kpi_id'])) {
+        (new KpiEntryController())->listByKpiId();
+    } else {
+        http_response_code(400);
+        echo json_encode(['error' => 'Missing kpi_id parameter']);
+    }
 } else {
     http_response_code(405);
     echo json_encode(['error' => 'Method Not Allowed']);

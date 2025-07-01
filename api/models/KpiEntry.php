@@ -52,4 +52,13 @@ class KpiEntry {
         }
         return ['inserted' => $inserted, 'failed' => $failed, 'errors' => $errors];
     }
+    public function listByKpiId($kpi_id) {
+        try {
+            $stmt = $this->db->prepare('SELECT date, value FROM kpi_entries WHERE kpi_id = ? ORDER BY date ASC');
+            $stmt->execute([$kpi_id]);
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            return [];
+        }
+    }
 } 
