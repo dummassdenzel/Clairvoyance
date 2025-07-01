@@ -14,4 +14,13 @@ class Kpi {
             return ['success' => false, 'error' => $e->getMessage()];
         }
     }
+    public function listAll() {
+        try {
+            $stmt = $this->db->prepare('SELECT * FROM kpis');
+            $stmt->execute();
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            return [];
+        }
+    }
 } 

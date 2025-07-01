@@ -24,4 +24,12 @@ class KpiController {
             echo json_encode(['error' => $result['error']]);
         }
     }
+
+    public function listAll() {
+        require_once __DIR__ . '/../models/Kpi.php';
+        $kpi = new Kpi();
+        $result = $kpi->listAll();
+        http_response_code(200);
+        echo json_encode(['kpis' => $result]);
+    }
 } 

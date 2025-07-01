@@ -1,5 +1,4 @@
 <script lang="ts">
-   import { login } from '$lib/stores/auth';
   import { goto } from '$app/navigation';
   
   let username = '';
@@ -7,37 +6,6 @@
   let isLoading = false;
   let errorMessage = '';
   
-  async function handleSubmit() {
-    errorMessage = '';
-    isLoading = true;
-    
-    try {
-      const result = await login(username, password);
-      if (result.success) {
-        // Role-based redirects
-        switch (result.user?.role) {
-          case 'admin':
-            goto('/app/admin');
-            break;
-          case 'editor':
-            goto('/app/editor/dashboard');
-            break;
-          case 'viewer':
-            goto('/app/viewer/dashboard');
-            break;
-          default:
-            goto('/app/viewer/dashboard');
-        }
-      } else {
-        errorMessage = result.message || 'Login failed. Please check your credentials.';
-      }
-    } catch (error) {
-      console.error('Login error:', error);
-      errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
-    } finally {
-      isLoading = false;
-    }
-  }
 </script>
 
 <div class="bg-white p-8 rounded-lg shadow-md max-w-md mx-auto my-8">
@@ -49,7 +17,7 @@
     </div>
   {/if}
   
-  <form on:submit|preventDefault={handleSubmit}>
+  <form >
     <div class="mb-4">
       <label for="username" class="block mb-2 font-medium text-gray-700">Username</label>
       <input 

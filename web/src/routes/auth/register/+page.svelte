@@ -1,5 +1,4 @@
 <script lang="ts">
-   import { register } from '$lib/stores/auth';
   import { goto } from '$app/navigation';
   
   let username = '';
@@ -10,31 +9,6 @@
   let errorMessage = '';
   
   $: passwordsMatch = password === confirmPassword;
-  
-  async function handleSubmit() {
-    errorMessage = '';
-    
-    if (!passwordsMatch) {
-      errorMessage = 'Passwords do not match';
-      return;
-    }
-    
-    isLoading = true;
-    
-    try {
-      const result = await register(username, email, password);
-      if (result.success) {
-        goto('/user/dashboard'); // Default redirect, can be enhanced with role-based logic from authStore if needed
-      } else {
-        errorMessage = result.message || 'Registration failed. Please try again.';
-      }
-    } catch (error) {
-      console.error('Registration error:', error);
-      errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
-    } finally {
-      isLoading = false;
-    }
-  }
 </script>
 
 <div class="bg-white p-8 rounded-lg shadow-md max-w-md mx-auto my-8">
@@ -46,7 +20,7 @@
     </div>
   {/if}
   
-  <form on:submit|preventDefault={handleSubmit} class="space-y-6">
+  <form class="space-y-6">
     <div>
       <label for="username" class="block mb-2 text-sm font-medium text-gray-700">Username</label>
       <input 
