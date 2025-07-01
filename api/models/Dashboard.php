@@ -22,6 +22,10 @@ class Dashboard {
             if (!$dashboard) {
                 return ['success' => false, 'error' => 'Dashboard not found'];
             }
+            // Fetch assigned viewers
+            $stmt = $this->db->prepare('SELECT u.id, u.email FROM dashboard_access da JOIN users u ON da.user_id = u.id WHERE da.dashboard_id = ?');
+            $stmt->execute([$id]);
+            $dashboard['viewers'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
             if ($role === 'editor' && $dashboard['user_id'] == $user_id) {
                 return ['success' => true, 'dashboard' => $dashboard];
             }
