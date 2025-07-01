@@ -1,75 +1,221 @@
-# Clairvoyance KPI Tracking System - Project Status
+Simplified KPI Analytics System Specification
+build this app according to this spec:
 
-## 1. Overview
 
-This document summarizes the current development status of the Clairvoyance KPI Visualization and Performance Tracking System. The backend API and frontend Svelte data stores are largely in place, providing a robust foundation for UI development.
+1. Overview
+The KPI Analytics System is a web-based application for tracking and visualizing Key Performance Indicators (KPIs) using dashboards. It supports two user roles: Editors, who create dashboards and input data, and Viewers, who view dashboards in read-only mode. The system runs locally on a XAMPP environment, making it accessible for a college student with no cloud access. It uses SvelteKit + TailwindCSS for the frontend, Vanilla PHP for the backend REST API, MySQL for data storage, and Chart.js for visualizations.
+2. Objectives
 
-**Primary Goal**: To monitor, analyze, and report on key performance indicators through customizable dashboards, flexible data import, interactive visualizations, and role-based access.
+Enable Editors to create and manage KPI dashboards with simple widgets (charts, tables).
+Allow Editors to input KPI data manually or via CSV uploads.
+Provide Viewers with read-only access to dashboards for monitoring KPIs.
+Ensure a lightweight, secure system running on a local XAMPP server.
+Support basic visualizations and exportable reports in PDF format.
+Keep development simple for a student with limited resources.
 
-## 2. Tech Stack
+3. User Roles and Permissions
+3.1 Editor
 
--   **Frontend**: SvelteKit + TailwindCSS
--   **Backend**: Vanilla PHP (REST API)
--   **Database**: MySQL (via XAMPP phpMyAdmin)
--   **Data Visualization**: JavaScript charting libraries (to be integrated into UI)
+Responsibilities:
+Create, edit, and delete KPI dashboards.
+Design dashboards with drag-and-drop widgets (line charts, bar charts, tables).
+Input KPI data manually or via CSV uploads.
+Set KPI targets and Red/Amber/Green (RAG) thresholds.
+Share dashboards with Viewers by assigning access.
+Export dashboards as PDF reports.
 
-## 3. Core Features & Functionality Status
 
-### 3.1. Backend API (PHP)
+Permissions:
+Full read-write access to dashboards, KPIs, and data.
+Manage user access (assign Viewer roles).
 
--   **Authentication**: JWT-based authentication. Login endpoint (`POST /auth/login`) validates credentials and returns a token and user details (including role).
--   **Role-Based Access Control (RBAC)**: Three roles are implemented:
-    -   `admin`: Full access.
-    -   `editor`: Can create/edit content (KPIs, dashboards, widgets, categories), import data.
-    -   `viewer`: Read-only access to dashboards, KPIs, reports; can export data.
-    Middleware enforces permissions at the API endpoint level.
--   **User Management**: CRUD operations for users (`GET /users`, `POST /users`, `PUT /users/{id}`, `DELETE /users/{id}`), admin-only.
--   **Category Management**: CRUD operations for KPI categories (`GET /categories`, etc.).
--   **KPI Management**: CRUD operations for KPIs. Endpoint for adding measurements to KPIs (`POST /kpis/{kpi_id}/measurements`).
--   **Dashboard Management**: CRUD operations for dashboards (`GET /dashboards`, etc.). Endpoint to retrieve all widgets for a specific dashboard (`GET /dashboards/{id}/widgets`).
--   **Widget Management**: CRUD operations for widgets (`GET /widgets`, `POST /widgets`, etc.). Widgets are associated with dashboards and KPIs, support various types (`line`, `bar`, `pie`, `donut`, `card`), and have configurable settings, positions, and sizes.
--   **Data Import**: Generic endpoint (`POST /import`) supporting file uploads (CSV, Excel, JSON) for different data types (e.g., `kpi_measurements`, `dashboard_structure`).
--   **Data Export**: Generic endpoint (`GET /export`) to export various entities (KPIs, dashboard data, measurements) in multiple formats (CSV, XLSX, JSON, PDF). Also, a specific endpoint `GET /export/dashboard/{id}`.
--   **Report Generation**: Backend logic for generating reports (details depend on `ReportController` specifics, but export functionality is available).
--   **API Documentation**: Detailed endpoint specifications are available in `api/README.md`.
 
-### 3.2. Frontend (SvelteKit)
 
--   **API Service (`web/src/lib/services/api.ts`)**: A generic service handles all HTTP requests (GET, POST, PUT, DELETE) to the backend API. It manages base URL, headers (including Authorization with JWT token)
+3.2 Viewer
 
--   **Svelte Stores (`web/src/lib/stores/`)**: These stores manage application state and provide functions to interact with the backend API. All major entities have corresponding stores:
-    -   `auth.ts`: Manages user authentication state (token, user object, isAuthenticated), login/logout, session verification.
-    -   `user.ts`: Handles fetching and managing user data (for admin UI).
-    -   `category.ts`: Manages KPI categories.
-    -   `kpi.ts`: Manages KPIs, including fetching and adding KPI measurements.
-    -   `dashboard.ts`: Manages dashboards (CRUD), including fetching all widgets for a specific dashboard (`fetchWidgetsForDashboard`).
-    -   `widget.ts`: Manages widgets (CRUD), fetching individual widgets, and fetching all widgets accessible by the user. Defines `WidgetCreateInput` and `WidgetUpdateInput`.
-    -   `report.ts`: Intended for report-specific logic (details to be confirmed during UI build for report generation features beyond basic export).
-    -   `data.ts`: Handles generic data import (`importData`) and export (`exportData`) functionalities, interfacing with the backend's `/import` and `/export` endpoints.
+Responsibilities:
+View assigned dashboards with interactive charts and tables.
+Access exported PDF reports.
 
--   **Type Definitions**: TypeScript interfaces are defined for key data structures (e.g., `User`, `Dashboard`, `Widget`, `Kpi`, `Category`) within the stores, aligned with API responses.
 
-## 4. Key Design Decisions & Patterns
+Permissions:
+Read-only access to assigned dashboards.
+No access to data input or dashboard editing.
 
--   **Separation of Concerns**: Backend API handles business logic and data persistence. Frontend SvelteKit application handles presentation and user interaction, using stores as a bridge to the API.
--   **State Management**: Svelte stores are the primary mechanism for managing client-side state and reactivity.
--   **RESTful API**: The backend exposes a RESTful API, which the frontend consumes.
--   **Token-based Authentication**: JWTs are used for securing API endpoints.
 
-## 5. Next Steps: UI Implementation Plan
 
-The immediate focus is to build the SvelteKit UI components and pages, leveraging the existing stores. The suggested implementation order is:
+4. Functional Requirements
+4.1 Dashboard Management
 
-1.  **Core Authentication & App Shell** (Login, Layout, Auth Guarding, Logout).
-2.  **Dashboard Listing & Viewing** (Read-only first).
-3.  **Widget Data Visualization** (Integrate charting library, create widget components).
-4.  **Dashboard Management (CRUD)**.
-5.  **Widget Management (CRUD within a Dashboard)**.
-6.  **KPI Management & Measurement Addition**.
-7.  **Data Import UI**.
-8.  **Report Export UI**.
-9.  **User Management UI (Admin)**.
-10. **Category Management UI (if needed)**.
-11. **Role-Based UI Polish & Refinements**.
+Creation: Editors can create dashboards using a drag-and-drop interface with Chart.js-based widgets.
+Customization: Support basic widget customization (e.g., chart type, colors, titles).
+Templates: Provide 2-3 predefined dashboard templates (e.g., Sales, Academic Performance).
+Sharing: Editors can assign dashboards to Viewers via a user management interface.
+Export: Export dashboards as PDFs using a JavaScript library (e.g., jsPDF).
 
-This README provides the necessary context to begin UI development with a clear understanding of the available backend services and frontend data management capabilities.
+4.2 Data Input
+
+Manual Entry: Editors can input KPI data via a form (e.g., KPI name, value, date).
+CSV Upload: Support bulk data import via CSV files with a predefined format (e.g., columns: KPI ID, Date, Value).
+Data Validation: Basic checks (e.g., numeric values, required fields) before saving.
+
+4.3 Data Visualization
+
+Widgets: Support line charts, bar charts, and tables using Chart.js.
+RAG Indicators: Color-coded indicators (Red, Amber, Green) based on KPI thresholds.
+Interactivity: Allow Viewers to hover over charts for data details (tooltips).
+Real-Time Updates: Reflect data changes in dashboards without page refresh (via SvelteKit reactivity).
+
+4.4 User Management
+
+Authentication: Simple email/password login (stored securely in MySQL).
+Roles: Assign users as Editor or Viewer during registration.
+Access Control: Restrict Viewer access to read-only dashboards via PHP session checks.
+
+5. Non-Functional Requirements
+
+Performance: Dashboards load within 3 seconds on a local XAMPP server.
+Security:
+Passwords hashed with PHP’s password_hash().
+Role-based access enforced in PHP API endpoints.
+Sanitize user inputs to prevent SQL injection and XSS.
+
+
+Usability: Simple, intuitive interface requiring minimal setup (inspired by SimpleKPI’s ease of use).
+Compatibility: Works on Chrome and Firefox in a local XAMPP environment.
+Storage: MySQL database with minimal schema for KPIs, users, and dashboards.
+
+6. Technical Architecture
+6.1 Frontend
+
+Framework: SvelteKit for reactive UI and routing.
+Styling: TailwindCSS for responsive, utility-first design.
+Libraries:
+Chart.js for data visualizations (line charts, bar charts, tables).
+jsPDF for PDF report generation.
+interact.js for drag-and-drop widget placement.
+
+
+Features:
+Dashboard builder with drag-and-drop widgets for Editors.
+Read-only dashboard view for Viewers with interactive charts.
+Responsive design for desktop (mobile support optional due to local constraints).
+
+
+
+6.2 Backend
+
+Framework: Vanilla PHP for a REST API, served via XAMPP’s Apache, in /clairvoyance-v3/api/
+Database: MySQL (managed via phpMyAdmin).
+API Endpoints:
+POST /api/kpis.php: Create a new KPI (Editor only).
+Body: { "name": "Sales", "target": 1000, "rag_red": 500, "rag_amber": 800 }
+Response: 201 Created, { "id": 1, ... }
+
+
+POST /api/kpi_entries.php: Add KPI data entry (Editor only).
+Body: { "kpi_id": 1, "date": "2025-07-01", "value": 950 }
+Response: 201 Created, { "id": 1, ... }
+
+
+GET /api/dashboards.php?id={id}: Retrieve dashboard data (Editor or Viewer).
+Response: 200 OK, { "id": 1, "name": "Sales Dashboard", "widgets": [...] }
+
+
+POST /api/dashboards.php: Create a new dashboard (Editor only).
+Body: { "name": "Sales Dashboard", "widgets": [...] }
+Response: 201 Created, { "id": 1, ... }
+
+
+POST /api/users.php: Register a user (Editor assigns role).
+Body: { "email": "user@example.com", "password": "pass", "role": "viewer" }
+Response: 201 Created, { "id": 1, ... }
+
+
+
+
+Authentication: PHP sessions with role checks for API access.
+
+6.3 Database (MySQL)
+
+Tables:
+users:
+id (INT, PK, Auto-Increment)
+email (VARCHAR, Unique)
+password (VARCHAR, Hashed)
+role (ENUM: ‘editor’, ‘viewer’)
+
+
+kpis:
+id (INT, PK, Auto-Increment)
+name (VARCHAR)
+target (DECIMAL)
+rag_red (DECIMAL)
+rag_amber (DECIMAL)
+user_id (INT, FK to users)
+
+
+kpi_entries:
+id (INT, PK, Auto-Increment)
+kpi_id (INT, FK to kpis)
+date (DATE)
+value (DECIMAL)
+
+
+dashboards:
+id (INT, PK, Auto-Increment)
+name (VARCHAR)
+layout (JSON, stores widget configurations)
+user_id (INT, FK to users)
+
+
+dashboard_access:
+dashboard_id (INT, FK to dashboards)
+user_id (INT, FK to users)
+
+
+
+
+Notes: JSON for layout keeps the schema simple; CSV uploads are parsed in PHP and inserted into kpi_entries.
+
+
+
+7. User Interface
+
+Editor Interface:
+Dashboard Builder: Drag-and-drop canvas with Chart.js widgets (line/bar charts, tables).
+KPI Form: Input fields for name, target, RAG thresholds.
+Data Entry Form: Fields for KPI ID, date, and value; CSV upload option.
+User Management: Table to assign Viewer access to dashboards.
+
+
+Viewer Interface:
+Dashboard View: Read-only display of charts and tables with hover tooltips.
+Report Export: Button to download dashboard as PDF.
+
+
+Styling: TailwindCSS for clean, responsive design (e.g., card-based layouts, minimal color palette).
+
+
+
+8. Assumptions and Constraints
+
+Assumptions:
+XAMPP is installed and configured correctly.
+Users access the system on a single local machine (no multi-user scaling needed).
+
+
+Constraints:
+No cloud integrations or third-party APIs due to local setup.
+Limited to CSV for bulk data input (no real-time API integrations).
+Maximum 100 KPIs and 10 dashboards for simplicity.
+
+
+
+10. References
+
+SimpleKPI Features (for inspiration): https://www.simplekpi.com/
+SvelteKit Documentation: https://kit.svelte.dev/docs
+Chart.js Documentation: https://www.chartjs.org/docs/latest/
+TailwindCSS Documentation: https://tailwindcss.com/docs
+PHP MySQL Guide: https://www.php.net/manual/en/book.mysql.php
