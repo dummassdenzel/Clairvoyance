@@ -19,6 +19,8 @@
   let shareSuccess: string | null = null;
   let sharing = false;
 
+  let removingViewerId: string | null = null;
+
   $: dashboardId = $page.params.id;
   $: isEditor = $user?.role === 'editor';
 
@@ -97,6 +99,19 @@
     }
   }
 
+  async function handleRemoveViewer(viewerId: string) {
+    removingViewerId = viewerId;
+    const res = await fetch('/api/routes/dashboards.php?action=remove_viewer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ dashboard_id: dashboardId, user_id: viewerId })
+    });
+    await res.json();
+    removingViewerId = null;
+    fetchDashboard();
+  }
+
   onMount(() => {
     fetchDashboard();
     if (isEditor) {
@@ -126,7 +141,13 @@
         <label class="block text-sm font-medium text-gray-700 mb-1">Assigned Viewers</label>
         <ul class="list-disc ml-6 text-sm">
           {#each $dashboard.viewers as v}
-            <li>{v.email}</li>
+            <li class="flex items-center gap-2">{v.email}
+              {#if isEditor}
+                <button class="btn btn-xs btn-outline" on:click={() => handleRemoveViewer(v.id)} disabled={removingViewerId === v.id}>
+                  {removingViewerId === v.id ? 'Removing...' : 'Remove'}
+                </button>
+              {/if}
+            </li>
           {/each}
         </ul>
       </div>
@@ -181,4 +202,6 @@
 <style>
   .input { @apply border rounded px-3 py-2; }
   .btn { @apply rounded bg-blue-600 text-white font-semibold px-4 py-2 hover:bg-blue-700 transition disabled:opacity-50; }
+  .btn-outline { @apply border border-blue-600 text-blue-600 bg-white hover:bg-blue-50; }
+  .btn-xs { @apply text-xs px-2 py-1; }
 </style> 

@@ -6,6 +6,8 @@ $action = $_GET['action'] ?? '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'assign_viewer') {
         (new DashboardController())->assignViewer();
+    } else if ($action === 'remove_viewer') {
+        (new DashboardController())->removeViewer();
     } else {
         (new DashboardController())->create();
     }

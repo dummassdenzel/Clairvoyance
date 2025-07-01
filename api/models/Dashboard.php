@@ -70,4 +70,13 @@ class Dashboard {
             return [];
         }
     }
+    public function removeViewer($dashboard_id, $user_id) {
+        try {
+            $stmt = $this->db->prepare('DELETE FROM dashboard_access WHERE dashboard_id = ? AND user_id = ?');
+            $stmt->execute([$dashboard_id, $user_id]);
+            return ['success' => true];
+        } catch (PDOException $e) {
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
 } 

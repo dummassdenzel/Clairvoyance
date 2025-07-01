@@ -88,4 +88,29 @@ class DashboardController {
         http_response_code(200);
         echo json_encode(['dashboards' => $result]);
     }
+
+    public function removeViewer() {
+        require_once __DIR__ . '/../models/Dashboard.php';
+        session_start();
+        if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'editor') {
+            http_response_code(403);
+            echo json_encode(['error' => 'Forbidden']);
+            return;
+        }
+        $data = json_decode(file_get_contents('php://input'), true);
+        if (!isset($data['dashboard_id'], $data['user_id'])) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Missing dashboard_id or user_id']);
+            return;
+        }
+        $dashboard = new Dashboard();
+        $result = $dashboard->removeViewer($data['dashboard_id'], $data['user_id']);
+        if ($result['success']) {
+            http_response_code(200);
+            echo json_encode(['success' => true]);
+        } else {
+            http_response_code(400);
+            echo json_encode(['error' => $result['error']]);
+        }
+    }
 } 
