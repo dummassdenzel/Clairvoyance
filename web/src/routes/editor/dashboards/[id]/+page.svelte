@@ -2,10 +2,9 @@
   import { page } from '$app/stores';
   import { user } from '$lib/stores/auth';
   import { onMount } from 'svelte';
-  import { writable, get } from 'svelte/store';
-  import Chart from 'chart.js/auto';
-  import { onDestroy } from 'svelte';
+  import { writable } from 'svelte/store';
   import * as api from '$lib/services/api';
+  import DashboardWidget from '$lib/components/DashboardWidget.svelte';
 
   const dashboard = writable<any>(null);
   const loading = writable(true);
@@ -15,15 +14,18 @@
   let uploading = false;
   let selectedKpiForUpload: number | null = null;
 
-
-
   let removingViewerId: string | null = null;
+  let editMode = false;
 
-  let chartInstances: Chart[] = [];
+  function handleCancel() {
+    editMode = false;
+    fetchDashboard();
+  }
 
-  // Store KPI data for widgets
-  let widgetKpiData: Record<number, { labels: string[]; values: number[] }> = {};
-  let widgetDataLoading = false;
+  async function handleSave() {
+    console.log('Saving layout...');
+    editMode = false;
+  }
 
   $: dashboardId = $page.params.id;
   $: isEditor = $user?.role === 'editor';
@@ -48,37 +50,7 @@
 
 
 
-  async function fetchWidgetKpiData(widgets: any[]) {
-    widgetKpiData = {};
-    widgetDataLoading = true;
-    try {
-      await Promise.all(widgets.map(async (widget: any) => {
-        if (widget.kpi_id) {
-          try {
-            const response = await api.getKpiEntries(widget.kpi_id);
-            // The actual data is in the 'data' property of the response
-            if (response && response.data && Array.isArray(response.data)) {
-              const entries = response.data;
-              widgetKpiData[widget.kpi_id] = {
-                labels: entries.map((d: any) => d.date),
-                values: entries.map((d: any) => Number(d.value))
-              };
-            } else {
-              // Ensure there's a fallback for empty/invalid data
-              widgetKpiData[widget.kpi_id] = { labels: [], values: [] };
-            }
-          } catch (e) {
-            console.error(`Failed to load KPI data for widget ${widget.kpi_id}:`, e);
-            widgetKpiData[widget.kpi_id] = { labels: [], values: [] };
-          }
-        }
-      }));
-    } catch (e) {
-      console.error('An error occurred while fetching widget data:', e);
-    } finally {
-      widgetDataLoading = false;
-    }
-  }
+
 
   async function handleCsvUpload(event: Event) {
     event.preventDefault();
@@ -88,8 +60,8 @@
     const data = await api.uploadKpiCsv(selectedKpiForUpload, csvFile);
     csvResult = data;
     uploading = false;
-    // Refresh data after upload
-    fetchWidgetKpiData(widgetsArr).then(() => setTimeout(() => renderCharts(widgetsArr), 0));
+    // Refresh dashboard data to reload widgets
+    fetchDashboard();
   }
 
 
@@ -127,44 +99,6 @@
     }
     return [];
   })();
-  $: if (widgetsArr && widgetsArr.length > 0) {
-    fetchWidgetKpiData(widgetsArr).then(() => setTimeout(() => renderCharts(widgetsArr), 0));
-  }
-  onDestroy(() => { chartInstances.forEach(c => c.destroy()); });
-
-  function renderCharts(widgets: any[]) {
-    // Clean up previous charts
-    chartInstances.forEach(c => c.destroy());
-    chartInstances = [];
-    widgets?.forEach((widget: any, i: number) => {
-      if (widget.type === 'bar' || widget.type === 'line') {
-        const ctx = document.getElementById(`widget-chart-${i}`) as HTMLCanvasElement;
-        if (ctx) {
-          let labels: string[] = [];
-          let values: number[] = [];
-          if (widget.kpi_id && widgetKpiData[widget.kpi_id] && widgetKpiData[widget.kpi_id].labels) {
-            labels = widgetKpiData[widget.kpi_id].labels;
-            values = widgetKpiData[widget.kpi_id].values;
-          }
-          const chart = new Chart(ctx, {
-            type: widget.type,
-            data: {
-              labels,
-              datasets: [{
-                label: widget.title || 'Sample',
-                data: values,
-                backgroundColor: 'rgba(59, 130, 246, 0.5)',
-                borderColor: 'rgba(59, 130, 246, 1)',
-                borderWidth: 2
-              }]
-            },
-            options: { responsive: true, plugins: { legend: { display: true } } }
-          });
-          chartInstances.push(chart);
-        }
-      }
-    });
-  }
 </script>
 
 <div class="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
@@ -187,57 +121,42 @@
         <span class="mx-2">/</span>
         <span class="font-medium text-gray-700">{$dashboard.name}</span>
       </div>
-      <h1 class="text-3xl font-bold text-gray-900">{$dashboard.name}</h1>
-      {#if $dashboard.description}
-        <p class="mt-1 text-sm text-gray-600">{$dashboard.description}</p>
-      {/if}
+      <div class="flex justify-between items-start">
+        <div>
+          <h1 class="text-3xl font-bold text-gray-900">{$dashboard.name}</h1>
+          {#if $dashboard.description}
+            <p class="mt-1 text-sm text-gray-600">{$dashboard.description}</p>
+          {/if}
+        </div>
+
+        {#if isEditor}
+          <div class="flex-shrink-0 ml-4">
+            {#if editMode}
+              <div class="flex items-center space-x-2">
+                <button on:click={handleCancel} class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                  Cancel
+                </button>
+                <button on:click={handleSave} class="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                  Save Layout
+                </button>
+              </div>
+            {:else}
+              <button on:click={() => editMode = true} class="px-4 py-2 text-sm font-medium text-white bg-gray-600 border border-transparent rounded-md shadow-sm hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
+                Edit Layout
+              </button>
+            {/if}
+          </div>
+        {/if}
+      </div>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 lg:gap-8">
       <!-- Main Content -->
       <div class="lg:col-span-2">
-        {#if widgetDataLoading}
-          <div class="text-center py-12">Loading widget data...</div>
-        {:else if widgetsArr.length > 0}
+        {#if widgetsArr.length > 0}
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {#each widgetsArr as widget, i}
-              <div class="bg-white rounded-lg shadow border border-gray-200">
-                <div class="p-4 border-b border-gray-200">
-                  <h3 class="text-lg font-semibold text-gray-800">{widget.title || widget.type}</h3>
-                </div>
-                <div class="p-4">
-                  {#if widget.type === 'bar' || widget.type === 'line'}
-                    <canvas id={`widget-chart-${i}`} class="w-full h-64"></canvas>
-                  {:else if widget.type === 'table'}
-                    <div class="overflow-x-auto">
-                      <table class="min-w-full text-sm border border-gray-200 divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
-                          <tr>
-                            <th class="px-4 py-2 text-left font-semibold text-gray-600">Date</th>
-                            <th class="px-4 py-2 text-left font-semibold text-gray-600">Value</th>
-                          </tr>
-                        </thead>
-                        <tbody class="bg-white divide-y divide-gray-200">
-                          {#if widget.kpi_id && widgetKpiData[widget.kpi_id] && widgetKpiData[widget.kpi_id].labels.length > 0}
-                            {#each widgetKpiData[widget.kpi_id].labels as label, j}
-                              <tr>
-                                <td class="px-4 py-2 whitespace-nowrap">{label}</td>
-                                <td class="px-4 py-2 whitespace-nowrap">{widgetKpiData[widget.kpi_id].values[j]}</td>
-                              </tr>
-                            {/each}
-                          {:else}
-                            <tr>
-                              <td colspan="2" class="px-4 py-2 text-center text-gray-500">No data available for this KPI.</td>
-                            </tr>
-                          {/if}
-                        </tbody>
-                      </table>
-                    </div>
-                  {:else}
-                    <div class="text-gray-400">Unknown widget type: {widget.type}</div>
-                  {/if}
-                </div>
-              </div>
+            {#each widgetsArr as widget (widget.id)}
+              <DashboardWidget {widget} />
             {/each}
           </div>
         {:else}

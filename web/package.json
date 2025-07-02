@@ -30,6 +30,7 @@
 		"vitest": "^3.0.0"
 	},
 	"dependencies": {
-		"chart.js": "^4.5.0"
+		"chart.js": "^4.5.0",
+		"svelte-grid": "^5.1.2"
 	}
 }
