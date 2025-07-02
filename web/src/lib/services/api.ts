@@ -69,7 +69,7 @@ export async function getDashboard(id: string) {
   return await res.json();
 }
 
-export async function createDashboard(data: { name: string; layout: any[] }) { // Note: 'widgets' was renamed to 'layout'
+export async function createDashboard(data: { name: string; description?: string; }) {
   const res = await fetch(`${API_BASE}/dashboards`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -85,6 +85,22 @@ export async function assignViewer(dashboard_id: string, user_id: string) {
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
     body: JSON.stringify({ user_id }) // Only user_id is needed in the body
+  });
+  return await res.json();
+}
+
+export async function generateShareLink(dashboard_id: string) {
+  const res = await fetch(`${API_BASE}/dashboards/${dashboard_id}/share`, {
+    method: 'POST',
+    credentials: 'include'
+  });
+  return await res.json();
+}
+
+export async function redeemShareLink(token: string) {
+  const res = await fetch(`${API_BASE}/dashboards/share/${token}`, {
+    method: 'POST',
+    credentials: 'include'
   });
   return await res.json();
 }

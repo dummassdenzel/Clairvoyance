@@ -3,6 +3,7 @@ import * as api from '$lib/services/api';
 
 export const user = writable<{ id: number; email: string; role: string } | null>(null);
 export const authError = writable<string | null>(null);
+export const authLoaded = writable<boolean>(false);
 
 // On load, check if user is logged in
 if (typeof window !== 'undefined') {
@@ -12,6 +13,8 @@ if (typeof window !== 'undefined') {
     } else {
       user.set(null);
     }
+  }).finally(() => {
+    authLoaded.set(true);
   });
 }
 

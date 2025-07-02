@@ -46,6 +46,18 @@ class RoleMiddleware
     }
     
     /**
+     * Check if the user is logged in
+     * 
+     * @return void
+     */
+    public function requireLogin() {
+        if (!isset($_SESSION['user'])) {
+            Response::unauthorized('You must be logged in to perform this action.');
+            exit();
+        }
+    }
+
+    /**
      * Check if the user is an editor or admin
      * 
      * @return object The authenticated user if they are an editor or admin

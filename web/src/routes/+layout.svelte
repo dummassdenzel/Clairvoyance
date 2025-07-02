@@ -1,33 +1,52 @@
 <script lang="ts">
-  import { user, logout } from '$lib/stores/auth';
-  import { goto } from '$app/navigation';
   import '../app.css';
-  let loggingOut = false;
-  async function handleLogout() {
-    loggingOut = true;
-    await logout();
-    loggingOut = false;
-    goto('/auth/login');
+  import { user, authLoaded } from '$lib/stores/auth';
+  import { page } from '$app/stores';
+  import { goto } from '$app/navigation';
+  import { onMount } from 'svelte';
+  import EditorNavbar from '$lib/components/EditorNavbar.svelte';
+  import ViewerNavbar from '$lib/components/ViewerNavbar.svelte';
+
+  let showNavbar = false;
+  let userRole: 'editor' | 'viewer' | null = null;
+
+  // Routes where the navbar should be hidden entirely
+  const noNavRoutes = ['/auth/login', '/auth/register'];
+
+  // This will reactively update whenever the page or user store changes
+  $: {
+    showNavbar = $authLoaded && !!$user && !noNavRoutes.includes($page.route.id || '');
+    const role = $user?.role;
+    if (role === 'editor' || role === 'viewer') {
+      userRole = role;
+    } else {
+      userRole = null;
+    }
   }
+
+  onMount(() => {
+    // If auth is loaded and there's no user, redirect to login, unless on an auth page
+    if ($authLoaded && !$user && !noNavRoutes.includes($page.route.id || '')) {
+      goto('/auth/login');
+    }
+  });
+
+  // When the user store changes (e.g., after login), this will re-evaluate
+  user.subscribe(currentUser => {
+    if ($authLoaded && !currentUser && !noNavRoutes.includes($page.route.id || '')) {
+      goto('/auth/login');
+    }
+  });
 </script>
 
-<nav class="bg-white border-b border-gray-200 px-4 py-2 flex items-center justify-between">
-  <div class="flex items-center gap-4">
-    <a href="/" class="font-bold text-lg text-blue-700">Clairvoyance</a>
-    <a href="/dashboards" class="text-gray-700 hover:text-blue-600">Dashboards</a>
-    <a href="/kpis" class="text-gray-700 hover:text-blue-600">KPIs</a>
-  </div>
-  <div class="flex items-center gap-4">
-    {#if $user}
-      <span class="text-sm text-gray-600">{$user.email} ({$user.role})</span>
-      <button class="rounded-md bg-blue-600 text-white font-semibold hover:bg-blue-700 transition disabled:opacity-50 px-3 py-1" on:click={handleLogout} disabled={loggingOut}>
-        {loggingOut ? 'Logging out...' : 'Logout'}
-      </button>
-    {:else}
-      <a href="/auth/login" class="rounded-md bg-blue-600 text-white font-semibold hover:bg-blue-700 transition disabled:opacity-50 px-3 py-1">Login</a>
-      <a href="/auth/register" class="rounded-md border border-blue-600 text-blue-600 bg-white hover:bg-blue-50 px-3 py-1">Register</a>
-    {/if}
-  </div>
-</nav>
+{#if showNavbar}
+  {#if userRole === 'editor'}
+    <EditorNavbar />
+  {:else if userRole === 'viewer'}
+    <ViewerNavbar />
+  {/if}
+{/if}
 
-<slot />
+<main>
+  <slot />
+</main>

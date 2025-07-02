@@ -113,6 +113,30 @@ class DashboardController {
         }
     }
 
+    public function generateShareLink($dashboardId) {
+        $userId = $_SESSION['user']['id'];
+        $dashboard = new Dashboard();
+        $result = $dashboard->createShareToken($dashboardId, $userId);
+
+        if ($result['success']) {
+            Response::success('Share token created successfully.', ['token' => $result['token']]);
+        } else {
+            Response::error($result['error'], null, 403);
+        }
+    }
+
+    public function redeemShareLink($token) {
+        $userId = $_SESSION['user']['id'];
+        $dashboard = new Dashboard();
+        $result = $dashboard->redeemToken($token, $userId);
+
+        if ($result['success']) {
+            Response::success($result['message'], ['dashboard_id' => $result['dashboard_id']]);
+        } else {
+            Response::error($result['error'], null, 400);
+        }
+    }
+
     public function removeViewer($dashboardId, $userId) {
         // Middleware handles auth and role checks.
         $dashboard = new Dashboard();

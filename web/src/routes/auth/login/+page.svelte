@@ -1,21 +1,39 @@
 <script lang="ts">
   import { authError, login, user } from '$lib/stores/auth';
   import { goto } from '$app/navigation';
+  import { page } from '$app/stores';
+
   let email = '';
   let password = '';
   let loading = false;
 
-  async function handleSubmit(event: Event) {
-    event.preventDefault();
+  async function handleSubmit() {
     loading = true;
     const ok = await login(email, password);
     loading = false;
-    if (ok) goto('/dashboards');
+
+    if (ok && $user) {
+      const redirectUrl = $page.url.searchParams.get('redirect');
+      if (redirectUrl) {
+        goto(redirectUrl);
+        return;
+      }
+
+      // Role-based redirect
+      if ($user.role === 'editor' || $user.role === 'admin') {
+        goto('/editor/dashboards');
+      } else if ($user.role === 'viewer') {
+        goto('/viewer/dashboards');
+      } else {
+        // Fallback for any other roles or just in case
+        goto('/viewer/dashboards');
+      }
+    }
   }
 </script>
 
 <div class="flex min-h-screen items-center justify-center bg-gray-50">
-  <form class="bg-white p-8 rounded shadow w-full max-w-sm space-y-4" on:submit={handleSubmit}>
+  <form class="bg-white p-8 rounded shadow w-full max-w-sm space-y-4" on:submit|preventDefault={handleSubmit}>
     <h1 class="text-xl font-bold mb-2">Login</h1>
     <input class="border rounded px-3 py-2 w-full" type="email" placeholder="Email" bind:value={email} required />
     <input class="border rounded px-3 py-2 w-full" type="password" placeholder="Password" bind:value={password} required />

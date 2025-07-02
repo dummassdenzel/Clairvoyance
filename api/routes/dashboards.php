@@ -13,7 +13,30 @@ $part1 = $request[1] ?? null;
 $part2 = $request[2] ?? null;
 $part3 = $request[3] ?? null;
 
-// --- Sub-resource routing for /dashboards/{id}/viewers --- 
+// --- Route for dashboard sharing ---
+if ($part1 === 'share' && isset($part2)) {
+    $token = $part2;
+    $roleMiddleware->requireLogin(); // Any logged-in user can redeem
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $controller->redeemShareLink($token);
+    } else {
+        Response::methodNotAllowed();
+    }
+    exit();
+}
+
+// --- Sub-resource routing for /dashboards/{id}/viewers and /dashboards/{id}/share ---  
+if (is_numeric($part1) && $part2 === 'share') {
+    $dashboardId = $part1;
+    $roleMiddleware->requireEditor(); // Only editors can generate share links
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $controller->generateShareLink($dashboardId);
+    } else {
+        Response::methodNotAllowed();
+    }
+    exit();
+}
+
 if (is_numeric($part1) && $part2 === 'viewers') {
     $dashboardId = $part1;
     $userId = is_numeric($part3) ? $part3 : null;
