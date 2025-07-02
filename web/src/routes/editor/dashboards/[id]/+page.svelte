@@ -14,13 +14,7 @@
   let csvResult: any = null;
   let uploading = false;
 
-  // Dashboard sharing state
-  const users = writable<any[]>([]);
-  const viewers = writable<any[]>([]);
-  let selectedViewer = '';
-  let shareError: string | null = null;
-  let shareSuccess: string | null = null;
-  let sharing = false;
+
 
   let removingViewerId: string | null = null;
 
@@ -38,11 +32,11 @@
     error.set(null);
     try {
       const data = await api.getDashboard(dashboardId);
-      if (data.error) {
-        error.set(data.error);
+      if (data.error || !data.data || !data.data.dashboard) {
+        error.set(data.error || 'Invalid dashboard data received.');
         dashboard.set(null);
       } else {
-        dashboard.set(data);
+        dashboard.set(data.data.dashboard);
       }
     } catch (e) {
       error.set('Failed to load dashboard');
@@ -51,26 +45,32 @@
     loading.set(false);
   }
 
-  async function fetchUsers() {
-    try {
-      const data = await api.getUsers();
-      users.set(data.users || []);
-    } catch (e) {}
-  }
+
 
   async function fetchWidgetKpiData(widgets: any[]) {
     widgetKpiData = {};
     widgetDataLoading = true;
-    await Promise.all(widgets.map(async (widget: any) => {
-      if (widget.kpi_id) {
-        const data = await api.getKpiEntries(widget.kpi_id);
-        widgetKpiData[widget.kpi_id] = {
-          labels: data.map((d: any) => d.date),
-          values: data.map((d: any) => Number(d.value))
-        };
-      }
-    }));
-    widgetDataLoading = false;
+    try {
+      await Promise.all(widgets.map(async (widget: any) => {
+        if (widget.kpi_id) {
+          try {
+            const data = await api.getKpiEntries(widget.kpi_id);
+            if (data && !data.error) {
+              widgetKpiData[widget.kpi_id] = {
+                labels: data.map((d: any) => d.date),
+                values: data.map((d: any) => Number(d.value))
+              };
+            }
+          } catch (e) {
+            console.error(`Failed to load KPI data for widget ${widget.kpi_id}:`, e);
+          }
+        }
+      }));
+    } catch (e) {
+      console.error('An error occurred while fetching widget data:', e);
+    } finally {
+      widgetDataLoading = false;
+    }
   }
 
   async function handleCsvUpload(event: Event) {
@@ -83,20 +83,7 @@
     uploading = false;
   }
 
-  async function handleAssignViewer(event: Event) {
-    event.preventDefault();
-    shareError = null;
-    shareSuccess = null;
-    sharing = true;
-    const data = await api.assignViewer(dashboardId, selectedViewer);
-    sharing = false;
-    if (data.success) {
-      shareSuccess = 'Viewer assigned!';
-      selectedViewer = '';
-    } else {
-      shareError = data.error || 'Failed to assign viewer.';
-    }
-  }
+
 
   async function handleRemoveViewer(viewerId: string) {
     removingViewerId = viewerId;
@@ -105,21 +92,27 @@
     fetchDashboard();
   }
 
-  async function fetchViewers() {
-    const allUsers = get(users);
-    if ($dashboard && allUsers) {
-      viewers.set(allUsers.filter(u => u.role === 'viewer'));
-    }
-  }
+
 
   onMount(() => {
     fetchDashboard();
-    if (isEditor) {
-      fetchUsers();
-    }
   });
-  $: if (isEditor && $users) fetchViewers();
-  $: widgetsArr = $dashboard?.widgets || $dashboard?.layout || [];
+  $: widgetsArr = (() => {
+    const layoutData = $dashboard?.layout || $dashboard?.widgets;
+    if (typeof layoutData === 'string') {
+      try {
+        const parsed = JSON.parse(layoutData);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (e) {
+        console.error("Failed to parse widgets JSON:", e);
+        return [];
+      }
+    }
+    if (Array.isArray(layoutData)) {
+      return layoutData;
+    }
+    return [];
+  })();
   $: if (widgetsArr && widgetsArr.length > 0) {
     fetchWidgetKpiData(widgetsArr).then(() => setTimeout(() => renderCharts(widgetsArr), 0));
   }
@@ -184,13 +177,26 @@
                 <canvas id={`widget-chart-${i}`} class="w-full h-64"></canvas>
               {:else if widget.type === 'table'}
                 <div class="overflow-x-auto">
-                  <table class="min-w-full text-xs border">
-                    <thead>
-                      <tr><th class="border px-2 py-1">Header 1</th><th class="border px-2 py-1">Header 2</th></tr>
+                  <table class="min-w-full text-sm border border-gray-200 divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                      <tr>
+                        <th class="px-4 py-2 text-left font-semibold text-gray-600">Date</th>
+                        <th class="px-4 py-2 text-left font-semibold text-gray-600">Value</th>
+                      </tr>
                     </thead>
-                    <tbody>
-                      <tr><td class="border px-2 py-1">Value 1</td><td class="border px-2 py-1">Value 2</td></tr>
-                      <tr><td class="border px-2 py-1">Value 3</td><td class="border px-2 py-1">Value 4</td></tr>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                      {#if widget.kpi_id && widgetKpiData[widget.kpi_id] && widgetKpiData[widget.kpi_id].labels.length > 0}
+                        {#each widgetKpiData[widget.kpi_id].labels as label, j}
+                          <tr>
+                            <td class="px-4 py-2 whitespace-nowrap">{label}</td>
+                            <td class="px-4 py-2 whitespace-nowrap">{widgetKpiData[widget.kpi_id].values[j]}</td>
+                          </tr>
+                        {/each}
+                      {:else}
+                        <tr>
+                          <td colspan="2" class="px-4 py-2 text-center text-gray-500">No data available for this KPI.</td>
+                        </tr>
+                      {/if}
                     </tbody>
                   </table>
                 </div>
@@ -200,24 +206,43 @@
             </div>
           {/each}
         </div>
+
+        <!-- Viewers List -->
+        {#if isEditor && $dashboard.viewers && $dashboard.viewers.length > 0}
+          <div class="mt-8">
+            <h2 class="text-xl font-bold mb-4">Current Viewers</h2>
+            <ul class="bg-white rounded-lg shadow overflow-hidden divide-y divide-gray-200">
+              {#each $dashboard.viewers as viewer}
+                <li class="p-4 flex items-center justify-between">
+                  <span class="text-gray-800">{viewer.email}</span>
+                  <button 
+                    on:click={() => handleRemoveViewer(viewer.id)} 
+                    disabled={removingViewerId === viewer.id}
+                    class="text-sm text-red-600 hover:text-red-800 font-semibold py-1 px-3 rounded border border-red-300 hover:border-red-500 transition disabled:opacity-50">
+                    {removingViewerId === viewer.id ? 'Removing...' : 'Remove'}
+                  </button>
+                </li>
+              {/each}
+            </ul>
+          </div>
+        {/if}
       {/if}
     {/if}
     <!-- End Widget Visualization -->
-    <div class="mb-4">
-      <label class="block text-sm font-medium text-gray-700 mb-1">Widgets (JSON)</label>
-      <pre class="bg-gray-100 rounded p-2 text-xs overflow-x-auto">{JSON.stringify($dashboard.widgets || $dashboard.layout, null, 2)}</pre>
-    </div>
-    {#if $dashboard.viewers && $dashboard.viewers.length > 0}
-      <div class="mb-4">
-        <label class="block text-sm font-medium text-gray-700 mb-1">Assigned Viewers</label>
-        <ul class="list-disc ml-6 text-sm">
-          {#each $dashboard.viewers as v}
-            <li class="flex items-center gap-2">{v.email}
-              {#if isEditor}
-                <button class="border border-blue-600 text-blue-600 bg-white hover:bg-blue-50 text-xs px-2 py-1 rounded" on:click={() => handleRemoveViewer(v.id)} disabled={removingViewerId === v.id}>
-                  {removingViewerId === v.id ? 'Removing...' : 'Remove'}
-                </button>
-              {/if}
+    <!-- Viewers List -->
+    {#if isEditor && $dashboard.viewers && $dashboard.viewers.length > 0}
+      <div class="mt-8 mb-6">
+        <h2 class="text-xl font-bold mb-4">Current Viewers</h2>
+        <ul class="bg-white rounded-lg shadow overflow-hidden divide-y divide-gray-200">
+          {#each $dashboard.viewers as viewer}
+            <li class="p-4 flex items-center justify-between">
+              <span class="text-gray-800">{viewer.email}</span>
+              <button 
+                on:click={() => handleRemoveViewer(viewer.id)} 
+                disabled={removingViewerId === viewer.id}
+                class="text-sm text-red-600 hover:text-red-800 font-semibold py-1 px-3 rounded border border-red-300 hover:border-red-500 transition disabled:opacity-50">
+                {removingViewerId === viewer.id ? 'Removing...' : 'Remove'}
+              </button>
             </li>
           {/each}
         </ul>
@@ -248,24 +273,7 @@
           {/if}
         </div>
       {/if}
-      <!-- Dashboard Sharing UI -->
-      <form class="mt-6 space-y-2" on:submit={handleAssignViewer}>
-        <label class="block text-sm font-medium text-gray-700">Assign Viewer</label>
-        <select class="border rounded px-3 py-2 w-full" bind:value={selectedViewer} required>
-          <option value="" disabled selected>Select a viewer...</option>
-          {#each $users.filter(u => u.role === 'viewer') as viewer}
-            <option value={viewer.id}>{viewer.email}</option>
-          {/each}
-        </select>
-        <button class="rounded bg-blue-600 text-white font-semibold px-4 py-2 hover:bg-blue-700 transition disabled:opacity-50" type="submit" disabled={sharing || !selectedViewer}>{sharing ? 'Assigning...' : 'Assign Viewer'}</button>
-        {#if shareError}
-          <div class="text-red-500 text-sm">{shareError}</div>
-        {/if}
-        {#if shareSuccess}
-          <div class="text-green-600 text-sm">{shareSuccess}</div>
-        {/if}
-      </form>
-      <!-- End Dashboard Sharing UI -->
+
     {/if}
   {/if}
 </div> 
