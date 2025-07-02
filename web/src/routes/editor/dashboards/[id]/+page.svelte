@@ -5,16 +5,26 @@
   import { writable } from 'svelte/store';
   import * as api from '$lib/services/api';
   import DashboardWidget from '$lib/components/DashboardWidget.svelte';
+  import ViewersModal from '$lib/components/ViewersModal.svelte';
+  import UploadKpiModal from '$lib/components/UploadKpiModal.svelte';
+  import Grid from 'svelte-grid';
+  import gridHelp from 'svelte-grid/build/helper/index.mjs';
+
+  type Item = {
+    id: string;
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  } & Record<string, any>;
 
   const dashboard = writable<any>(null);
   const loading = writable(true);
   const error = writable<string | null>(null);
-  let csvFile: File | null = null;
-  let csvResult: any = null;
-  let uploading = false;
-  let selectedKpiForUpload: number | null = null;
 
-  let removingViewerId: string | null = null;
+
+  let isViewersModalOpen = false;
+  let isUploadModalOpen = false;
   let editMode = false;
 
   function handleCancel() {
@@ -22,9 +32,31 @@
     fetchDashboard();
   }
 
+  const cols: any = [[0, 12]];
+
   async function handleSave() {
-    console.log('Saving layout...');
-    editMode = false;
+    const layoutToSave = items.map(dataItem => {
+      const layout = dataItem[cols[0][1]];
+      const { id, title, type, kpi_id } = dataItem;
+      return {
+        id: Number(id),
+        x: layout.x,
+        y: layout.y,
+        w: layout.w,
+        h: layout.h,
+        title,
+        type,
+        kpi_id
+      };
+    });
+
+    try {
+      await api.updateDashboard(dashboardId, { layout: layoutToSave });
+      editMode = false;
+    } catch (e) {
+      console.error('Failed to save layout:', e);
+      alert('Failed to save layout. See console for details.');
+    }
   }
 
   $: dashboardId = $page.params.id;
@@ -52,26 +84,11 @@
 
 
 
-  async function handleCsvUpload(event: Event) {
-    event.preventDefault();
-    if (!csvFile || selectedKpiForUpload === null) return;
-    uploading = true;
-    csvResult = null;
-    const data = await api.uploadKpiCsv(selectedKpiForUpload, csvFile);
-    csvResult = data;
-    uploading = false;
-    // Refresh dashboard data to reload widgets
-    fetchDashboard();
-  }
 
 
 
-  async function handleRemoveViewer(viewerId: string) {
-    removingViewerId = viewerId;
-    await api.removeViewer(dashboardId, viewerId);
-    removingViewerId = null;
-    fetchDashboard();
-  }
+
+
 
 
 
@@ -99,7 +116,39 @@
     }
     return [];
   })();
+
+  let items: any[] = [];
+  $: if (widgetsArr) {
+    items = widgetsArr.map((widget, i) => {
+      const layout = {
+        x: widget.x ?? (i % 4) * 3,
+        y: widget.y ?? Math.floor(i / 4) * 5,
+        w: widget.w ?? 3,
+        h: widget.h ?? 5,
+        fixed: !editMode
+      };
+
+      return {
+        [cols[0][1]]: gridHelp.item(layout),
+        ...widget,
+        id: String(widget.id)
+      };
+    });
+  }
 </script>
+
+<style>
+  :global(.svlt-grid-container) {
+    background: #eee;
+  }
+  :global(.svlt-grid-shadow) {
+    background: rgba(0, 0, 0, 0.2);
+  }
+  :global(.svlt-grid-resizer) {
+    background: #fff;
+    border: 2px solid #333;
+  }
+</style>
 
 <div class="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
   {#if $loading}
@@ -125,23 +174,27 @@
         <div>
           <h1 class="text-3xl font-bold text-gray-900">{$dashboard.name}</h1>
           {#if $dashboard.description}
-            <p class="mt-1 text-sm text-gray-600">{$dashboard.description}</p>
+            <p class="mt-2 text-sm text-gray-600">{$dashboard.description}</p>
           {/if}
         </div>
 
         {#if isEditor}
-          <div class="flex-shrink-0 ml-4">
+          <div class="flex items-center space-x-2">
+            <button on:click={() => isViewersModalOpen = true} class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+              Manage Viewers
+            </button>
+            <button on:click={() => isUploadModalOpen = true} class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+              Upload Data
+            </button>
             {#if editMode}
-              <div class="flex items-center space-x-2">
-                <button on:click={handleCancel} class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                  Cancel
-                </button>
-                <button on:click={handleSave} class="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                  Save Layout
-                </button>
-              </div>
+              <button on:click={handleCancel} class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+                Cancel
+              </button>
+              <button on:click={handleSave} class="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700">
+                Save Layout
+              </button>
             {:else}
-              <button on:click={() => editMode = true} class="px-4 py-2 text-sm font-medium text-white bg-gray-600 border border-transparent rounded-md shadow-sm hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
+              <button on:click={() => editMode = true} class="px-4 py-2 text-sm font-medium text-white bg-gray-800 border border-transparent rounded-md hover:bg-gray-900">
                 Edit Layout
               </button>
             {/if}
@@ -150,104 +203,38 @@
       </div>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 lg:gap-8">
-      <!-- Main Content -->
-      <div class="lg:col-span-2">
-        {#if widgetsArr.length > 0}
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {#each widgetsArr as widget (widget.id)}
-              <DashboardWidget {widget} />
-            {/each}
-          </div>
-        {:else}
-          <div class="text-center py-12 text-gray-500 bg-gray-50 rounded-lg">
-            <h3 class="text-lg font-medium">No widgets yet</h3>
-            <p class="mt-1 text-sm">This dashboard doesn't have any widgets configured.</p>
-          </div>
-        {/if}
-      </div>
-
-      <!-- Sidebar -->
-      <div class="space-y-6 mt-8 lg:mt-0">
-        <!-- Viewers Card -->
-        {#if isEditor}
-          <div class="bg-white rounded-lg shadow border border-gray-200">
-            <div class="p-4 border-b border-gray-200">
-              <h3 class="text-lg font-semibold text-gray-800">Current Viewers</h3>
+    <div class="mt-8">
+      {#if widgetsArr.length > 0}
+        <div class="svelte-grid-container -mx-2">
+          <Grid {cols} bind:items={items} rowHeight={40} let:item let:dataItem>
+            <div class="h-full w-full p-2">
+              <DashboardWidget widget={dataItem} />
             </div>
-            <div class="p-4">
-              {#if $dashboard.viewers && $dashboard.viewers.length > 0}
-                <ul class="divide-y divide-gray-200">
-                  {#each $dashboard.viewers as viewer}
-                    <li class="py-3 flex items-center justify-between">
-                      <span class="text-sm text-gray-800">{viewer.email}</span>
-                      <button 
-                        on:click={() => handleRemoveViewer(viewer.id)} 
-                        disabled={removingViewerId === viewer.id}
-                        class="text-xs text-red-600 hover:text-red-800 font-semibold py-1 px-2 rounded border border-red-300 hover:border-red-500 transition disabled:opacity-50">
-                        {removingViewerId === viewer.id ? 'Removing...' : 'Remove'}
-                      </button>
-                    </li>
-                  {/each}
-                </ul>
-              {:else}
-                <p class="text-sm text-gray-500">This dashboard has not been shared with any viewers.</p>
-              {/if}
-            </div>
-          </div>
-        {/if}
-
-        <!-- Upload Card -->
-        {#if isEditor}
-          <div class="bg-white rounded-lg shadow border border-gray-200">
-            <div class="p-4 border-b border-gray-200">
-              <h3 class="text-lg font-semibold text-gray-800">Upload KPI Data</h3>
-            </div>
-            <div class="p-4">
-              <form class="space-y-4" on:submit={handleCsvUpload}>
-                <div>
-                  <label for="kpi-select" class="block text-sm font-medium text-gray-700 mb-1">Select KPI</label>
-                  <select id="kpi-select" bind:value={selectedKpiForUpload} class="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md" required>
-                    <option value={null} disabled>-- Select a KPI --</option>
-                    {#each kpisForSelect as kpi}
-                      <option value={kpi.id}>{kpi.title}</option>
-                    {/each}
-                  </select>
-                </div>
-
-                <div>
-                  <label for="csv-upload" class="block text-sm font-medium text-gray-700 mb-1">Choose CSV File</label>
-                  <input id="csv-upload" type="file" accept=".csv" on:change={e => {
-                    const input = e.target as HTMLInputElement;
-                    if (input && input.files && input.files.length > 0) {
-                      csvFile = input.files[0];
-                    }
-                  }} class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" required />
-                </div>
-
-                <button class="w-full rounded bg-blue-600 text-white font-semibold px-4 py-2 hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed" type="submit" disabled={uploading || !selectedKpiForUpload || !csvFile}>
-                  {uploading ? 'Uploading...' : 'Upload and Refresh'}
-                </button>
-              </form>
-              {#if csvResult}
-                <div class="mt-4 p-3 rounded-md bg-gray-50 text-sm">
-                  <div><strong>Status:</strong> {csvResult.status}</div>
-                  <div><strong>Inserted:</strong> {csvResult.inserted}</div>
-                  <div><strong>Failed:</strong> {csvResult.failed}</div>
-                  {#if csvResult.errors && csvResult.errors.length > 0}
-                    <div class="text-red-500 mt-2"><strong>Errors:</strong></div>
-                    <ul class="list-disc ml-6 text-red-600">
-                      {#each csvResult.errors as err}
-                        <li>{err.error} (Row: {err.row})</li>
-                      {/each}
-                    </ul>
-                  {/if}
-                </div>
-              {/if}
-            </div>
-          </div>
-        {/if}
-      </div>
+          </Grid>
+        </div>
+      {:else}
+        <div class="text-center py-12 text-gray-500 bg-gray-50 rounded-lg">
+          <h3 class="text-lg font-medium">No widgets yet</h3>
+          <p class="mt-1 text-sm">This dashboard doesn't have any widgets configured.</p>
+        </div>
+      {/if}
     </div>
   {/if}
-</div> 
+</div>
+
+{#if $dashboard}
+  <ViewersModal 
+    bind:isOpen={isViewersModalOpen} 
+    dashboardId={$dashboard.id}
+    viewers={$dashboard.viewers || []}
+    on:update={fetchDashboard}
+  />
+{/if}
+
+{#if $dashboard}
+  <UploadKpiModal
+    bind:isOpen={isUploadModalOpen}
+    kpis={kpisForSelect}
+    on:update={fetchDashboard}
+  />
+{/if} 

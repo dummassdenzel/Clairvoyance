@@ -9,8 +9,10 @@
   let kpiData: { labels: string[]; values: number[] } | null = null;
   let isLoading = true;
   let error: string | null = null;
+  let canvasElement: HTMLCanvasElement;
 
   onMount(async () => {
+    console.log(`Widget ${widget.id} mounted.`);
     if (widget.kpi_id) {
       try {
         const response = await api.getKpiEntries(widget.kpi_id);
@@ -20,9 +22,8 @@
             labels: entries.map((d: any) => d.date),
             values: entries.map((d: any) => Number(d.value))
           };
-          if (widget.type === 'bar' || widget.type === 'line') {
-            renderChart();
-          }
+          console.log(`Widget ${widget.id}: KPI data loaded.`, kpiData);
+
         } else {
           error = 'No data available for this KPI.';
         }
@@ -35,8 +36,7 @@
     }
   });
 
-  function renderChart() {
-    const canvas = document.getElementById(`widget-chart-${widget.id}`) as HTMLCanvasElement;
+  function renderChart(canvas: HTMLCanvasElement) {
     if (!canvas || !kpiData) return;
 
     chartInstance = new Chart(canvas, {
@@ -62,10 +62,19 @@
   }
 
   onDestroy(() => {
+    console.log(`Widget ${widget.id} destroyed.`);
     if (chartInstance) {
       chartInstance.destroy();
     }
   });
+
+  $: {
+    console.log(`Widget ${widget.id} reactive block. Canvas:`, !!canvasElement, "KPI Data:", !!kpiData, "Chart:", !!chartInstance);
+    if (canvasElement && kpiData && !chartInstance && (widget.type === 'bar' || widget.type === 'line')) {
+      console.log(`Widget ${widget.id}: Rendering chart.`);
+      renderChart(canvasElement);
+    }
+  }
 </script>
 
 <div class="bg-white rounded-lg shadow border border-gray-200 flex flex-col h-full">
@@ -79,7 +88,7 @@
       <div class="text-center py-10 text-red-500">{error}</div>
     {:else if widget.type === 'bar' || widget.type === 'line'}
       <div class="relative h-64">
-        <canvas id={`widget-chart-${widget.id}`}></canvas>
+        <canvas bind:this={canvasElement}></canvas>
       </div>
     {:else if widget.type === 'table'}
       <p class="text-sm text-gray-500">Table widget coming soon.</p>

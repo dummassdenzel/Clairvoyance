@@ -86,8 +86,12 @@ export async function getDashboard(id: string) {
   return await get(`/dashboards/${id}`);
 }
 
-export async function createDashboard(data: { name: string; description?: string; layout?: any[] }) {
+export async function createDashboard(data: { name:string; description?: string; layout?: any[] }) {
   return await post('/dashboards', data);
+}
+
+export async function updateDashboard(id: string, data: { name?: string; description?: string; layout?: any[] }) {
+  return await put(`/dashboards/${id}`, data);
 }
 
 export async function assignViewer(dashboard_id: string, user_id: string) {
@@ -102,8 +106,12 @@ export async function redeemShareLink(token: string) {
   return await post(`/dashboards/share/${token}`, {});
 }
 
-export async function removeViewer(dashboard_id: string, user_id: string) {
-  return await del(`/dashboards/${dashboard_id}/viewers/${user_id}`);
+export async function removeViewer(dashboardId: string, viewerId: string) {
+  return await del(`dashboards/${dashboardId}/viewers/${viewerId}`);
+}
+
+export async function addViewer(dashboardId: string, email: string) {
+  return await post(`dashboards/${dashboardId}/viewers`, { email });
 }
 
 // --- KPI Service ---
