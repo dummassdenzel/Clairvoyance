@@ -63,12 +63,18 @@ The API now uses session-based authentication. This means you must first log in 
     "name": "Q3 Sales Performance",
     "layout": [
         {
-            "widget": "kpi-trend",
+            "type": "bar",
+            "title: "Sales",
             "kpi_id": 1,
             "position": 0
         }
     ]
 }
+
+UPDATE `dashboards` SET `layout`='[{"type":"bar", "title": "Total Sales", "kpi_id":1,"position":0}]' WHERE 1
+
+
+
 ```   |
 | `PUT`  | `/api/dashboards/{id}`      | Editor+       | Update a dashboard (Not Implemented) | `{"name": "Q3 2025 Sales Performance"}`                        |
 | `DELETE`| `/api/dashboards/{id}`      | Editor+       | Delete a dashboard (Not Implemented) | N/A                                               |

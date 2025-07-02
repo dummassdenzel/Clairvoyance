@@ -53,6 +53,7 @@
     try {
       await api.updateDashboard(dashboardId, { layout: layoutToSave });
       editMode = false;
+      await fetchDashboard();
     } catch (e) {
       console.error('Failed to save layout:', e);
       alert('Failed to save layout. See console for details.');
@@ -131,7 +132,7 @@
       return {
         [cols[0][1]]: gridHelp.item(layout),
         ...widget,
-        id: String(widget.id)
+        id: String(widget.id ?? widget.position ?? i)
       };
     });
   }
