@@ -54,19 +54,15 @@ switch ($_SERVER['REQUEST_METHOD']) {
         if (!$id) {
             Response::error('A numeric KPI ID is required for updating.', null, 400);
         }
-        // The update method is not yet implemented in the controller
-        Response::error('Updating a KPI is not yet supported.', null, 501);
-        // $controller->update($id);
+        $controller->update($id);
         break;
 
     case 'DELETE':
-        $roleMiddleware->requireAdmin();
+        $roleMiddleware->requireEditor();
         if (!$id) {
             Response::error('A numeric KPI ID is required for deletion.', null, 400);
         }
-        // The delete method is not yet implemented in the controller
-        Response::error('Deleting a KPI is not yet supported.', null, 501);
-        // $controller->delete($id);
+        $controller->delete($id);
         break;
 
     default:

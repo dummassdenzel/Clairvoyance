@@ -3,17 +3,18 @@
   import { user } from '$lib/stores/auth';
   import { writable } from 'svelte/store';
   import * as api from '$lib/services/api';
+  import CreateKpiModal from '$lib/components/CreateKpiModal.svelte';
+  import ConfirmModal from '$lib/components/ConfirmModal.svelte';
+  import EditKpiModal from '$lib/components/EditKpiModal.svelte';
 
   const kpis = writable<any[]>([]);
   const loading = writable(true);
   const error = writable<string | null>(null);
-
-  let name = '';
-  let target = '';
-  let rag_red = '';
-  let rag_amber = '';
-  let creating = false;
-  let createError: string | null = null;
+  let showCreateModal = false;
+  let showDeleteConfirm = false;
+  let kpiToDelete: any = null;
+  let showEditModal = false;
+  let kpiToEdit: any = null;
 
   $: isEditor = $user?.role === 'editor';
 
@@ -21,33 +22,83 @@
     loading.set(true);
     error.set(null);
     try {
-      const data = await api.getKpis();
-      kpis.set(data.kpis || []);
+      const result = await api.getKpis();
+      if (result.status === 'success') {
+        kpis.set(result.data || []);
+      } else {
+        error.set(result.message || 'Failed to load KPIs');
+      }
     } catch (e) {
-      error.set('Failed to load KPIs');
+      error.set('An unexpected error occurred while fetching KPIs.');
     }
     loading.set(false);
   }
 
-  async function handleCreate(event: Event) {
-    event.preventDefault();
-    createError = null;
-    creating = true;
-    const data = await api.createKpi({ name, target, rag_red, rag_amber });
-    creating = false;
-    if (data.id) {
-      name = target = rag_red = rag_amber = '';
-      fetchKpis();
-    } else {
-      createError = data.error || 'Failed to create KPI.';
+  function handleCreateSuccess() {
+    fetchKpis(); // Refetch KPIs to update the list
+  }
+
+  async function confirmDelete() {
+    if (!kpiToDelete) return;
+
+    try {
+      const result = await api.deleteKpi(kpiToDelete.id);
+      if (result.status === 'success') {
+        // On success, remove the KPI from the local list
+        kpis.update(currentKpis => currentKpis.filter(k => k.id !== kpiToDelete.id));
+      } else {
+        // If the API returns an error, show it
+        error.set(result.message || 'Failed to delete KPI.');
+      }
+    } catch (e: any) {
+      // Handle unexpected network errors
+      error.set(e.message || 'An unexpected error occurred.');
+    } finally {
+      // Close modal and reset state
+      showDeleteConfirm = false;
+      kpiToDelete = null;
     }
+  }
+
+  function handleDelete(kpi: any) {
+    kpiToDelete = kpi;
+    showDeleteConfirm = true;
+  }
+
+  function handleEdit(kpi: any) {
+    kpiToEdit = kpi;
+    showEditModal = true;
+  }
+
+  function handleEditSuccess() {
+    fetchKpis();
   }
 
   onMount(fetchKpis);
 </script>
 
-<div class="max-w-2xl mx-auto mt-8 p-4">
-  <h1 class="text-2xl font-bold mb-4">KPIs</h1>
+<CreateKpiModal bind:show={showCreateModal} on:success={handleCreateSuccess} />
+
+<EditKpiModal bind:show={showEditModal} kpi={kpiToEdit} on:success={handleEditSuccess} />
+
+<ConfirmModal
+  bind:show={showDeleteConfirm}
+  title="Delete KPI"
+  message={`Are you sure you want to delete the KPI "${kpiToDelete?.name}"? This action cannot be undone.`}
+  on:confirm={confirmDelete}
+  on:close={() => (showDeleteConfirm = false)}
+/>
+
+<div class="container mx-auto mt-8 p-4">
+  <div class="flex justify-between items-center mb-6">
+    <h1 class="text-3xl font-bold">KPI Management</h1>
+    {#if isEditor}
+      <button on:click={() => (showCreateModal = true)} class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition">
+        Create KPI
+      </button>
+    {/if}
+  </div>
+
   {#if $loading}
     <div>Loading...</div>
   {:else if $error}
@@ -55,30 +106,35 @@
   {:else if !$user}
     <div class="text-gray-600">Please log in to view KPIs.</div>
   {:else}
-    <ul class="divide-y divide-gray-200 bg-white rounded shadow mb-6">
-      {#each $kpis as kpi}
-        <li class="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <span class="font-medium">{kpi.name}</span>
-            <span class="ml-2 text-xs text-gray-500">Target: {kpi.target}</span>
-            <span class="ml-2 text-xs text-red-500">Red: {kpi.rag_red}</span>
-            <span class="ml-2 text-xs text-yellow-500">Amber: {kpi.rag_amber}</span>
-          </div>
-        </li>
-      {/each}
-    </ul>
-    {#if isEditor}
-      <form class="space-y-2 bg-white rounded shadow p-4" on:submit={handleCreate}>
-        <h2 class="font-semibold mb-2">Create KPI</h2>
-        <input class="border rounded px-3 py-2 w-full" type="text" placeholder="KPI Name" bind:value={name} required />
-        <input class="border rounded px-3 py-2 w-full" type="number" placeholder="Target" bind:value={target} required />
-        <input class="border rounded px-3 py-2 w-full" type="number" placeholder="RAG Red" bind:value={rag_red} required />
-        <input class="border rounded px-3 py-2 w-full" type="number" placeholder="RAG Amber" bind:value={rag_amber} required />
-        {#if createError}
-          <div class="text-red-500 text-sm">{createError}</div>
-        {/if}
-        <button class="rounded bg-blue-600 text-white font-semibold px-4 py-2 hover:bg-blue-700 transition disabled:opacity-50 w-full" type="submit" disabled={creating}>{creating ? 'Creating...' : 'Create KPI'}</button>
-      </form>
-    {/if}
+    <div class="bg-white shadow-md rounded-lg overflow-hidden">
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+          <tr>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Target</th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">RAG Red</th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">RAG Amber</th>
+            <th scope="col" class="relative px-6 py-3">
+              <span class="sr-only">Actions</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+          {#each $kpis as kpi (kpi.id)}
+            <tr>
+              <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{kpi.name}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{kpi.target}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{kpi.rag_red}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{kpi.rag_amber}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                <button on:click={() => handleEdit(kpi)} class="text-indigo-600 hover:text-indigo-900">Edit</button>
+                <button on:click={() => handleDelete(kpi)} class="text-red-600 hover:text-red-900 ml-4">Delete</button>
+              </td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
+
   {/if}
 </div> 

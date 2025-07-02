@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createEventDispatcher, onMount, onDestroy } from 'svelte';
+  import { createEventDispatcher } from 'svelte';
 
   export let shareLink = '';
   export let show = false;
@@ -25,15 +25,9 @@
       closeModal();
     }
   }
-
-  onMount(() => {
-    window.addEventListener('keydown', handleKeydown);
-  });
-
-  onDestroy(() => {
-    window.removeEventListener('keydown', handleKeydown);
-  });
 </script>
+
+<svelte:window on:keydown={handleKeydown} />
 
 {#if show}
   <div 
