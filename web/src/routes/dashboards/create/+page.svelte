@@ -3,6 +3,7 @@
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
   import { writable } from 'svelte/store';
+  import * as api from '$lib/services/api';
 
   let name = '';
   let widgets = '[\n  { "type": "bar", "kpi_id": 1, "title": "Example Bar Chart" }\n]';
@@ -23,13 +24,7 @@
       loading = false;
       return;
     }
-    const res = await fetch('/api/routes/dashboards.php', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ name, widgets: widgetsJson })
-    });
-    const data = await res.json();
+    const data = await api.createDashboard({ name, widgets: widgetsJson });
     loading = false;
     if (data.id) {
       goto('/dashboards');

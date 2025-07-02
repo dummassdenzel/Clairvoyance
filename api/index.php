@@ -3,8 +3,14 @@
  * Main entry point for the Clairvoyance KPI API
  */
 
-// Allow cross-origin requests
-header('Access-Control-Allow-Origin: *');
+// CORS: Allow credentials and set origin dynamically for local dev
+$origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+if ($origin && preg_match('/^http:\/\/localhost(:[0-9]+)?$/', $origin)) {
+    header("Access-Control-Allow-Origin: $origin");
+    header('Access-Control-Allow-Credentials: true');
+} else {
+    header('Access-Control-Allow-Origin: *');
+}
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization');
 header('Content-Type: application/json');
@@ -52,19 +58,27 @@ if ($apiPos !== false) {
     error_log("Removed path prefix, new request: " . print_r($request, true));
 }
 
-// Include the appropriate router file based on the request
+// Route the request to the appropriate file
 try {
-    if (empty($request[0])) {
+    $resource = $request[0] ?? '';
+
+    if (empty($resource)) {
         // Default route
         echo json_encode(['status' => 'success', 'message' => 'Welcome to Clairvoyance KPI API']);
-    } elseif ($request[0] === 'auth') {
-        // Authentication routes
-        error_log("Loading auth routes for action: " . ($request[1] ?? 'none'));
-        require_once __DIR__ . '/routes/auth.php';
+        exit();
+    }
+
+    // Sanitize the resource name to prevent directory traversal
+    $resource = preg_replace('/[^a-zA-Z0-9_\-]/', '', $resource);
+    $routeFile = __DIR__ . '/routes/' . $resource . '.php';
+
+    if (file_exists($routeFile)) {
+        error_log("Routing to: " . $routeFile);
+        require_once $routeFile;
     } else {
-        // API routes
-        error_log("Loading API routes for resource: " . $request[0]);
-        require_once __DIR__ . '/routes/api.php';
+        error_log("Resource not found: " . $resource);
+        http_response_code(404);
+        echo json_encode(['status' => 'error', 'message' => 'Resource not found']);
     }
 } catch (Exception $e) {
     error_log("API Error: " . $e->getMessage());

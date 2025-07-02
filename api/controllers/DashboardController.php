@@ -1,116 +1,127 @@
 <?php
+require_once __DIR__ . '/../utils/Response.php';
+require_once __DIR__ . '/../models/Dashboard.php';
+
 class DashboardController {
+
     public function create() {
-        require_once __DIR__ . '/../models/Dashboard.php';
-        session_start();
-        if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'editor') {
-            http_response_code(403);
-            echo json_encode(['error' => 'Forbidden']);
-            return;
-        }
+        // Middleware handles auth, role checks, and session start.
         $data = json_decode(file_get_contents('php://input'), true);
-        if (!isset($data['name'], $data['widgets'])) {
-            http_response_code(400);
-            echo json_encode(['error' => 'Missing required fields']);
+
+        if (!isset($data['name'], $data['layout'])) {
+            Response::error('Missing required fields: name, layout.', null, 400);
             return;
         }
+
         $dashboard = new Dashboard();
-        $result = $dashboard->create($data['name'], json_encode($data['widgets']), $_SESSION['user_id']);
+        $userId = $_SESSION['user']['id'];
+        $result = $dashboard->create($data['name'], json_encode($data['layout']), $userId);
+
         if ($result['success']) {
-            http_response_code(201);
-            echo json_encode(['id' => $result['id']]);
+            Response::success('Dashboard created successfully.', ['id' => $result['id']], 201);
         } else {
-            http_response_code(400);
-            echo json_encode(['error' => $result['error']]);
+            Response::error($result['error'], null, 400);
         }
     }
 
-    public function get() {
-        require_once __DIR__ . '/../models/Dashboard.php';
-        session_start();
-        if (!isset($_SESSION['user_id'])) {
-            http_response_code(403);
-            echo json_encode(['error' => 'Forbidden']);
-            return;
-        }
-        $id = isset($_GET['id']) ? intval($_GET['id']) : null;
+    public function get($id) {
+        // Middleware handles auth and role checks.
         if (!$id) {
-            http_response_code(400);
-            echo json_encode(['error' => 'Missing dashboard id']);
+            Response::error('Missing dashboard ID.', null, 400);
             return;
         }
-        $dashboard = new Dashboard();
-        $result = $dashboard->getById($id, $_SESSION['user_id'], $_SESSION['role']);
-        if ($result['success']) {
-            http_response_code(200);
-            echo json_encode($result['dashboard']);
-        } else {
-            http_response_code(403);
-            echo json_encode(['error' => $result['error']]);
-        }
-    }
 
-    public function assignViewer() {
-        require_once __DIR__ . '/../models/Dashboard.php';
-        session_start();
-        if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'editor') {
-            http_response_code(403);
-            echo json_encode(['error' => 'Forbidden']);
-            return;
-        }
-        $data = json_decode(file_get_contents('php://input'), true);
-        if (!isset($data['dashboard_id'], $data['user_id'])) {
-            http_response_code(400);
-            echo json_encode(['error' => 'Missing dashboard_id or user_id']);
-            return;
-        }
         $dashboard = new Dashboard();
-        $result = $dashboard->assignViewer($data['dashboard_id'], $data['user_id']);
+        $userId = $_SESSION['user']['id'];
+        $userRole = $_SESSION['user']['role'];
+        $result = $dashboard->getById($id, $userId, $userRole);
+
         if ($result['success']) {
-            http_response_code(200);
-            echo json_encode(['success' => true]);
+            Response::success('Dashboard retrieved successfully.', ['dashboard' => $result['dashboard']]);
         } else {
-            http_response_code(400);
-            echo json_encode(['error' => $result['error']]);
+            Response::error($result['error'], null, 403);
         }
     }
 
     public function listAll() {
-        require_once __DIR__ . '/../models/Dashboard.php';
-        session_start();
-        if (!isset($_SESSION['user_id'])) {
-            http_response_code(403);
-            echo json_encode(['error' => 'Forbidden']);
-            return;
-        }
+        // Middleware handles auth and role checks.
         $dashboard = new Dashboard();
-        $result = $dashboard->listAll($_SESSION['user_id'], $_SESSION['role']);
-        http_response_code(200);
-        echo json_encode(['dashboards' => $result]);
+        $userId = $_SESSION['user']['id'];
+        $userRole = $_SESSION['user']['role'];
+        $result = $dashboard->listAll($userId, $userRole);
+        Response::success('Dashboards retrieved successfully.', ['dashboards' => $result]);
     }
 
-    public function removeViewer() {
-        require_once __DIR__ . '/../models/Dashboard.php';
-        session_start();
-        if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'editor') {
-            http_response_code(403);
-            echo json_encode(['error' => 'Forbidden']);
+    public function update($id) {
+        // Middleware handles auth and role checks.
+        if (!$id) {
+            Response::error('Missing dashboard ID.', null, 400);
             return;
         }
+
         $data = json_decode(file_get_contents('php://input'), true);
-        if (!isset($data['dashboard_id'], $data['user_id'])) {
-            http_response_code(400);
-            echo json_encode(['error' => 'Missing dashboard_id or user_id']);
+        if (empty($data)) {
+            Response::error('No update data provided.', null, 400);
             return;
         }
+
         $dashboard = new Dashboard();
-        $result = $dashboard->removeViewer($data['dashboard_id'], $data['user_id']);
+        $userId = $_SESSION['user']['id'];
+        $result = $dashboard->update($id, $data, $userId);
+
         if ($result['success']) {
-            http_response_code(200);
-            echo json_encode(['success' => true]);
+            Response::success('Dashboard updated successfully.');
         } else {
-            http_response_code(400);
-            echo json_encode(['error' => $result['error']]);
+            Response::error($result['error'], null, 400);
+        }
+    }
+
+    public function delete($id) {
+        // Middleware handles auth and role checks.
+        if (!$id) {
+            Response::error('Missing dashboard ID.', null, 400);
+            return;
+        }
+
+        $dashboard = new Dashboard();
+        $userId = $_SESSION['user']['id'];
+        $result = $dashboard->delete($id, $userId);
+
+        if ($result['success']) {
+            Response::success('Dashboard deleted successfully.');
+        } else {
+            Response::error($result['error'], null, 400);
+        }
+    }
+
+    public function assignViewer($dashboardId) {
+        // Middleware handles auth and role checks.
+        $data = json_decode(file_get_contents('php://input'), true);
+
+        if (!isset($data['user_id'])) {
+            Response::error('Missing required field: user_id.', null, 400);
+            return;
+        }
+
+        $dashboard = new Dashboard();
+        $result = $dashboard->assignViewer($dashboardId, $data['user_id']);
+
+        if ($result['success']) {
+            Response::success('Viewer assigned successfully.');
+        } else {
+            Response::error($result['error'], null, 400);
+        }
+    }
+
+    public function removeViewer($dashboardId, $userId) {
+        // Middleware handles auth and role checks.
+        $dashboard = new Dashboard();
+        $result = $dashboard->removeViewer($dashboardId, $userId);
+
+        if ($result['success']) {
+            Response::success('Viewer removed successfully.');
+        } else {
+            Response::error($result['error'], null, 400);
         }
     }
 } 

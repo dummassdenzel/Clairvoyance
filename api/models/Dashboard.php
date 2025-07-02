@@ -79,4 +79,65 @@ class Dashboard {
             return ['success' => false, 'error' => $e->getMessage()];
         }
     }
-} 
+
+    public function update($id, $data, $user_id) {
+        try {
+            $stmt = $this->db->prepare('SELECT user_id FROM dashboards WHERE id = ?');
+            $stmt->execute([$id]);
+            $dashboard = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$dashboard) {
+                return ['success' => false, 'error' => 'Dashboard not found'];
+            }
+            if ($dashboard['user_id'] != $user_id) {
+                return ['success' => false, 'error' => 'Access denied'];
+            }
+
+            $fields = [];
+            $params = [];
+            foreach ($data as $key => $value) {
+                if (in_array($key, ['name', 'layout'])) {
+                    $fields[] = "$key = ?";
+                    $params[] = is_array($value) ? json_encode($value) : $value;
+                }
+            }
+
+            if (empty($fields)) {
+                return ['success' => false, 'error' => 'No valid fields to update'];
+            }
+
+            $params[] = $id;
+            $sql = 'UPDATE dashboards SET ' . implode(', ', $fields) . ' WHERE id = ?';
+
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute($params);
+            return ['success' => true];
+        } catch (PDOException $e) {
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    public function delete($id, $user_id) {
+        try {
+            $stmt = $this->db->prepare('SELECT user_id FROM dashboards WHERE id = ?');
+            $stmt->execute([$id]);
+            $dashboard = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$dashboard) {
+                return ['success' => false, 'error' => 'Dashboard not found'];
+            }
+            if ($dashboard['user_id'] != $user_id) {
+                return ['success' => false, 'error' => 'Access denied'];
+            }
+
+            $stmt = $this->db->prepare('DELETE FROM dashboard_access WHERE dashboard_id = ?');
+            $stmt->execute([$id]);
+
+            $stmt = $this->db->prepare('DELETE FROM dashboards WHERE id = ?');
+            $stmt->execute([$id]);
+            return ['success' => true];
+        } catch (PDOException $e) {
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+}

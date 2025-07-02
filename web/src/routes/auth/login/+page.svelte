@@ -10,7 +10,7 @@
     loading = true;
     const ok = await login(email, password);
     loading = false;
-    if (ok) goto('/');
+    if (ok) goto('/dashboards');
   }
 </script>
 

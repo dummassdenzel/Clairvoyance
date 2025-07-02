@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { user } from '$lib/stores/auth';
   import { writable } from 'svelte/store';
+  import * as api from '$lib/services/api';
 
   const kpis = writable<any[]>([]);
   const loading = writable(true);
@@ -20,10 +21,7 @@
     loading.set(true);
     error.set(null);
     try {
-      const res = await fetch('/api/routes/kpis.php', {
-        credentials: 'include'
-      });
-      const data = await res.json();
+      const data = await api.getKpis();
       kpis.set(data.kpis || []);
     } catch (e) {
       error.set('Failed to load KPIs');
@@ -35,13 +33,7 @@
     event.preventDefault();
     createError = null;
     creating = true;
-    const res = await fetch('/api/routes/kpis.php', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ name, target, rag_red, rag_amber })
-    });
-    const data = await res.json();
+    const data = await api.createKpi({ name, target, rag_red, rag_amber });
     creating = false;
     if (data.id) {
       name = target = rag_red = rag_amber = '';

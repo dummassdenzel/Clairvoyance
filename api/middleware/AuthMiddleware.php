@@ -1,51 +1,38 @@
 <?php
 
-require_once __DIR__ . '/../services/Jwt.php';
 require_once __DIR__ . '/../utils/Response.php';
 
 class AuthMiddleware
 {
-    private $jwt;
-
     public function __construct()
     {
-        $this->jwt = new JwtService();
+        // Ensure session is started
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
     }
 
     /**
-     * Authenticate the request and return the decoded token payload
+     * Authenticate the request by checking the session for a user object.
      * 
-     * @return object|null The decoded token payload or null if authentication fails
+     * @return object|null The user object from the session or null if not authenticated.
      */
     public function authenticate()
     {
-        $headers = getallheaders();
-
-        // Check if Authorization header exists
-        if (!isset($headers['Authorization']) && !isset($headers['authorization'])) {
-            Response::unauthorized('No token provided');
-            return null;
+        if (!isset($_SESSION['user'])) {
+            Response::unauthorized('You are not logged in.');
+            return null; // Important to exit after sending response
         }
 
-        // Get token from Authorization header
-        $authHeader = isset($headers['Authorization']) ? $headers['Authorization'] : $headers['authorization'];
-        $token = str_replace('Bearer ', '', $authHeader);
-
-        // Validate token
-        try {
-            return $this->jwt->decode($token);
-        } catch (Exception $e) {
-            Response::unauthorized($e->getMessage());
-            return null;
-        }
+        return (object) $_SESSION['user'];
     }
     
     /**
-     * Verify if the authenticated user has the required role
+     * Verify if the authenticated user has the required role.
      * 
-     * @param object $user The authenticated user object
-     * @param string|array $roles Required role(s)
-     * @return bool True if the user has the required role, false otherwise
+     * @param object $user The authenticated user object.
+     * @param string|array $roles Required role(s).
+     * @return bool True if the user has the required role, false otherwise.
      */
     public function verifyRole($user, $roles)
     {
@@ -53,10 +40,14 @@ class AuthMiddleware
             return false;
         }
         
+        $userRoles = is_array($user->role) ? $user->role : [$user->role];
+
         if (is_array($roles)) {
-            return in_array($user->role, $roles);
+            // Check for any intersection between user's roles and required roles
+            return !empty(array_intersect($userRoles, $roles));
         }
         
-        return $user->role === $roles;
+        // Check if the single required role is in the user's roles
+        return in_array($roles, $userRoles);
     }
-} 
+}

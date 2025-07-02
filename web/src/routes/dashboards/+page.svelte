@@ -2,7 +2,6 @@
   import { onMount } from 'svelte';
   import { user } from '$lib/stores/auth';
   import { writable, get } from 'svelte/store';
-  // Update import path for your api
   import * as api from '$lib/services/api';
 
   const dashboards = writable<any[]>([]);
@@ -13,11 +12,9 @@
     loading.set(true);
     error.set(null);
     try {
-      const res = await fetch('/api/routes/dashboards.php', {
-        credentials: 'include'
-      });
-      const data = await res.json();
-      dashboards.set(data.dashboards || []);
+      const data = await api.getDashboards();
+      console.log(data);
+      dashboards.set(data.data.dashboards || []);
     } catch (e) {
       error.set('Failed to load dashboards');
     }

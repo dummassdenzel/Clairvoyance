@@ -5,6 +5,7 @@
   import { writable, get } from 'svelte/store';
   import Chart from 'chart.js/auto';
   import { onDestroy } from 'svelte';
+  import * as api from '$lib/services/api';
 
   const dashboard = writable<any>(null);
   const loading = writable(true);
@@ -36,10 +37,7 @@
     loading.set(true);
     error.set(null);
     try {
-      const res = await fetch(`/api/routes/dashboards.php?id=${dashboardId}`, {
-        credentials: 'include'
-      });
-      const data = await res.json();
+      const data = await api.getDashboard(dashboardId);
       if (data.error) {
         error.set(data.error);
         dashboard.set(null);
@@ -55,19 +53,24 @@
 
   async function fetchUsers() {
     try {
-      const res = await fetch('/api/routes/users.php', { credentials: 'include' });
-      const data = await res.json();
+      const data = await api.getUsers();
       users.set(data.users || []);
     } catch (e) {}
   }
 
-  async function fetchViewers() {
-    // For now, fetch all users with role viewer and assume all are assignable
-    const allUsers = get(users);
-    if ($dashboard && allUsers) {
-      // You may want to fetch assigned viewers from the backend in the future
-      viewers.set(allUsers.filter(u => u.role === 'viewer'));
-    }
+  async function fetchWidgetKpiData(widgets: any[]) {
+    widgetKpiData = {};
+    widgetDataLoading = true;
+    await Promise.all(widgets.map(async (widget: any) => {
+      if (widget.kpi_id) {
+        const data = await api.getKpiEntries(widget.kpi_id);
+        widgetKpiData[widget.kpi_id] = {
+          labels: data.map((d: any) => d.date),
+          values: data.map((d: any) => Number(d.value))
+        };
+      }
+    }));
+    widgetDataLoading = false;
   }
 
   async function handleCsvUpload(event: Event) {
@@ -75,14 +78,8 @@
     if (!csvFile) return;
     uploading = true;
     csvResult = null;
-    const formData = new FormData();
-    formData.append('file', csvFile);
-    const res = await fetch('/api/routes/kpi_entries.php?action=upload_csv', {
-      method: 'POST',
-      credentials: 'include',
-      body: formData
-    });
-    csvResult = await res.json();
+    const data = await api.uploadKpiCsv(csvFile);
+    csvResult = data;
     uploading = false;
   }
 
@@ -91,13 +88,7 @@
     shareError = null;
     shareSuccess = null;
     sharing = true;
-    const res = await fetch('/api/routes/dashboards.php?action=assign_viewer', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ dashboard_id: dashboardId, user_id: selectedViewer })
-    });
-    const data = await res.json();
+    const data = await api.assignViewer(dashboardId, selectedViewer);
     sharing = false;
     if (data.success) {
       shareSuccess = 'Viewer assigned!';
@@ -109,32 +100,30 @@
 
   async function handleRemoveViewer(viewerId: string) {
     removingViewerId = viewerId;
-    const res = await fetch('/api/routes/dashboards.php?action=remove_viewer', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ dashboard_id: dashboardId, user_id: viewerId })
-    });
-    await res.json();
+    await api.removeViewer(dashboardId, viewerId);
     removingViewerId = null;
     fetchDashboard();
   }
 
-  async function fetchWidgetKpiData(widgets: any[]) {
-    widgetKpiData = {};
-    widgetDataLoading = true;
-    await Promise.all(widgets.map(async (widget: any) => {
-      if (widget.kpi_id) {
-        const res = await fetch(`/api/routes/kpi_entries.php?kpi_id=${widget.kpi_id}`, { credentials: 'include' });
-        const data = await res.json();
-        widgetKpiData[widget.kpi_id] = {
-          labels: data.map((d: any) => d.date),
-          values: data.map((d: any) => Number(d.value))
-        };
-      }
-    }));
-    widgetDataLoading = false;
+  async function fetchViewers() {
+    const allUsers = get(users);
+    if ($dashboard && allUsers) {
+      viewers.set(allUsers.filter(u => u.role === 'viewer'));
+    }
   }
+
+  onMount(() => {
+    fetchDashboard();
+    if (isEditor) {
+      fetchUsers();
+    }
+  });
+  $: if (isEditor && $users) fetchViewers();
+  $: widgetsArr = $dashboard?.widgets || $dashboard?.layout || [];
+  $: if (widgetsArr && widgetsArr.length > 0) {
+    fetchWidgetKpiData(widgetsArr).then(() => setTimeout(() => renderCharts(widgetsArr), 0));
+  }
+  onDestroy(() => { chartInstances.forEach(c => c.destroy()); });
 
   function renderCharts(widgets: any[]) {
     // Clean up previous charts
@@ -169,19 +158,6 @@
       }
     });
   }
-
-  onMount(() => {
-    fetchDashboard();
-    if (isEditor) {
-      fetchUsers();
-    }
-  });
-  $: if (isEditor && $users) fetchViewers();
-  $: widgetsArr = $dashboard?.widgets || $dashboard?.layout || [];
-  $: if (widgetsArr && widgetsArr.length > 0) {
-    fetchWidgetKpiData(widgetsArr).then(() => setTimeout(() => renderCharts(widgetsArr), 0));
-  }
-  onDestroy(() => { chartInstances.forEach(c => c.destroy()); });
 </script>
 
 <div class="max-w-2xl mx-auto mt-8 p-4">

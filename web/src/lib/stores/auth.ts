@@ -4,15 +4,26 @@ import * as api from '$lib/services/api';
 export const user = writable<{ id: number; email: string; role: string } | null>(null);
 export const authError = writable<string | null>(null);
 
-export async function login(email: string, password: string) {
-  const res = await api.login({ email, password });
-  if (res.success) {
-    user.set(res.user);
+// On load, check if user is logged in
+if (typeof window !== 'undefined') {
+  api.getCurrentUser().then(response => {
+    if (response && response.status === 'success' && response.data && response.data.user) {
+      user.set(response.data.user);
+    } else {
+      user.set(null);
+    }
+  });
+}
+
+export async function login(email: string, password:string) {
+  const response = await api.login({ email, password });
+  if (response && response.status === 'success' && response.data && response.data.user) {
+    user.set(response.data.user);
     authError.set(null);
     return true;
   } else {
     user.set(null);
-    authError.set(res.error || 'Login failed');
+    authError.set(response.message || 'Login failed');
     return false;
   }
 }
@@ -24,11 +35,11 @@ export async function logout() {
 
 export async function register(email: string, password: string, role: string) {
   const res = await api.register({ email, password, role });
-  if (res.id) {
+  if (res.status === 'success') {
     authError.set(null);
     return true;
   } else {
-    authError.set(res.error || 'Registration failed');
+    authError.set(res.message || 'Registration failed');
     return false;
   }
 } 

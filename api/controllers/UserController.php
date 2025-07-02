@@ -1,41 +1,43 @@
 <?php
 class UserController {
-    public function register() {
+        public function register($data) {
         require_once __DIR__ . '/../models/User.php';
-        $data = json_decode(file_get_contents('php://input'), true);
-        if (!isset($data['email'], $data['password'], $data['role'])) {
-            http_response_code(400);
-            echo json_encode(['error' => 'Missing required fields']);
+
+        if (!isset($data['email'], $data['password'])) {
+            Response::error('Missing required fields: email, password.', null, 400);
             return;
         }
+
+        // Default role to 'viewer' for public registration
+        $role = $data['role'] ?? 'viewer';
+
         $user = new User();
-        $result = $user->create($data['email'], $data['password'], $data['role']);
+        $result = $user->create($data['email'], $data['password'], $role);
+
         if ($result['success']) {
-            http_response_code(201);
-            echo json_encode(['id' => $result['id']]);
+            Response::success('User registered successfully.', ['id' => $result['id']], 201);
         } else {
-            http_response_code(400);
-            echo json_encode(['error' => $result['error']]);
+            Response::error($result['error'], null, 400);
         }
     }
 
     public function login($data) {
         require_once __DIR__ . '/../models/User.php';
         if (!isset($data['email'], $data['password'])) {
-            http_response_code(400);
-            echo json_encode(['error' => 'Missing email or password']);
+            Response::error('Missing email or password', null, 400);
             return;
         }
         $user = new User();
         $result = $user->authenticate($data['email'], $data['password']);
         if ($result['success']) {
-            $_SESSION['user_id'] = $result['user']['id'];
-            $_SESSION['role'] = $result['user']['role'];
-            http_response_code(200);
-            echo json_encode(['success' => true, 'user' => $result['user']]);
+            $_SESSION['user'] = [
+                'id' => $result['user']['id'],
+                'email' => $result['user']['email'],
+                'role' => $result['user']['role']
+            ];
+            Response::success('Login successful', ['user' => $result['user']]);
         } else {
-            http_response_code(401);
-            echo json_encode(['error' => $result['error']]);
+            Response::error($result['error'], null, 401);
         }
     }
 
