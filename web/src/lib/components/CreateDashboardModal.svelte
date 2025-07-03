@@ -42,10 +42,14 @@
     const layout = selectedKpiIds.map((kpi_id, index) => {
       const kpi = kpis.find(k => k.id === kpi_id);
       return {
-        type: 'line', // Use 'line' as a valid widget type
+        id: index, // Assign a unique ID
+        x: (index % 3) * 4, // Position in a grid-like layout
+        y: Math.floor(index / 3) * 10,
+        w: 4, // Default width
+        h: 10, // Default height
+        type: 'line',
         kpi_id: kpi_id,
-        position: index,
-        title: kpi ? `${kpi.name} Trend` : 'KPI Trend' // Add a title
+        title: kpi ? `${kpi.name} Trend` : 'KPI Trend'
       };
     });
 

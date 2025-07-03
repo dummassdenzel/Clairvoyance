@@ -97,6 +97,8 @@
     fetchDashboard();
   });
 
+
+
   $: kpisForSelect = widgetsArr
     .filter(w => w.kpi_id)
     .map(w => ({ id: w.kpi_id, title: w.title || `KPI ${w.kpi_id}` }))
@@ -126,7 +128,8 @@
         y: widget.y ?? Math.floor(i / 4) * 5,
         w: widget.w ?? 3,
         h: widget.h ?? 5,
-        fixed: !editMode
+        fixed: !editMode,
+        min: { w: 4, h: 10 }
       };
 
       return {
