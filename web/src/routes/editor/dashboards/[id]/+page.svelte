@@ -2,13 +2,15 @@
   import { page } from '$app/stores';
   import { user } from '$lib/stores/auth';
   import { onMount } from 'svelte';
-  import { writable } from 'svelte/store';
+  import { writable, type Writable } from 'svelte/store';
   import * as api from '$lib/services/api';
   import DashboardWidget from '$lib/components/DashboardWidget.svelte';
+  
   import ViewersModal from '$lib/components/ViewersModal.svelte';
   import UploadKpiModal from '$lib/components/UploadKpiModal.svelte';
   import Grid from 'svelte-grid';
   import gridHelp from 'svelte-grid/build/helper/index.mjs';
+  import { getContext } from 'svelte';
 
   type Item = {
     id: string;
@@ -22,15 +24,19 @@
   const loading = writable(true);
   const error = writable<string | null>(null);
 
-
   let isViewersModalOpen = false;
   let isUploadModalOpen = false;
   let editMode = false;
+  
 
   function handleCancel() {
     editMode = false;
     fetchDashboard();
   }
+
+  
+
+  
 
   const cols: any = [[0, 12]];
 
@@ -81,23 +87,9 @@
     loading.set(false);
   }
 
-
-
-
-
-
-
-
-
-
-
-
-
   onMount(() => {
     fetchDashboard();
   });
-
-
 
   $: kpisForSelect = widgetsArr
     .filter(w => w.kpi_id)
@@ -129,7 +121,8 @@
         w: widget.w ?? 3,
         h: widget.h ?? 5,
         fixed: !editMode,
-        min: { w: 4, h: 10 }
+        min: { w: 4, h: 10 },
+        customDragger: true
       };
 
       return {
@@ -138,6 +131,13 @@
         id: String(widget.id ?? widget.position ?? i)
       };
     });
+  }
+
+  const { openWidgetSettings, savedWidget }: { openWidgetSettings: (widget: any) => void; savedWidget: Writable<any | null> } = getContext('dashboard-layout');
+
+  $: if ($savedWidget) {
+    items = items.map(item => (item.id === $savedWidget.id ? { ...item, ...$savedWidget } : item));
+    $savedWidget = null; // Reset store after processing
   }
 </script>
 
@@ -210,9 +210,9 @@
     <div class="mt-8">
       {#if widgetsArr.length > 0}
         <div class="svelte-grid-container -mx-2">
-          <Grid {cols} bind:items={items} rowHeight={40} let:item let:dataItem>
+          <Grid {cols} bind:items={items} rowHeight={40} let:item let:dataItem let:movePointerDown>
             <div class="h-full w-full p-2">
-              <DashboardWidget widget={dataItem} />
+              <DashboardWidget widget={dataItem} {editMode} {movePointerDown} />
             </div>
           </Grid>
         </div>
