@@ -69,8 +69,12 @@ class KpiController {
 
     public function listEntries($kpiId)
     {
+        // Get optional query parameters for date filtering
+        $startDate = $_GET['start_date'] ?? null;
+        $endDate = $_GET['end_date'] ?? null;
+
         $entry = new KpiEntry();
-        $result = $entry->listByKpiId($kpiId);
+        $result = $entry->listByKpiId($kpiId, $startDate, $endDate);
         Response::success('Entries retrieved successfully.', $result);
     }
 }

@@ -139,8 +139,15 @@ export async function updateKpi(data: { id: number; name: string; target: string
 
 // --- KPI Entry Service ---
 
-export async function getKpiEntries(kpiId: number) {
-  return await request('GET', `/kpis/${kpiId}/entries`);
+export async function getKpiEntries(kpiId: number, startDate?: string, endDate?: string) {
+  const params = new URLSearchParams();
+  if (startDate) params.set('start_date', startDate);
+  if (endDate) params.set('end_date', endDate);
+
+  const queryString = params.toString();
+  const url = `/kpis/${kpiId}/entries${queryString ? `?${queryString}` : ''}`;
+
+  return await request('GET', url);
 }
 
 export async function uploadKpiCsv(kpi_id: number, file: File) {

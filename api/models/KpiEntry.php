@@ -52,10 +52,25 @@ class KpiEntry {
         }
         return ['inserted' => $inserted, 'failed' => $failed, 'errors' => $errors];
     }
-    public function listByKpiId($kpi_id) {
+    public function listByKpiId($kpi_id, $startDate = null, $endDate = null) {
         try {
-            $stmt = $this->db->prepare('SELECT date, value FROM kpi_entries WHERE kpi_id = ? ORDER BY date ASC');
-            $stmt->execute([$kpi_id]);
+            $sql = 'SELECT date, value FROM kpi_entries WHERE kpi_id = ?';
+            $params = [$kpi_id];
+
+            if ($startDate) {
+                $sql .= ' AND date >= ?';
+                $params[] = $startDate;
+            }
+
+            if ($endDate) {
+                $sql .= ' AND date <= ?';
+                $params[] = $endDate;
+            }
+
+            $sql .= ' ORDER BY date ASC';
+
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute($params);
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (PDOException $e) {
             return [];

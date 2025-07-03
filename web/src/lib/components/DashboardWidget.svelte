@@ -15,7 +15,7 @@
   let error: string | null = null;
   let canvasElement: HTMLCanvasElement;
 
-  async function fetchKpiData(kpiId: number) {
+  async function fetchKpiData(kpiId: number, startDate?: string, endDate?: string) {
     if (!kpiId) {
       kpiData = null;
       error = 'No KPI selected.';
@@ -26,7 +26,7 @@
     isLoading = true;
     error = null;
     try {
-      const response = await api.getKpiEntries(kpiId);
+      const response = await api.getKpiEntries(kpiId, startDate, endDate);
       if (response && response.data && Array.isArray(response.data)) {
         const entries = response.data;
         kpiData = {
@@ -46,14 +46,8 @@
     }
   }
 
-  onMount(() => {
-    fetchKpiData(widget.kpi_id);
-  });
-
-  // When the kpi_id changes, re-fetch the data
-  $: if (widget.kpi_id) {
-    fetchKpiData(widget.kpi_id);
-  }
+  // When data-related properties change, re-fetch the data
+  $: fetchKpiData(widget.kpi_id, widget.startDate, widget.endDate);
 
   function renderChart(canvas: HTMLCanvasElement) {
     if (!canvas || !kpiData) return;

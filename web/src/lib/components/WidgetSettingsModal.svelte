@@ -114,6 +114,17 @@
             </div>
           </div>
 
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label for="widget-start-date" class="block text-sm font-medium text-gray-700">Start Date</label>
+              <input type="date" id="widget-start-date" bind:value={internalWidget.startDate} class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+            </div>
+            <div>
+              <label for="widget-end-date" class="block text-sm font-medium text-gray-700">End Date</label>
+              <input type="date" id="widget-end-date" bind:value={internalWidget.endDate} class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+            </div>
+          </div>
+
         </div>
 
         <div class="mt-6 flex justify-end space-x-3">
