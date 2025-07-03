@@ -55,6 +55,12 @@
   }
 
   const chartTypes = ['line', 'bar', 'pie', 'doughnut'];
+
+  // Set default colors if they don't exist
+  $: if (internalWidget) {
+    internalWidget.backgroundColor = internalWidget.backgroundColor || '#36a2eb4d'; // Default to semi-transparent blue
+    internalWidget.borderColor = internalWidget.borderColor || '#36a2eb'; // Default to solid blue
+  }
 </script>
 
 <svelte:window on:keydown={handleKeydown} />
@@ -96,6 +102,18 @@
               {/each}
             </select>
           </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label for="widget-bg-color" class="block text-sm font-medium text-gray-700">Background Color</label>
+              <input type="color" id="widget-bg-color" bind:value={internalWidget.backgroundColor} class="mt-1 block w-full h-10 border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+            </div>
+            <div>
+              <label for="widget-border-color" class="block text-sm font-medium text-gray-700">Border Color</label>
+              <input type="color" id="widget-border-color" bind:value={internalWidget.borderColor} class="mt-1 block w-full h-10 border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+            </div>
+          </div>
+
         </div>
 
         <div class="mt-6 flex justify-end space-x-3">

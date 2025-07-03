@@ -43,7 +43,7 @@
   async function handleSave() {
     const layoutToSave = items.map(dataItem => {
       const layout = dataItem[cols[0][1]];
-      const { id, title, type, kpi_id } = dataItem;
+      const { id, title, type, kpi_id, backgroundColor, borderColor } = dataItem;
       return {
         id: Number(id),
         x: layout.x,
@@ -52,7 +52,9 @@
         h: layout.h,
         title,
         type,
-        kpi_id
+        kpi_id,
+        backgroundColor,
+        borderColor
       };
     });
 

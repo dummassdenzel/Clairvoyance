@@ -65,8 +65,8 @@
         datasets: [{
           label: widget.title || `KPI ${widget.kpi_id}`,
           data: kpiData.values,
-          backgroundColor: 'rgba(54, 162, 235, 0.2)',
-          borderColor: 'rgba(54, 162, 235, 1)',
+          backgroundColor: widget.backgroundColor || 'rgba(54, 162, 235, 0.2)',
+          borderColor: widget.borderColor || 'rgba(54, 162, 235, 1)',
           borderWidth: 2
         }]
       },
