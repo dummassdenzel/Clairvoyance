@@ -15,30 +15,45 @@
   let error: string | null = null;
   let canvasElement: HTMLCanvasElement;
 
-  onMount(async () => {
-    console.log(`Widget ${widget.id} mounted.`);
-    if (widget.kpi_id) {
-      try {
-        const response = await api.getKpiEntries(widget.kpi_id);
-        if (response && response.data && Array.isArray(response.data)) {
-          const entries = response.data;
-          kpiData = {
-            labels: entries.map((d: any) => d.date),
-            values: entries.map((d: any) => Number(d.value))
-          };
-          console.log(`Widget ${widget.id}: KPI data loaded.`, kpiData);
-
-        } else {
-          error = 'No data available for this KPI.';
-        }
-      } catch (e) {
-        console.error(`Failed to load KPI data for widget ${widget.kpi_id}:`, e);
-        error = 'Failed to load KPI data.';
-      } finally {
-        isLoading = false;
-      }
+  async function fetchKpiData(kpiId: number) {
+    if (!kpiId) {
+      kpiData = null;
+      error = 'No KPI selected.';
+      isLoading = false;
+      return;
     }
+
+    isLoading = true;
+    error = null;
+    try {
+      const response = await api.getKpiEntries(kpiId);
+      if (response && response.data && Array.isArray(response.data)) {
+        const entries = response.data;
+        kpiData = {
+          labels: entries.map((d: any) => d.date),
+          values: entries.map((d: any) => Number(d.value))
+        };
+      } else {
+        kpiData = null;
+        error = 'No data available for this KPI.';
+      }
+    } catch (e) {
+      kpiData = null;
+      console.error(`Failed to load KPI data for widget ${kpiId}:`, e);
+      error = 'Failed to load KPI data.';
+    } finally {
+      isLoading = false;
+    }
+  }
+
+  onMount(() => {
+    fetchKpiData(widget.kpi_id);
   });
+
+  // When the kpi_id changes, re-fetch the data
+  $: if (widget.kpi_id) {
+    fetchKpiData(widget.kpi_id);
+  }
 
   function renderChart(canvas: HTMLCanvasElement) {
     if (!canvas || !kpiData) return;

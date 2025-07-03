@@ -139,8 +139,8 @@ export async function updateKpi(data: { id: number; name: string; target: string
 
 // --- KPI Entry Service ---
 
-export async function getKpiEntries(kpi_id: number) {
-  return await get(`/kpis/${kpi_id}/entries`);
+export async function getKpiEntries(kpiId: number) {
+  return await request('GET', `/kpis/${kpiId}/entries`);
 }
 
 export async function uploadKpiCsv(kpi_id: number, file: File) {

@@ -1,17 +1,30 @@
 <script lang="ts">
-  import { createEventDispatcher, onMount, tick } from 'svelte';
+  import { createEventDispatcher, tick } from 'svelte';
+  import * as api from '$lib/services/api';
 
   export let show = false;
   export let widget: any = {};
 
   let internalWidget: any = {};
   let dialogElement: HTMLDivElement;
+  let kpis: any[] = [];
+  let kpisError: string | null = null;
 
   const dispatch = createEventDispatcher();
 
-  onMount(() => {
-    internalWidget = { ...widget };
-  });
+  async function loadKpis() {
+    kpisError = null;
+    try {
+      const response = await api.getKpis();
+      if (response && response.data) {
+        kpis = response.data;
+      } else {
+        kpisError = response.message || 'Failed to load KPIs.';
+      }
+    } catch (e: any) {
+      kpisError = e.message || 'An unexpected error occurred.';
+    }
+  }
 
   function handleSubmit() {
     dispatch('save', internalWidget);
@@ -36,8 +49,9 @@
   }
 
   $: if (show) {
-    // When the modal is shown, clone the widget data to avoid mutating the original object directly
+    // When the modal is shown, clone the widget data and load KPIs
     internalWidget = { ...widget };
+    loadKpis();
   }
 
   const chartTypes = ['line', 'bar', 'pie', 'doughnut'];
@@ -59,6 +73,20 @@
           <div>
             <label for="widget-title" class="block text-sm font-medium text-gray-700">Title</label>
             <input type="text" id="widget-title" bind:value={internalWidget.title} required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+          </div>
+          <div>
+            <label for="widget-kpi" class="block text-sm font-medium text-gray-700">Data Source (KPI)</label>
+            <select id="widget-kpi" bind:value={internalWidget.kpi_id} class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+              <option value={null}>-- Select a KPI --</option>
+              {#if kpis.length > 0}
+                {#each kpis as kpi}
+                  <option value={kpi.id}>{kpi.name}</option>
+                {/each}
+              {/if}
+            </select>
+            {#if kpisError}
+              <p class="mt-2 text-sm text-red-600">{kpisError}</p>
+            {/if}
           </div>
           <div>
             <label for="widget-chart-type" class="block text-sm font-medium text-gray-700">Chart Type</label>
