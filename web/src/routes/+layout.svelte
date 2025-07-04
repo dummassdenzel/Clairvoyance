@@ -39,14 +39,20 @@
   });
 </script>
 
-{#if showNavbar}
-  {#if userRole === 'editor'}
-    <EditorNavbar />
-  {:else if userRole === 'viewer'}
-    <ViewerNavbar />
+<div class="flex min-h-screen bg-gray-50">
+  {#if showNavbar}
+    <div class="fixed h-full">
+      {#if userRole === 'editor'}
+        <EditorNavbar />
+      {:else if userRole === 'viewer'}
+        <ViewerNavbar />
+      {/if}
+    </div>
   {/if}
-{/if}
 
-<main>
-  <slot />
-</main>
+  <main class="flex-1 transition-all duration-300" class:ml-64={showNavbar}>
+    <div class="p-4 sm:p-6 lg:p-8">
+        <slot />
+    </div>
+  </main>
+</div>

@@ -144,66 +144,119 @@
       alert('Please select a start and end date.');
       return;
     }
-
     isGeneratingReport = true;
-    
+
     try {
       const result = await api.getDashboardReport(dashboardId, reportStartDate, reportEndDate);
-
       if (result.status !== 'success') {
         throw new Error(result.message || 'Failed to fetch report data.');
       }
-      
       const reportData = result.data;
       const doc = new jsPDF('p', 'mm', 'a4');
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
-      const margin = 10;
-      let yPos = margin;
+      const margin = 15;
+      const contentWidth = pageWidth - margin * 2;
 
-      doc.setFontSize(22);
-      doc.text(reportData.name, pageWidth / 2, yPos, { align: 'center' });
-      yPos += 10;
+      const addHeader = (title: string) => {
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text(title, margin, 10);
+        doc.text(`Report for ${reportStartDate} to ${reportEndDate}`, pageWidth - margin, 10, { align: 'right' });
+        doc.setDrawColor(200);
+        doc.line(margin, 12, pageWidth - margin, 12);
+      };
+
+      const addFooter = (pageNumber: number) => {
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text(`Page ${pageNumber}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+        doc.text(`Generated on: ${new Date().toLocaleDateString()}`, pageWidth - margin, pageHeight - 10, { align: 'right' });
+      };
+
+      // --- Cover Page ---
+      doc.setFontSize(32);
+      doc.setFont('helvetica', 'bold');
+      doc.text(reportData.name, pageWidth / 2, 80, { align: 'center' });
+      
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'normal');
+      if (reportData.description) {
+        const descLines = doc.splitTextToSize(reportData.description, contentWidth);
+        doc.text(descLines, pageWidth / 2, 100, { align: 'center' });
+      }
+
+      doc.setFontSize(16);
+      doc.text(`Date Range: ${reportStartDate} to ${reportEndDate}`, pageWidth / 2, 150, { align: 'center' });
       
       doc.setFontSize(12);
-      doc.text(`Report for ${reportStartDate} to ${reportEndDate}`, pageWidth / 2, yPos, { align: 'center' });
-      yPos += 10;
+      doc.setTextColor(150);
+      doc.text(`Generated on: ${new Date().toLocaleString()}`, pageWidth / 2, pageHeight - 30, { align: 'center' });
 
-      for (const widget of reportData.widgets) {
-        const element = document.getElementById(`widget-container-${widget.id}`);
-        if (element) {
+      // --- Widgets Pages ---
+      if (reportData.widgets.length > 0) {
+        doc.addPage();
+        let pageCount = 2;
+        addHeader(reportData.name);
+        addFooter(pageCount);
+        
+        let yPos = 25; // Start below header
+        const colWidth = (contentWidth - 10) / 2;
+        const xPositions = [margin, margin + colWidth + 10];
+        let colIndex = 0;
+        let colHeights = [yPos, yPos];
+
+        for (let i = 0; i < reportData.widgets.length; i++) {
+          const widget = reportData.widgets[i];
+          const element = document.getElementById(`widget-container-${widget.id}`);
+          if (!element) continue;
+          
           const originalBg = element.style.backgroundColor;
           element.style.backgroundColor = 'white';
-
-          const canvas = await html2canvas(element, { 
-            scale: 2,
-            logging: false,
-            useCORS: true,
-          });
-          
+          const canvas = await html2canvas(element, { scale: 2, logging: false, useCORS: true });
           element.style.backgroundColor = originalBg;
 
           const imgData = canvas.toDataURL('image/png');
           const imgProps = doc.getImageProperties(imgData);
-          const imgWidth = pageWidth - margin * 2;
-          const imgHeight = (imgProps.height * imgWidth) / imgProps.width;
-
-          if (yPos + imgHeight + 15 > pageHeight - margin) {
-            doc.addPage();
-            yPos = margin;
+          let imgHeight = (imgProps.height * colWidth) / imgProps.width;
+          
+          // Hotfix: Constrain the image height to prevent it from taking up the whole page.
+          const maxImgHeight = 90; 
+          if (imgHeight > maxImgHeight) {
+            imgHeight = maxImgHeight;
           }
 
-          doc.setFontSize(16);
-          doc.text(widget.title, margin, yPos);
-          yPos += 7;
+          const widgetHeight = imgHeight + 15; // Title + image + padding
 
-          doc.addImage(imgData, 'PNG', margin, yPos, imgWidth, imgHeight);
-          yPos += imgHeight + 10;
+          let currentY = colHeights[colIndex];
+
+          if (currentY + widgetHeight > pageHeight - 20) {
+            colIndex++; // Move to next column
+            if (colIndex >= xPositions.length) {
+              // New page
+              pageCount++;
+              doc.addPage();
+              addHeader(reportData.name);
+              addFooter(pageCount);
+              yPos = 25;
+              colIndex = 0;
+              colHeights = [yPos, yPos];
+            }
+            currentY = colHeights[colIndex];
+          }
+
+          const currentX = xPositions[colIndex];
+
+          doc.setFontSize(14);
+          doc.setFont('helvetica', 'bold');
+          doc.text(widget.title, currentX, currentY);
+          
+          doc.addImage(imgData, 'PNG', currentX, currentY + 7, colWidth, imgHeight);
+          colHeights[colIndex] += widgetHeight + 10; // Add some padding
         }
       }
 
-      doc.save(`${reportData.name.replace(/\s+/g, '_').toLowerCase()}_report.pdf`);
-
+      doc.save(`${reportData.name.replace(/\s/g, '_')}_Report.pdf`);
     } catch (e: any) {
       console.error('Failed to generate report:', e);
       alert(`Failed to generate report: ${e.message}`);

@@ -8,14 +8,21 @@
   }
 </script>
 
-<nav class="bg-gray-800 text-white shadow-md">
-  <div class="container mx-auto px-6 py-3 flex justify-between items-center">
-    <a href="/viewer" class="font-bold text-xl">Clairvoyance <span class="font-normal text-base text-gray-400">- Viewer</span></a>
-    <div class="flex items-center space-x-4">
-      <a href="/viewer" class="px-3 py-2 rounded hover:bg-gray-700 transition">Dashboards</a>
-      <button on:click={handleLogout} class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded transition">
-        Logout
-      </button>
-    </div>
+<aside class="w-64 h-screen bg-white shadow-md flex flex-col" aria-label="Sidebar">
+  <div class="p-4 border-b">
+    <a href="/viewer" class="text-2xl font-bold text-gray-800">Clairvoyance</a>
+    <span class="text-sm text-gray-500">Viewer</span>
   </div>
-</nav>
+
+  <nav class="flex-1 px-2 py-4 space-y-2">
+    <a href="/viewer" class="flex items-center p-2 text-base font-normal text-gray-900 rounded-lg hover:bg-gray-100">
+      <span class="ml-3">Dashboards</span>
+    </a>
+  </nav>
+
+  <div class="p-4 border-t">
+    <button on:click={handleLogout} class="w-full text-left flex items-center p-2 text-base font-normal text-gray-900 rounded-lg hover:bg-gray-100">
+      <span class="ml-3">Logout</span>
+    </button>
+  </div>
+</aside>

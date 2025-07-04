@@ -213,10 +213,13 @@ class Dashboard {
                 $widgetsData[] = $widget;
             }
 
-            $dashboard['widgets'] = $widgetsData;
-            unset($dashboard['layout']); // Remove original layout string to avoid redundancy.
+            $reportData = [
+                'name' => $dashboard['name'],
+                'description' => $dashboard['description'] ?? null,
+                'widgets' => $widgetsData
+            ];
 
-            return ['success' => true, 'report_data' => $dashboard];
+            return ['success' => true, 'report_data' => $reportData];
         } catch (Exception $e) {
             return ['success' => false, 'error' => $e->getMessage()];
         }
