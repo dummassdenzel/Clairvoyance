@@ -100,7 +100,8 @@
         maintainAspectRatio: ['pie', 'doughnut'].includes(widget.type),
         plugins: {
           legend: { 
-            display: widget.showLegend 
+            display: widget.showLegend,
+            position: widget.legendPosition || 'top'
           } 
         } 
       }

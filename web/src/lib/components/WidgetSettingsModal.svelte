@@ -70,6 +70,10 @@
     if (internalWidget.showLegend === undefined) {
       internalWidget.showLegend = true;
     }
+    // Default legendPosition to 'top' if it's not defined
+    if (internalWidget.legendPosition === undefined) {
+      internalWidget.legendPosition = 'top';
+    }
   }
 </script>
 
@@ -120,9 +124,22 @@
           </div>
 
           {#if ['line', 'bar', 'pie', 'doughnut'].includes(internalWidget.type)}
-            <div class="flex items-center">
-              <input id="widget-show-legend" type="checkbox" bind:checked={internalWidget.showLegend} class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
-              <label for="widget-show-legend" class="ml-2 block text-sm text-gray-900">Show Legend</label>
+            <div class="p-3 bg-gray-50 rounded-md border border-gray-200">
+              <div class="flex items-center justify-between">
+                <label for="widget-show-legend" class="text-sm font-medium text-gray-900">Show Legend</label>
+                <input id="widget-show-legend" type="checkbox" bind:checked={internalWidget.showLegend} class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+              </div>
+              {#if internalWidget.showLegend}
+                <div class="mt-3">
+                  <label for="widget-legend-position" class="block text-sm font-medium text-gray-700">Legend Position</label>
+                  <select id="widget-legend-position" bind:value={internalWidget.legendPosition} class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md">
+                    <option value="top">Top</option>
+                    <option value="bottom">Bottom</option>
+                    <option value="left">Left</option>
+                    <option value="right">Right</option>
+                  </select>
+                </div>
+              {/if}
             </div>
           {/if}
 
