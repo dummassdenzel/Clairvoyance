@@ -52,6 +52,46 @@ class KpiEntry {
         }
         return ['inserted' => $inserted, 'failed' => $failed, 'errors' => $errors];
     }
+    public function getAggregateValue($kpi_id, $aggregationType, $startDate = null, $endDate = null)
+    {
+        $baseSql = 'FROM kpi_entries WHERE kpi_id = ?';
+        $params = [$kpi_id];
+
+        if ($startDate) {
+            $baseSql .= ' AND date >= ?';
+            $params[] = $startDate;
+        }
+
+        if ($endDate) {
+            $baseSql .= ' AND date <= ?';
+            $params[] = $endDate;
+        }
+
+        $sql = '';
+        switch ($aggregationType) {
+            case 'sum':
+                $sql = 'SELECT SUM(value) as value ' . $baseSql;
+                break;
+            case 'average':
+                $sql = 'SELECT AVG(value) as value ' . $baseSql;
+                break;
+            case 'latest':
+                $sql = 'SELECT value ' . $baseSql . ' ORDER BY date DESC LIMIT 1';
+                break;
+            default:
+                return null; // Invalid aggregation type
+        }
+
+        try {
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute($params);
+            return $stmt->fetch(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            // In a real app, you might log the error
+            return null;
+        }
+    }
+
     public function listByKpiId($kpi_id, $startDate = null, $endDate = null) {
         try {
             $sql = 'SELECT date, value FROM kpi_entries WHERE kpi_id = ?';

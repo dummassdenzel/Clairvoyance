@@ -12,12 +12,16 @@ $controller = new KpiController();
 $part1 = $request[1] ?? null;
 $part2 = $request[2] ?? null;
 
-// --- Sub-resource routing for /kpis/{id}/entries ---
-if (is_numeric($part1) && $part2 === 'entries') {
+// --- Sub-resource routing for /kpis/{id}/entries and /kpis/{id}/aggregate ---
+if (is_numeric($part1) && in_array($part2, ['entries', 'aggregate'])) {
     $kpiId = $part1;
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $roleMiddleware->requireViewer();
-        $controller->listEntries($kpiId);
+        if ($part2 === 'entries') {
+            $controller->listEntries($kpiId);
+        } elseif ($part2 === 'aggregate') {
+            $controller->getAggregate($kpiId);
+        }
     } else {
         Response::error('Method not allowed for this resource.', null, 405);
     }

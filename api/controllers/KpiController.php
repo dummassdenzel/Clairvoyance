@@ -67,6 +67,29 @@ class KpiController {
         Response::success('KPIs retrieved successfully.', $result);
     }
 
+    public function getAggregate($kpiId)
+    {
+        $aggregationType = $_GET['type'] ?? null;
+        $validTypes = ['sum', 'average', 'latest'];
+
+        if (!$aggregationType || !in_array($aggregationType, $validTypes)) {
+            Response::error('Invalid or missing aggregation type.', 400);
+            return;
+        }
+
+        $startDate = $_GET['start_date'] ?? null;
+        $endDate = $_GET['end_date'] ?? null;
+
+        $entry = new KpiEntry();
+        $result = $entry->getAggregateValue($kpiId, $aggregationType, $startDate, $endDate);
+
+        if ($result) {
+            Response::success('Aggregate value retrieved successfully.', $result);
+        } else {
+            Response::error('Could not retrieve aggregate value.', 500);
+        }
+    }
+
     public function listEntries($kpiId)
     {
         // Get optional query parameters for date filtering

@@ -50,11 +50,12 @@
 
   $: if (show) {
     // When the modal is shown, clone the widget data and load KPIs
-    internalWidget = { ...widget };
+    internalWidget = { ...widget, aggregation: widget.aggregation || 'latest' };
     loadKpis();
   }
 
-  const chartTypes = ['line', 'bar', 'pie', 'doughnut'];
+  const chartTypes = ['line', 'bar', 'pie', 'doughnut', 'single-value'];
+  const aggregationMethods = ['latest', 'average', 'sum', 'count'];
 
   // Set default colors if they don't exist
   $: if (internalWidget) {
@@ -102,6 +103,17 @@
               {/each}
             </select>
           </div>
+
+          {#if internalWidget.type === 'single-value'}
+            <div>
+              <label for="widget-aggregation" class="block text-sm font-medium text-gray-700">Value to Display</label>
+              <select id="widget-aggregation" bind:value={internalWidget.aggregation} class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md">
+                {#each aggregationMethods as method}
+                  <option value={method}>{method.charAt(0).toUpperCase() + method.slice(1)}</option>
+                {/each}
+              </select>
+            </div>
+          {/if}
 
           <div class="grid grid-cols-2 gap-4">
             <div>

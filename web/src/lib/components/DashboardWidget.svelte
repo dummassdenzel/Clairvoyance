@@ -11,6 +11,7 @@
 
   let chartInstance: Chart | null = null;
   let kpiData: { labels: string[]; values: number[] } | null = null;
+  let aggregateData: { value: number } | null = null;
   let isLoading = true;
   let error: string | null = null;
   let canvasElement: HTMLCanvasElement;
@@ -46,8 +47,41 @@
     }
   }
 
-  // When data-related properties change, re-fetch the data
-  $: fetchKpiData(widget.kpi_id, widget.startDate, widget.endDate);
+  async function fetchAggregateData(kpiId: number, aggregation: string, startDate?: string, endDate?: string) {
+    if (!kpiId) {
+      aggregateData = null;
+      error = 'No KPI selected.';
+      isLoading = false;
+      return;
+    }
+
+    isLoading = true;
+    error = null;
+    try {
+      const response = await api.getKpiAggregate(kpiId, aggregation, startDate, endDate);
+      if (response && response.data) {
+        aggregateData = response.data;
+      } else {
+        aggregateData = null;
+        error = 'No data available for this KPI.';
+      }
+    } catch (e) {
+      aggregateData = null;
+      console.error(`Failed to load aggregate KPI data for widget ${kpiId}:`, e);
+      error = 'Failed to load KPI data.';
+    } finally {
+      isLoading = false;
+    }
+  }
+
+  // When data-related properties change, re-fetch the appropriate data
+  $: {
+    if (widget.type === 'single-value') {
+      fetchAggregateData(widget.kpi_id, widget.aggregation, widget.startDate, widget.endDate);
+    } else {
+      fetchKpiData(widget.kpi_id, widget.startDate, widget.endDate);
+    }
+  }
 
   function renderChart(canvas: HTMLCanvasElement) {
     if (!canvas || !kpiData) return;
@@ -107,13 +141,24 @@
       </button>
     {/if}
   </div>
-  <div on:pointerdown={movePointerDown} class="p-4 flex-grow cursor-move">
+  <div on:pointerdown={movePointerDown} class="p-4 flex-grow relative flex items-center justify-center">
     {#if isLoading}
-      <div class="text-center py-10">Loading...</div>
+      <div class="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75 z-10">
+        <p>Loading...</p>
+      </div>
     {:else if error}
-      <div class="text-center py-10 text-red-500">{error}</div>
+      <p class="text-red-500">{error}</p>
+    {:else if widget.type === 'single-value'}
+      {#if aggregateData !== null && aggregateData.value !== null}
+        <div class="text-center">
+          <h3 class="text-lg text-gray-500">{widget.aggregation.charAt(0).toUpperCase() + widget.aggregation.slice(1)}</h3>
+          <p class="text-5xl font-bold">{Number(aggregateData.value).toLocaleString()}</p>
+        </div>
+      {:else}
+        <p>No data</p>
+      {/if}
     {:else if ['line', 'bar', 'pie', 'doughnut'].includes(widget.type)}
-      <div class="relative h-64">
+      <div class="w-full h-full">
         <canvas bind:this={canvasElement}></canvas>
       </div>
     {:else if widget.type === 'table'}
