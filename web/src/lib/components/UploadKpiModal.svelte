@@ -18,6 +18,12 @@
     dispatch('close');
   }
 
+  function handleKeydown(event: KeyboardEvent) {
+    if (event.key === 'Escape' && isOpen) {
+      closeModal();
+    }
+  }
+
   async function handleCsvUpload(event: Event) {
     event.preventDefault();
     if (!csvFile || selectedKpiForUpload === null) return;
@@ -39,16 +45,16 @@
   }
 </script>
 
+<svelte:window on:keydown={handleKeydown} />
+
 {#if isOpen}
-  <div 
+  <div
     class="fixed inset-0 bg-[rgba(0,0,0,0.5)] bg-opacity-50 z-40 flex items-center justify-center"
-    on:click={closeModal}
-    role="dialog"
-    aria-modal="true"
   >
-    <div 
+    <div
       class="bg-white rounded-lg shadow-xl w-full max-w-md mx-4"
-      on:click|stopPropagation
+      role="dialog"
+      aria-modal="true"
     >
       <div class="p-4 border-b border-gray-200 flex justify-between items-center">
         <h2 class="text-xl font-semibold">Upload KPI Data</h2>

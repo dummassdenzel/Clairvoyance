@@ -142,6 +142,23 @@ class DashboardController {
         }
     }
 
+    public function getReportData($id) {
+        // Middleware handles auth and role checks.
+        $startDate = $_GET['start_date'] ?? null;
+        $endDate = $_GET['end_date'] ?? null;
+        $userId = $_SESSION['user']['id'];
+        $userRole = $_SESSION['user']['role'];
+
+        $dashboard = new Dashboard();
+        $result = $dashboard->getReportData($id, $userId, $userRole, $startDate, $endDate);
+
+        if ($result['success']) {
+            Response::success('Report data retrieved successfully.', $result['report_data']);
+        } else {
+            Response::error($result['error'], null, 403);
+        }
+    }
+
     public function removeViewer($dashboardId, $userId) {
         // Middleware handles auth and role checks.
         $dashboard = new Dashboard();

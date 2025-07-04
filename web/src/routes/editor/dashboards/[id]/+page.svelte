@@ -10,7 +10,9 @@
   import UploadKpiModal from '$lib/components/UploadKpiModal.svelte';
   import Grid from 'svelte-grid';
   import gridHelp from 'svelte-grid/build/helper/index.mjs';
-  import { getContext } from 'svelte';
+    import { getContext } from 'svelte';
+  import jsPDF from 'jspdf';
+  import html2canvas from 'html2canvas-pro';
 
   type Item = {
     id: string;
@@ -26,7 +28,12 @@
 
   let isViewersModalOpen = false;
   let isUploadModalOpen = false;
-  let editMode = false;
+    let editMode = false;
+
+  let isReportModalOpen = false;
+  let reportStartDate = new Date().toISOString().split('T')[0];
+  let reportEndDate = new Date().toISOString().split('T')[0];
+  let isGeneratingReport = false;
   
 
   function handleCancel() {
@@ -67,7 +74,7 @@
       await api.updateDashboard(dashboardId, { layout: layoutToSave });
       editMode = false;
       await fetchDashboard();
-    } catch (e) {
+    } catch (e: any) {
       console.error('Failed to save layout:', e);
       alert('Failed to save layout. See console for details.');
     }
@@ -128,8 +135,88 @@
     items = [...items, newItem];
   }
 
-  function removeWidget(id: string) {
+    function removeWidget(id: string) {
     items = items.filter(item => item.id !== id);
+  }
+
+  async function generateReport() {
+    if (!reportStartDate || !reportEndDate) {
+      alert('Please select a start and end date.');
+      return;
+    }
+
+    isGeneratingReport = true;
+    
+    try {
+      const result = await api.getDashboardReport(dashboardId, reportStartDate, reportEndDate);
+
+      if (result.status !== 'success') {
+        throw new Error(result.message || 'Failed to fetch report data.');
+      }
+      
+      const reportData = result.data;
+      const doc = new jsPDF('p', 'mm', 'a4');
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 10;
+      let yPos = margin;
+
+      doc.setFontSize(22);
+      doc.text(reportData.name, pageWidth / 2, yPos, { align: 'center' });
+      yPos += 10;
+      
+      doc.setFontSize(12);
+      doc.text(`Report for ${reportStartDate} to ${reportEndDate}`, pageWidth / 2, yPos, { align: 'center' });
+      yPos += 10;
+
+      for (const widget of reportData.widgets) {
+        const element = document.getElementById(`widget-container-${widget.id}`);
+        if (element) {
+          const originalBg = element.style.backgroundColor;
+          element.style.backgroundColor = 'white';
+
+          const canvas = await html2canvas(element, { 
+            scale: 2,
+            logging: false,
+            useCORS: true,
+          });
+          
+          element.style.backgroundColor = originalBg;
+
+          const imgData = canvas.toDataURL('image/png');
+          const imgProps = doc.getImageProperties(imgData);
+          const imgWidth = pageWidth - margin * 2;
+          const imgHeight = (imgProps.height * imgWidth) / imgProps.width;
+
+          if (yPos + imgHeight + 15 > pageHeight - margin) {
+            doc.addPage();
+            yPos = margin;
+          }
+
+          doc.setFontSize(16);
+          doc.text(widget.title, margin, yPos);
+          yPos += 7;
+
+          doc.addImage(imgData, 'PNG', margin, yPos, imgWidth, imgHeight);
+          yPos += imgHeight + 10;
+        }
+      }
+
+      doc.save(`${reportData.name.replace(/\s+/g, '_').toLowerCase()}_report.pdf`);
+
+    } catch (e: any) {
+      console.error('Failed to generate report:', e);
+      alert(`Failed to generate report: ${e.message}`);
+    } finally {
+      isGeneratingReport = false;
+      isReportModalOpen = false;
+    }
+  }
+
+  function handleKeydown(event: KeyboardEvent) {
+    if (event.key === 'Escape' && isReportModalOpen) {
+        isReportModalOpen = false;
+    }
   }
 
   $: dashboardId = $page.params.id;
@@ -146,7 +233,7 @@
       } else {
         dashboard.set(data.data.dashboard);
       }
-    } catch (e) {
+    } catch (e: any) {
       error.set('Failed to load dashboard');
       dashboard.set(null);
     }
@@ -207,6 +294,8 @@
   }
 </script>
 
+<svelte:window on:keydown={handleKeydown}/>
+
 <style>
   :global(.svlt-grid-container) {
     background: #eee;
@@ -224,7 +313,7 @@
   {#if $loading}
     <div class="text-center py-12">Loading...</div>
   {:else if $error}
-    <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+    <div id="widget-container-error" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
       <strong class="font-bold">Error:</strong>
       <span class="block sm:inline">{$error}</span>
     </div>
@@ -249,7 +338,8 @@
         </div>
 
         {#if isEditor}
-          <div class="flex items-center space-x-2">
+                <div class="flex items-center space-x-2">
+        <button on:click={() => isReportModalOpen = true} class="btn-secondary">Generate Report</button>
             {#if editMode}
               <button on:click={addWidget} class="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700">
                 Add Widget
@@ -280,7 +370,7 @@
       {#if widgetsArr.length > 0}
         <div class="svelte-grid-container -mx-2">
           <Grid {cols} bind:items={items} rowHeight={40} let:item let:dataItem let:movePointerDown>
-            <div class="h-full w-full p-2">
+            <div id="widget-container-{dataItem.id}" class="h-full w-full p-2">
               <DashboardWidget
                   widget={dataItem}
                   {editMode}
@@ -300,6 +390,40 @@
     </div>
   {/if}
 </div>
+
+{#if isReportModalOpen}
+  <div class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+    <div role="dialog" aria-modal="true" aria-labelledby="report-modal-title" class="bg-white p-8 rounded-lg shadow-xl w-full max-w-md">
+      <h2 id="report-modal-title" class="text-2xl font-bold mb-6">Generate Report</h2>
+      
+      <div class="space-y-4">
+        <div>
+          <label for="startDate" class="block text-sm font-medium text-gray-700">Start Date</label>
+          <input type="date" id="startDate" bind:value={reportStartDate} class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+        </div>
+        <div>
+          <label for="endDate" class="block text-sm font-medium text-gray-700">End Date</label>
+          <input type="date" id="endDate" bind:value={reportEndDate} class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+        </div>
+      </div>
+
+      <div class="mt-8 flex justify-end space-x-3">
+        <button on:click={() => isReportModalOpen = false} class="btn-secondary" disabled={isGeneratingReport}>Cancel</button>
+        <button on:click={generateReport} class="btn-primary flex items-center justify-center w-36" disabled={isGeneratingReport}>
+          {#if isGeneratingReport}
+            <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span>Generating...</span>
+          {:else}
+            <span>Generate PDF</span>
+          {/if}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 {#if $dashboard}
   <ViewersModal 

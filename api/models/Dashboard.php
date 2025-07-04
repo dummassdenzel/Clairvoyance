@@ -170,6 +170,58 @@ class Dashboard {
         }
     }
 
+    public function getReportData($id, $user_id, $role, $startDate = null, $endDate = null) {
+        require_once __DIR__ . '/Kpi.php';
+        require_once __DIR__ . '/KpiEntry.php';
+
+        try {
+            // First, get the dashboard and verify access rights.
+            $dashboardResult = $this->getById($id, $user_id, $role);
+            if (!$dashboardResult['success']) {
+                return $dashboardResult; // Return original error if access is denied or not found.
+            }
+            $dashboard = $dashboardResult['dashboard'];
+
+            $layout = json_decode($dashboard['layout'], true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                return ['success' => false, 'error' => 'Invalid dashboard layout JSON.'];
+            }
+
+            $kpiModel = new Kpi();
+            $kpiEntryModel = new KpiEntry();
+            $widgetsData = [];
+
+            foreach ($layout as $widget) {
+                if (isset($widget['kpi_id'])) {
+                    $kpi_id = $widget['kpi_id'];
+                    $kpiDetails = $kpiModel->getById($kpi_id, $user_id);
+
+                    if ($kpiDetails) {
+                        $widget['kpi_details'] = $kpiDetails;
+                        
+                        // Use widget-specific date range, falling back to the report's global date range.
+                        $widgetStartDate = !empty($widget['startDate']) ? $widget['startDate'] : $startDate;
+                        $widgetEndDate = !empty($widget['endDate']) ? $widget['endDate'] : $endDate;
+
+                        if (isset($widget['aggregation'])) {
+                            $widget['data'] = $kpiEntryModel->getAggregateValue($kpi_id, $widget['aggregation'], $widgetStartDate, $widgetEndDate);
+                        } else {
+                            $widget['data'] = $kpiEntryModel->listByKpiId($kpi_id, $widgetStartDate, $widgetEndDate);
+                        }
+                    }
+                }
+                $widgetsData[] = $widget;
+            }
+
+            $dashboard['widgets'] = $widgetsData;
+            unset($dashboard['layout']); // Remove original layout string to avoid redundancy.
+
+            return ['success' => true, 'report_data' => $dashboard];
+        } catch (Exception $e) {
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
     public function delete($id, $user_id) {
         try {
             $stmt = $this->db->prepare('SELECT user_id FROM dashboards WHERE id = ?');

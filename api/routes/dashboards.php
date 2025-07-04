@@ -59,6 +59,14 @@ if (is_numeric($part1) && $part2 === 'viewers') {
     exit(); // Stop further processing
 }
 
+// --- Route for dashboard reports ---
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && is_numeric($part1) && $part2 === 'report') {
+    $dashboardId = $part1;
+    $roleMiddleware->requireViewer(); // Any authenticated user with view access can generate a report.
+    $controller->getReportData($dashboardId);
+    exit();
+}
+
 // --- Primary resource routing for /dashboards --- 
 $id = is_numeric($part1) ? $part1 : null;
 
