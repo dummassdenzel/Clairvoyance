@@ -74,9 +74,45 @@
   }
 
   function addWidget() {
+    const newWidgetWidth = 4;
+    const newWidgetHeight = 7;
+    const gridWidth = cols[0][1];
+
+    let nextPos = { x: 0, y: 0 };
+
+    if (items.length > 0) {
+        let y = 0;
+        let foundPosition = false;
+        while (!foundPosition) {
+            for (let x = 0; x <= gridWidth - newWidgetWidth; x++) {
+                const potentialRect = { x, y, w: newWidgetWidth, h: newWidgetHeight };
+                let isOverlapping = items.some(item => {
+                    const layout = item[cols[0][1]];
+                    const existingRect = { x: layout.x, y: layout.y, w: layout.w, h: layout.h };
+                    // Check for overlap
+                    return (
+                        potentialRect.x < existingRect.x + existingRect.w &&
+                        potentialRect.x + potentialRect.w > existingRect.x &&
+                        potentialRect.y < existingRect.y + existingRect.h &&
+                        potentialRect.y + potentialRect.h > existingRect.y
+                    );
+                });
+
+                if (!isOverlapping) {
+                    nextPos = { x, y };
+                    foundPosition = true;
+                    break;
+                }
+            }
+            if (!foundPosition) {
+                y++;
+            }
+        }
+    }
+
     const newId = items.length > 0 ? Math.max(...items.map(item => Number(item.id))) + 1 : 0;
     const newItem = {
-      [cols[0][1]]: gridHelp.item({ x: 0, y: Infinity, w: 4, h: 7, fixed: !editMode, min: { w: 2, h: 4 }, customDragger: true }),
+      [cols[0][1]]: gridHelp.item({ ...nextPos, w: newWidgetWidth, h: newWidgetHeight, fixed: !editMode, min: { w: 2, h: 4 }, customDragger: true }),
       id: String(newId),
       title: 'New Widget',
       type: 'line',

@@ -65,6 +65,11 @@ class DashboardController {
             return;
         }
 
+        // If layout data is present, it must be JSON encoded before saving.
+        if (isset($data['layout'])) {
+            $data['layout'] = json_encode($data['layout']);
+        }
+
         $dashboard = new Dashboard();
         $userId = $_SESSION['user']['id'];
         $result = $dashboard->update($id, $data, $userId);
