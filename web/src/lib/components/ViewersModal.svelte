@@ -1,6 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import * as api from '$lib/services/api';
+  import ShareModal from './ShareModal.svelte';
 
   export let isOpen = false;
   export let viewers: any[] = [];
@@ -11,11 +12,36 @@
   let submissionError: string | null = null;
   let removingViewerId: string | null = null;
 
+  // State for the ShareModal
+  let isShareModalOpen = false;
+  let generatedShareLink = '';
+  let isGeneratingLink = false;
+
   const dispatch = createEventDispatcher();
 
   function closeModal() {
     isOpen = false;
     dispatch('close');
+  }
+
+  async function handleShare() {
+    isGeneratingLink = true;
+    try {
+      const result = await api.generateShareLink(dashboardId);
+      if (result.data && result.data.token) {
+        const baseUrl = window.location.origin;
+        generatedShareLink = `${baseUrl}/dashboards/share/${result.data.token}`;
+        isShareModalOpen = true;
+      } else {
+        console.error("Failed to generate share link:", result);
+        alert('Could not generate a share link. Please try again.');
+      }
+    } catch (e) {
+      console.error("Error generating share link:", e);
+      alert('An error occurred while generating the share link.');
+    } finally {
+      isGeneratingLink = false;
+    }
   }
 
   async function handleRemoveViewer(viewerId: string) {
@@ -67,6 +93,22 @@
           <p class="text-sm text-gray-500">This dashboard has not been shared.</p>
         {/if}
       </div>
+
+      <div class="p-4 border-t border-gray-200 bg-gray-50 flex justify-end">
+        <button 
+          on:click={handleShare}
+          disabled={isGeneratingLink}
+          class="bg-blue-600 text-white px-4 py-2 rounded-md shadow-sm hover:bg-blue-700 disabled:opacity-50"
+        >
+          {isGeneratingLink ? 'Generating...' : 'Share via Link'}
+        </button>
+      </div>
     </div>
   </div>
 {/if}
+
+<ShareModal 
+  bind:show={isShareModalOpen}
+  shareLink={generatedShareLink}
+  on:close={() => isShareModalOpen = false}
+/>
