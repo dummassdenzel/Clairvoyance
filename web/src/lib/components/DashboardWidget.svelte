@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, onDestroy, getContext } from 'svelte';
+  import { onMount, onDestroy, createEventDispatcher } from 'svelte';
   import Chart from 'chart.js/auto';
   import annotationPlugin from 'chartjs-plugin-annotation';
   import * as api from '$lib/services/api';
@@ -7,10 +7,12 @@
   Chart.register(annotationPlugin);
 
   export let widget: any;
-  export let editMode = false;
-  export let movePointerDown: (e: PointerEvent) => void;
+  export let editMode: boolean = false;
+  export let movePointerDown: (e: PointerEvent) => void = () => {};
 
-  const { openWidgetSettings }: any = getContext('dashboard-layout');
+  const dispatch = createEventDispatcher();
+
+  let isConfirmingDelete = false;
 
   let chartInstance: Chart | null = null;
   let kpiData: { labels: string[]; values: number[] } | null = null;
@@ -182,16 +184,24 @@
   }
 </script>
 
-<div class="bg-white rounded-lg shadow border border-gray-200 flex flex-col h-full">
-  <div class="p-4 border-b border-gray-200 flex justify-between items-center">
-    <h3 class="text-lg font-semibold text-gray-800">{widget.title || widget.type}</h3>
+<div class="bg-white rounded-lg shadow-md h-full w-full flex flex-col">
+  <div class="p-2 border-b border-gray-200 flex justify-between items-center" on:pointerdown={editMode ? movePointerDown : undefined} class:cursor-move={editMode}>
+    <h3 class="font-semibold text-sm text-gray-700 truncate">{widget.title}</h3>
     {#if editMode}
-      <button on:click|stopPropagation={() => openWidgetSettings(widget)} on:mousedown|stopPropagation aria-label="Widget settings" class="p-1 rounded-full hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-        </svg>
-      </button>
+      <div class="flex items-center space-x-1">
+        {#if isConfirmingDelete}
+          <span class="text-xs text-gray-600">Sure?</span>
+          <button on:click|stopPropagation={() => { dispatch('remove', { id: widget.id }); isConfirmingDelete = false; }} class="px-2 py-1 text-xs text-white bg-red-600 rounded hover:bg-red-700" aria-label="Confirm Remove">Yes</button>
+          <button on:click|stopPropagation={() => isConfirmingDelete = false} class="px-2 py-1 text-xs text-gray-700 bg-gray-200 rounded hover:bg-gray-300" aria-label="Cancel Remove">No</button>
+        {:else}
+          <button on:click={() => dispatch('openSettings', { widget })} class="p-1 text-gray-400 hover:text-gray-700" aria-label="Widget Settings">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+          </button>
+          <button on:click|stopPropagation={() => isConfirmingDelete = true} class="p-1 text-red-400 hover:text-red-700" aria-label="Remove Widget">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+          </button>
+        {/if}
+      </div>
     {/if}
   </div>
   <div on:pointerdown={editMode ? movePointerDown : undefined} class:cursor-move={editMode} class="flex-grow p-4 min-h-0">

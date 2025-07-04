@@ -73,6 +73,29 @@
     }
   }
 
+  function addWidget() {
+    const newId = items.length > 0 ? Math.max(...items.map(item => Number(item.id))) + 1 : 0;
+    const newItem = {
+      [cols[0][1]]: gridHelp.item({ x: 0, y: Infinity, w: 4, h: 7, fixed: !editMode, min: { w: 2, h: 4 }, customDragger: true }),
+      id: String(newId),
+      title: 'New Widget',
+      type: 'line',
+      kpi_id: null,
+      backgroundColor: '#36a2eb4d',
+      borderColor: '#36a2eb',
+      startDate: '',
+      endDate: '',
+      aggregation: 'latest',
+      showLegend: true,
+      legendPosition: 'top'
+    };
+    items = [...items, newItem];
+  }
+
+  function removeWidget(id: string) {
+    items = items.filter(item => item.id !== id);
+  }
+
   $: dashboardId = $page.params.id;
   $: isEditor = $user?.role === 'editor';
 
@@ -198,6 +221,9 @@
               Upload Data
             </button>
             {#if editMode}
+              <button on:click={addWidget} class="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700">
+                Add Widget
+              </button>
               <button on:click={handleCancel} class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
                 Cancel
               </button>
@@ -219,7 +245,13 @@
         <div class="svelte-grid-container -mx-2">
           <Grid {cols} bind:items={items} rowHeight={40} let:item let:dataItem let:movePointerDown>
             <div class="h-full w-full p-2">
-              <DashboardWidget widget={dataItem} {editMode} {movePointerDown} />
+              <DashboardWidget
+                  widget={dataItem}
+                  {editMode}
+                  {movePointerDown}
+                  on:openSettings={(event) => openWidgetSettings(event.detail.widget)}
+                  on:remove={(event) => removeWidget(event.detail.id)}
+                />
             </div>
           </Grid>
         </div>
