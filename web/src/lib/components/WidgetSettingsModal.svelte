@@ -42,6 +42,31 @@
     }
   }
 
+  function setDateRange(range: '7d' | '30d' | 'month' | 'ytd') {
+    const endDate = new Date();
+    let startDate = new Date();
+
+    switch (range) {
+      case '7d':
+        startDate.setDate(endDate.getDate() - 7);
+        break;
+      case '30d':
+        startDate.setDate(endDate.getDate() - 30);
+        break;
+      case 'month':
+        startDate = new Date(endDate.getFullYear(), endDate.getMonth(), 1);
+        break;
+      case 'ytd':
+        startDate = new Date(endDate.getFullYear(), 0, 1);
+        break;
+    }
+
+    const formatDate = (date: Date) => date.toISOString().split('T')[0];
+
+    internalWidget.startDate = formatDate(startDate);
+    internalWidget.endDate = formatDate(endDate);
+  }
+
   $: if (show && dialogElement) {
     tick().then(() => {
       dialogElement.focus();
@@ -173,6 +198,15 @@
             <div>
               <label for="widget-end-date" class="block text-sm font-medium text-gray-700">End Date</label>
               <input type="date" id="widget-end-date" bind:value={internalWidget.endDate} class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+            </div>
+          </div>
+
+          <div>
+            <div class="flex justify-between items-center space-x-2">
+              <button type="button" on:click={() => setDateRange('7d')} class="w-full text-xs py-1 px-2 border border-gray-300 rounded-md hover:bg-gray-100">Last 7 Days</button>
+              <button type="button" on:click={() => setDateRange('30d')} class="w-full text-xs py-1 px-2 border border-gray-300 rounded-md hover:bg-gray-100">Last 30 Days</button>
+              <button type="button" on:click={() => setDateRange('month')} class="w-full text-xs py-1 px-2 border border-gray-300 rounded-md hover:bg-gray-100">This Month</button>
+              <button type="button" on:click={() => setDateRange('ytd')} class="w-full text-xs py-1 px-2 border border-gray-300 rounded-md hover:bg-gray-100">Year to Date</button>
             </div>
           </div>
 
