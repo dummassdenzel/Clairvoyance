@@ -4,10 +4,26 @@ require_once __DIR__ . '/../models/Kpi.php';
 require_once __DIR__ . '/../models/KpiEntry.php';
 
 class KpiController {
+    public function getOne($kpiId) {
+        $userId = $_SESSION['user']['id'];
+        $kpi = new Kpi();
+        $result = $kpi->getById($kpiId, $userId);
+        if ($result) {
+            Response::success('KPI retrieved successfully.', $result);
+        } else {
+            Response::error('KPI not found or you do not have permission to view it.', null, 404);
+        }
+    }
+
     public function update($kpiId) {
         // Middleware handles auth, role checks, and starts the session.
         $data = json_decode(file_get_contents('php://input'), true);
         $userId = $_SESSION['user']['id'];
+
+        // Provide defaults for optional fields
+        $data['direction'] = $data['direction'] ?? 'higher_is_better';
+        $data['format_prefix'] = $data['format_prefix'] ?? null;
+        $data['format_suffix'] = $data['format_suffix'] ?? null;
 
         if (!isset($data['name'], $data['target'], $data['rag_red'], $data['rag_amber'])) {
             Response::error('Missing required fields.', null, 400);
@@ -28,6 +44,11 @@ class KpiController {
         // Middleware handles auth, role checks, and starts the session.
         $data = json_decode(file_get_contents('php://input'), true);
 
+        // Provide defaults for optional fields
+        $data['direction'] = $data['direction'] ?? 'higher_is_better';
+        $data['format_prefix'] = $data['format_prefix'] ?? null;
+        $data['format_suffix'] = $data['format_suffix'] ?? null;
+
         if (!isset($data['name'], $data['target'], $data['rag_red'], $data['rag_amber'])) {
             Response::error('Missing required fields: name, target, rag_red, rag_amber.', null, 400);
             return;
@@ -35,7 +56,7 @@ class KpiController {
 
         $kpi = new Kpi();
         $userId = $_SESSION['user']['id'];
-        $result = $kpi->create($data['name'], $data['target'], $data['rag_red'], $data['rag_amber'], $userId);
+        $result = $kpi->create($data, $userId);
 
         if ($result['success']) {
             Response::success('KPI created successfully.', ['id' => $result['id']], 201);

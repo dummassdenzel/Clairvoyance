@@ -1,7 +1,10 @@
 <script lang="ts">
   import { onMount, onDestroy, getContext } from 'svelte';
   import Chart from 'chart.js/auto';
+  import annotationPlugin from 'chartjs-plugin-annotation';
   import * as api from '$lib/services/api';
+
+  Chart.register(annotationPlugin);
 
   export let widget: any;
   export let editMode = false;
@@ -11,77 +14,105 @@
 
   let chartInstance: Chart | null = null;
   let kpiData: { labels: string[]; values: number[] } | null = null;
+  let kpiDetails: any = null;
   let aggregateValue: number | null = null;
   let isLoading = true;
   let error: string | null = null;
   let canvasElement: HTMLCanvasElement;
 
-  async function fetchAggregateValue(kpiId: number, aggregation: string, startDate?: string, endDate?: string) {
-    if (!kpiId || !aggregation) {
-      aggregateValue = null;
-      return;
-    }
-    isLoading = true;
-    error = null;
-    try {
-      const response = await api.getAggregateKpiValue(kpiId, aggregation, startDate, endDate);
-      if (response && response.data && response.data.value !== null) {
-        aggregateValue = Number(response.data.value);
-      } else {
-        aggregateValue = null;
-        error = 'No data available.';
-      }
-    } catch (e) {
-      aggregateValue = null;
-      console.error(`Failed to load aggregate KPI value for widget ${kpiId}:`, e);
-      error = 'Failed to load data.';
-    } finally {
-      isLoading = false;
-    }
-  }
-
-  async function fetchKpiData(kpiId: number, startDate?: string, endDate?: string) {
-    if (!kpiId) {
-      kpiData = null;
-      error = 'No KPI selected.';
+  async function loadWidgetData() {
+    if (!widget.kpi_id) {
+      error = 'No KPI selected for this widget.';
       isLoading = false;
       return;
     }
 
     isLoading = true;
     error = null;
+
     try {
-      const response = await api.getKpiEntries(kpiId, startDate, endDate);
-      if (response && response.data && Array.isArray(response.data)) {
-        const entries = response.data;
-        kpiData = {
-          labels: entries.map((d: any) => d.date),
-          values: entries.map((d: any) => Number(d.value))
-        };
+      const detailsPromise = api.getKpiById(widget.kpi_id);
+      let dataPromise;
+
+      if (widget.type === 'single-value') {
+        dataPromise = api.getAggregateKpiValue(widget.kpi_id, widget.aggregation || 'latest', widget.startDate, widget.endDate);
       } else {
-        kpiData = null;
-        error = 'No data available for this KPI.';
+        dataPromise = api.getKpiEntries(widget.kpi_id, widget.startDate, widget.endDate);
       }
-    } catch (e) {
+
+      const [detailsResult, dataResult] = await Promise.all([detailsPromise, dataPromise]);
+
+      if (detailsResult.status === 'success') {
+        kpiDetails = detailsResult.data;
+      } else {
+        throw new Error(detailsResult.message || 'Failed to load KPI details');
+      }
+
+      if (dataResult.status === 'success') {
+        if (widget.type === 'single-value') {
+          aggregateValue = dataResult.data.value !== null ? Number(dataResult.data.value) : null;
+          kpiData = null;
+        } else {
+          const entries = dataResult.data;
+          kpiData = {
+            labels: entries.map((d: any) => d.date),
+            values: entries.map((d: any) => Number(d.value))
+          };
+          aggregateValue = null;
+        }
+      } else {
+        throw new Error(dataResult.message || 'Failed to load widget data');
+      }
+    } catch (e: any) {
+      console.error(`Failed to load data for widget ${widget.id}:`, e);
+      error = e.message;
       kpiData = null;
-      console.error(`Failed to load KPI data for widget ${kpiId}:`, e);
-      error = 'Failed to load KPI data.';
+      kpiDetails = null;
+      aggregateValue = null;
     } finally {
       isLoading = false;
     }
   }
 
-  // When data-related properties change, re-fetch the data
-  $: {
-    if (widget.type === 'single-value') {
-      fetchAggregateValue(widget.kpi_id, widget.aggregation, widget.startDate, widget.endDate);
-    } else {
-      fetchKpiData(widget.kpi_id, widget.startDate, widget.endDate);
-    }
+  // When data-related properties change, re-fetch all data
+  $: if (widget.kpi_id || widget.startDate || widget.endDate || widget.type || widget.aggregation) {
+    loadWidgetData();
   }
 
   function renderChart(canvas: HTMLCanvasElement) {
     if (!canvas || !kpiData) return;
+
+    const chartPlugins:any = {
+      legend: { 
+        display: widget.showLegend,
+        position: widget.legendPosition || 'top'
+      },
+      autocolors: false
+    };
+
+    // Only add goal line for line/bar charts and if a valid target exists
+    if (['line', 'bar'].includes(widget.type)) {
+      const targetValue = kpiDetails ? Number(kpiDetails.target) : null;
+      if (targetValue !== null && !isNaN(targetValue)) {
+        chartPlugins.annotation = {
+          annotations: {
+            goalLine: {
+              type: 'line',
+              yMin: targetValue,
+              yMax: targetValue,
+              borderColor: 'red',
+              borderWidth: 2,
+              borderDash: [6, 6],
+              label: {
+                content: 'Target',
+                enabled: true,
+                position: 'end'
+              }
+            }
+          }
+        };
+      }
+    }
 
     chartInstance = new Chart(canvas, {
       type: widget.type,
@@ -98,12 +129,7 @@
       options: { 
         responsive: true, 
         maintainAspectRatio: ['pie', 'doughnut'].includes(widget.type),
-        plugins: {
-          legend: { 
-            display: widget.showLegend,
-            position: widget.legendPosition || 'top'
-          } 
-        } 
+        plugins: chartPlugins
       }
     });
   }
@@ -116,14 +142,19 @@
   });
 
   // Reactive block to handle chart rendering and updates
-  $: if (canvasElement && kpiData) {
+  $: if (canvasElement) {
+    const isChart = ['line', 'bar'].includes(widget.type);
+
     if (chartInstance) {
       chartInstance.destroy();
       chartInstance = null;
     }
-    
-    // Render chart if the type is one of the supported visual types
-    if (['line', 'bar', 'pie', 'doughnut'].includes(widget.type)) {
+
+    // For charts, only render when both data and details (for goal line) are ready.
+    if (isChart && kpiData && kpiDetails) {
+      renderChart(canvasElement);
+    } else if (['pie', 'doughnut'].includes(widget.type) && kpiData) {
+      // Pie/Doughnut charts don't have a goal line, so they don't need details.
       renderChart(canvasElement);
     }
   }

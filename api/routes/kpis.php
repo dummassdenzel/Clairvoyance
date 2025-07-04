@@ -35,10 +35,7 @@ switch ($_SERVER['REQUEST_METHOD']) {
     case 'GET':
         $roleMiddleware->requireViewer();
         if ($id) {
-            // The getById method is not yet implemented in the controller
-            // For now, we can add a placeholder response.
-            Response::error('Fetching a single KPI is not yet supported.', null, 501); 
-            // $controller->getById($id);
+            $controller->getOne($id);
         } else {
              if ($part1 !== null) {
                 Response::error('Invalid KPI ID specified.', null, 400);

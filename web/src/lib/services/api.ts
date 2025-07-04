@@ -125,6 +125,10 @@ export async function getKpis() {
   }
 }
 
+export async function getKpiById(id: number) {
+  return await get(`/kpis/${id}`);
+}
+
 export async function createKpi(data: { name: string; target: string; rag_red: string; rag_amber: string }) {
   return await post('/kpis', data);
 }
