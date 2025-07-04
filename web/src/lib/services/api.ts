@@ -139,9 +139,9 @@ export async function updateKpi(data: { id: number; name: string; target: string
 
 // --- KPI Entry Service ---
 
-export async function getKpiAggregate(kpiId: number, type: string, startDate?: string, endDate?: string) {
+export async function getAggregateKpiValue(kpiId: number, aggregationType: string, startDate?: string, endDate?: string) {
   const params = new URLSearchParams();
-  params.set('type', type);
+  params.set('type', aggregationType);
   if (startDate) params.set('start_date', startDate);
   if (endDate) params.set('end_date', endDate);
 

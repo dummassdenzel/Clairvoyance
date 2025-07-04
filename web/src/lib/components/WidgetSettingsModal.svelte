@@ -50,17 +50,21 @@
 
   $: if (show) {
     // When the modal is shown, clone the widget data and load KPIs
-    internalWidget = { ...widget, aggregation: widget.aggregation || 'latest' };
+    internalWidget = { ...widget };
     loadKpis();
   }
 
-  const chartTypes = ['line', 'bar', 'pie', 'doughnut', 'single-value'];
-  const aggregationMethods = ['latest', 'average', 'sum', 'count'];
+  const chartTypes = ['line', 'bar', 'pie', 'doughnut'];
 
   // Set default colors if they don't exist
   $: if (internalWidget) {
     internalWidget.backgroundColor = internalWidget.backgroundColor || '#36a2eb4d'; // Default to semi-transparent blue
     internalWidget.borderColor = internalWidget.borderColor || '#36a2eb'; // Default to solid blue
+
+    // Set default aggregation if switching to single-value type
+    if (internalWidget.type === 'single-value' && !internalWidget.aggregation) {
+      internalWidget.aggregation = 'latest';
+    }
   }
 </script>
 
@@ -96,23 +100,29 @@
             {/if}
           </div>
           <div>
-            <label for="widget-chart-type" class="block text-sm font-medium text-gray-700">Chart Type</label>
-            <select id="widget-chart-type" bind:value={internalWidget.type} class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-              {#each chartTypes as type}
-                <option value={type}>{type.charAt(0).toUpperCase() + type.slice(1)}</option>
-              {/each}
+            <label for="widget-type" class="block text-sm font-medium text-gray-700">Widget Type</label>
+            <select id="widget-type" bind:value={internalWidget.type} class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md">
+              <optgroup label="Charts">
+                <option value="line">Line Chart</option>
+                <option value="bar">Bar Chart</option>
+                <option value="pie">Pie Chart</option>
+                <option value="doughnut">Doughnut Chart</option>
+              </optgroup>
+              <optgroup label="Other">
+                <option value="single-value">Single Value</option>
+              </optgroup>
             </select>
           </div>
 
           {#if internalWidget.type === 'single-value'}
-            <div>
-              <label for="widget-aggregation" class="block text-sm font-medium text-gray-700">Value to Display</label>
-              <select id="widget-aggregation" bind:value={internalWidget.aggregation} class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md">
-                {#each aggregationMethods as method}
-                  <option value={method}>{method.charAt(0).toUpperCase() + method.slice(1)}</option>
-                {/each}
-              </select>
-            </div>
+          <div>
+            <label for="widget-aggregation" class="block text-sm font-medium text-gray-700">Value to Display</label>
+            <select id="widget-aggregation" bind:value={internalWidget.aggregation} class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md">
+              <option value="latest">Most Recent Value</option>
+              <option value="sum">Sum of Values</option>
+              <option value="average">Average of Values</option>
+            </select>
+          </div>
           {/if}
 
           <div class="grid grid-cols-2 gap-4">

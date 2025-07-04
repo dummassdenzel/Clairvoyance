@@ -126,7 +126,7 @@
         w: widget.w ?? 3,
         h: widget.h ?? 5,
         fixed: !editMode,
-        min: { w: 4, h: 10 },
+        min: { w: 2, h: 4 },
         customDragger: true
       };
 
