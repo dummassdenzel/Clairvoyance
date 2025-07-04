@@ -65,6 +65,11 @@
     if (internalWidget.type === 'single-value' && !internalWidget.aggregation) {
       internalWidget.aggregation = 'latest';
     }
+
+    // Default showLegend to true if it's not defined
+    if (internalWidget.showLegend === undefined) {
+      internalWidget.showLegend = true;
+    }
   }
 </script>
 
@@ -113,6 +118,13 @@
               </optgroup>
             </select>
           </div>
+
+          {#if ['line', 'bar', 'pie', 'doughnut'].includes(internalWidget.type)}
+            <div class="flex items-center">
+              <input id="widget-show-legend" type="checkbox" bind:checked={internalWidget.showLegend} class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+              <label for="widget-show-legend" class="ml-2 block text-sm text-gray-900">Show Legend</label>
+            </div>
+          {/if}
 
           {#if internalWidget.type === 'single-value'}
           <div>

@@ -98,8 +98,10 @@
       options: { 
         responsive: true, 
         maintainAspectRatio: ['pie', 'doughnut'].includes(widget.type),
-        plugins: { 
-          legend: { display: true } 
+        plugins: {
+          legend: { 
+            display: widget.showLegend 
+          } 
         } 
       }
     });
@@ -138,7 +140,7 @@
       </button>
     {/if}
   </div>
-  <div on:pointerdown={movePointerDown} class="flex-grow cursor-move p-4 min-h-0">
+  <div on:pointerdown={editMode ? movePointerDown : undefined} class:cursor-move={editMode} class="flex-grow p-4 min-h-0">
     {#if isLoading}
       <div class="flex items-center justify-center h-full">
         <p>Loading...</p>
