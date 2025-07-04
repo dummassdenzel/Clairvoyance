@@ -74,6 +74,28 @@
     }
   }
 
+  function getRagClass(value: number | null, details: any): string {
+    if (value === null || !details) return 'text-gray-900';
+
+    const { direction, rag_red, rag_amber } = details;
+    const redThreshold = Number(rag_red);
+    const amberThreshold = Number(rag_amber);
+
+    if (isNaN(redThreshold) || isNaN(amberThreshold)) return 'text-gray-900';
+
+    if (direction === 'higher_is_better') {
+      if (value < redThreshold) return 'text-red-500';
+      if (value < amberThreshold) return 'text-yellow-500';
+      return 'text-green-500';
+    } else if (direction === 'lower_is_better') {
+      if (value > redThreshold) return 'text-red-500';
+      if (value > amberThreshold) return 'text-yellow-500';
+      return 'text-green-500';
+    }
+
+    return 'text-gray-900';
+  }
+
   // When data-related properties change, re-fetch all data
   $: if (widget.kpi_id || widget.startDate || widget.endDate || widget.type || widget.aggregation) {
     loadWidgetData();
@@ -187,7 +209,9 @@
       </div>
     {:else if widget.type === 'single-value'}
       <div class="flex flex-col items-center justify-center h-full text-center">
-        <h3 class="text-4xl font-bold">{aggregateValue !== null ? aggregateValue.toLocaleString() : 'N/A'}</h3>
+        <h3 class="text-4xl font-bold {getRagClass(aggregateValue, kpiDetails)}">
+          {kpiDetails?.format_prefix || ''}{aggregateValue !== null ? aggregateValue.toLocaleString() : 'N/A'}{kpiDetails?.format_suffix || ''}
+        </h3>
         <p class="text-sm text-gray-500">{widget.aggregation.charAt(0).toUpperCase() + widget.aggregation.slice(1)} Value</p>
       </div>
     {:else}

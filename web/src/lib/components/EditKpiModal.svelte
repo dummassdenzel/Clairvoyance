@@ -9,6 +9,9 @@
   let target = '';
   let rag_red = '';
   let rag_amber = '';
+  let direction = 'higher_is_better';
+  let format_prefix = '';
+  let format_suffix = '';
   let submitting = false;
   let error: string | null = null;
 
@@ -20,9 +23,13 @@
     target = kpi.target;
     rag_red = kpi.rag_red;
     rag_amber = kpi.rag_amber;
+    direction = kpi.direction || 'higher_is_better';
+    format_prefix = kpi.format_prefix || '';
+    format_suffix = kpi.format_suffix || '';
   } else {
     // Reset form when hidden
-    name = target = rag_red = rag_amber = '';
+    name = target = rag_red = rag_amber = format_prefix = format_suffix = '';
+    direction = 'higher_is_better';
     error = null;
   }
 
@@ -36,7 +43,16 @@
     submitting = true;
     error = null;
 
-    const data = { id: kpi.id, name, target, rag_red, rag_amber };
+    const data = { 
+      id: kpi.id, 
+      name, 
+      target, 
+      rag_red, 
+      rag_amber, 
+      direction, 
+      format_prefix, 
+      format_suffix 
+    };
 
     try {
       const result = await api.updateKpi(data);
@@ -84,6 +100,25 @@
         <div>
           <label for="kpi-rag-amber" class="block text-sm font-medium text-gray-700">RAG Amber Threshold</label>
           <input id="kpi-rag-amber" type="number" bind:value={rag_amber} required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+        </div>
+
+        <div>
+          <label for="edit-kpi-direction" class="block text-sm font-medium text-gray-700">Performance Direction</label>
+          <select id="edit-kpi-direction" bind:value={direction} class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+            <option value="higher_is_better">Higher is better</option>
+            <option value="lower_is_better">Lower is better</option>
+          </select>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label for="edit-kpi-format-prefix" class="block text-sm font-medium text-gray-700">Format Prefix</label>
+            <input type="text" id="edit-kpi-format-prefix" bind:value={format_prefix} class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="e.g. $">
+          </div>
+          <div>
+            <label for="edit-kpi-format-suffix" class="block text-sm font-medium text-gray-700">Format Suffix</label>
+            <input type="text" id="edit-kpi-format-suffix" bind:value={format_suffix} class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="e.g. %">
+          </div>
         </div>
 
         {#if error}

@@ -129,7 +129,7 @@ export async function getKpiById(id: number) {
   return await get(`/kpis/${id}`);
 }
 
-export async function createKpi(data: { name: string; target: string; rag_red: string; rag_amber: string }) {
+export async function createKpi(data: { name: string; target: string; rag_red: string; rag_amber: string, direction?: string, format_prefix?: string, format_suffix?: string }) {
   return await post('/kpis', data);
 }
 
@@ -137,7 +137,7 @@ export async function deleteKpi(id: number) {
   return await del(`/kpis/${id}`);
 }
 
-export async function updateKpi(data: { id: number; name: string; target: string; rag_red: string; rag_amber: string }) {
+export async function updateKpi(data: { id: number; name: string; target: string; rag_red: string; rag_amber: string, direction?: string, format_prefix?: string, format_suffix?: string }) {
   return await put(`/kpis/${data.id}`, data);
 }
 
