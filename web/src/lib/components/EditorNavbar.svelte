@@ -14,7 +14,7 @@
 <CreateKpiModal bind:show={showCreateKpiModal} />
 
 <aside class="w-64 h-screen bg-white shadow-md flex flex-col" aria-label="Sidebar">
-  <div class="p-5 border-b">
+  <div class="px-3 py-5 border-b">
     <div class="mb-8 text-center">
     <a href="/editor/dashboards" class="text-2xl font-bold text-gray-800">Clairvoyance</a>
     <span class="text-sm text-gray-500">Editor</span>
