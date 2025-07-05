@@ -6,9 +6,10 @@
   import { onMount } from 'svelte';
   import EditorNavbar from '$lib/components/EditorNavbar.svelte';
   import ViewerNavbar from '$lib/components/ViewerNavbar.svelte';
+    import AdminNavbar from '$lib/components/AdminNavbar.svelte';
 
   let showNavbar = false;
-  let userRole: 'editor' | 'viewer' | null = null;
+  let userRole: 'editor' | 'viewer' | 'admin' | null = null;
 
   // Routes where the navbar should be hidden entirely
   const noNavRoutes = ['/auth/login', '/auth/register'];
@@ -17,7 +18,7 @@
   $: {
     showNavbar = $authLoaded && !!$user && !noNavRoutes.includes($page.route.id || '');
     const role = $user?.role;
-    if (role === 'editor' || role === 'viewer') {
+    if (role === 'editor' || role === 'viewer' || role === 'admin') {
       userRole = role;
     } else {
       userRole = null;
@@ -46,6 +47,8 @@
         <EditorNavbar />
       {:else if userRole === 'viewer'}
         <ViewerNavbar />
+      {:else if userRole === 'admin'}
+        <AdminNavbar />
       {/if}
     </div>
   {/if}
