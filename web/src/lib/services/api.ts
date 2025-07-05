@@ -86,6 +86,10 @@ export async function deleteUser(id: number) {
   return await del(`/admin/users/${id}`);
 }
 
+export async function adminCreateUser(data: { email: string; password: string; role: string }) {
+    return await post('/admin/users', data);
+}
+
 // --- Dashboard Service ---
 
 export async function getDashboards() {

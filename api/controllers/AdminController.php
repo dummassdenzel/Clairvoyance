@@ -67,6 +67,37 @@ class AdminController {
         }
     }
 
+    public function createUser() {
+        $data = json_decode(file_get_contents('php://input'), true);
+
+        if (!isset($data['email']) || !isset($data['password']) || !isset($data['role'])) {
+            Response::error('Email, password, and role are required.', 400);
+            return;
+        }
+
+        if (!filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
+            Response::error('Invalid email format.', 400);
+            return;
+        }
+
+        if ($this->userModel->findByEmail($data['email'])) {
+            Response::error('User with this email already exists.', 409);
+            return;
+        }
+
+        try {
+            $result = $this->userModel->create($data['email'], $data['password'], $data['role']);
+            if ($result['success']) {
+                $newUser = $this->userModel->findById($result['id']);
+                Response::success('User created successfully.', ['user' => $newUser], 201);
+            } else {
+                Response::error($result['error'] ?? 'Failed to create user.', 500);
+            }
+        } catch (\Exception $e) {
+            Response::error('An error occurred: ' . $e->getMessage(), 500);
+        }
+    }
+
     /**
      * Checks if the user being modified is the last admin.
      */

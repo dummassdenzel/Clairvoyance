@@ -35,6 +35,11 @@ switch ($_SERVER['REQUEST_METHOD']) {
         }
         break;
 
+    case 'POST':
+        // POST /api/admin/users
+        $adminController->createUser();
+        break;
+
     case 'PUT':
         // PUT /api/admin/users/{id}
         if (is_numeric($id)) {
