@@ -81,7 +81,7 @@
 
 {#if show}
   <!-- svelte-ignore a11y-click-events-have-key-events -->
-  <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity z-50 flex items-center justify-center" on:click={handleClose} role="presentation">
+  <div class="fixed inset-0 bg-[rgba(0,0,0,0.5)] bg-opacity-75 transition-opacity z-50 flex items-center justify-center" on:click={handleClose} role="presentation">
     <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md" on:click|stopPropagation role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1">
       <h3 id="modal-title" class="text-xl font-semibold leading-6 text-gray-900">Edit KPI</h3>
       <form on:submit|preventDefault={handleSubmit} class="mt-4 space-y-4">

@@ -4,6 +4,7 @@
   import * as api from '$lib/services/api';
   import ShareModal from '$lib/components/ShareModal.svelte';
   import CreateDashboardModal from '$lib/components/CreateDashboardModal.svelte';
+  import EditDashboardModal from '$lib/components/EditDashboardModal.svelte';
 
   const dashboards = writable<any[]>([]);
   const loading = writable(true);
@@ -11,10 +12,12 @@
 
   let showShareModal = false;
   let showCreateModal = false;
+  let showEditModal = false;
   let currentShareLink = '';
   let sharingDashboardId: number | null = null;
   let deletingDashboardId: number | null = null;
   let openDropdownId: number | null = null;
+  let editingDashboard: any | null = null;
 
   async function fetchDashboards() {
     loading.set(true);
@@ -30,6 +33,12 @@
 
   function toggleDropdown(id: number) {
     openDropdownId = openDropdownId === id ? null : id;
+  }
+
+  function handleEditClick(dashboard: any) {
+    editingDashboard = dashboard;
+    showEditModal = true;
+    openDropdownId = null;
   }
 
   async function handleShare(dashboardId: number) {
@@ -123,11 +132,16 @@
             <div class="relative">
               <button 
                 on:click|stopPropagation={() => toggleDropdown(dash.id)} 
+                aria-label="Dashboard options"
                 class="p-1 rounded-full hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-600" viewBox="0 0 20 20" fill="currentColor"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" /></svg>
               </button>
               {#if openDropdownId === dash.id}
-                <div on:click|stopPropagation class="absolute right-0 bottom-full mb-2 w-48 bg-white rounded-md shadow-lg z-20 border border-gray-200">
+                <div on:click|stopPropagation on:keydown={() => {}} role="menu" tabindex="-1" class="absolute right-0 bottom-full mb-2 w-48 bg-white rounded-md shadow-lg z-20 border border-gray-200">
+                  <button on:click={() => handleEditClick(dash)} class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" /></svg>
+                    <span>Edit</span>
+                  </button>
                   <button on:click={() => { handleShare(dash.id); openDropdownId = null; }} disabled={sharingDashboardId === dash.id} class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-3 disabled:opacity-50">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" /></svg>
                     <span>{sharingDashboardId === dash.id ? 'Sharing...' : 'Share'}</span>
@@ -148,3 +162,4 @@
 
 <ShareModal bind:show={showShareModal} shareLink={currentShareLink} on:close={() => showShareModal = false} />
 <CreateDashboardModal bind:show={showCreateModal} on:success={fetchDashboards} />
+<EditDashboardModal bind:show={showEditModal} dashboard={editingDashboard} on:success={fetchDashboards} />

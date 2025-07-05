@@ -15,7 +15,8 @@ class DashboardController {
 
         $dashboard = new Dashboard();
         $userId = $_SESSION['user']['id'];
-        $result = $dashboard->create($data['name'], json_encode($data['layout']), $userId);
+        $description = $data['description'] ?? ''; // Default to empty string if not provided
+        $result = $dashboard->create($data['name'], $description, json_encode($data['layout']), $userId);
 
         if ($result['success']) {
             Response::success('Dashboard created successfully.', ['id' => $result['id']], 201);

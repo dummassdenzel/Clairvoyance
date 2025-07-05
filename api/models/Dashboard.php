@@ -5,10 +5,10 @@ class Dashboard {
         require_once __DIR__ . '/../config/database.php';
         $this->db = (new Connection())->connect();
     }
-    public function create($name, $layout, $user_id) {
+    public function create($name, $description, $layout, $user_id) {
         try {
-            $stmt = $this->db->prepare('INSERT INTO dashboards (name, layout, user_id) VALUES (?, ?, ?)');
-            $stmt->execute([$name, $layout, $user_id]);
+            $stmt = $this->db->prepare('INSERT INTO dashboards (name, description, layout, user_id) VALUES (?, ?, ?, ?)');
+            $stmt->execute([$name, $description, $layout, $user_id]);
             return ['success' => true, 'id' => $this->db->lastInsertId()];
         } catch (PDOException $e) {
             return ['success' => false, 'error' => $e->getMessage()];
@@ -96,7 +96,7 @@ class Dashboard {
             $fields = [];
             $params = [];
             foreach ($data as $key => $value) {
-                if (in_array($key, ['name', 'layout'])) {
+                if (in_array($key, ['name', 'description', 'layout'])) {
                     $fields[] = "$key = ?";
                     $params[] = is_array($value) ? json_encode($value) : $value;
                 }
