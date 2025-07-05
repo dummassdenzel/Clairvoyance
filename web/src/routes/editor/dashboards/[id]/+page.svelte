@@ -13,6 +13,7 @@
     import { getContext } from 'svelte';
   import jsPDF from 'jspdf';
   import html2canvas from 'html2canvas-pro';
+  import autoTable from 'jspdf-autotable';
 
   type Item = {
     id: string;
@@ -210,7 +211,7 @@
           const widget = reportData.widgets[i];
           const element = document.getElementById(`widget-container-${widget.id}`);
           if (!element) continue;
-          
+
           const originalBg = element.style.backgroundColor;
           element.style.backgroundColor = 'white';
           const canvas = await html2canvas(element, { scale: 2, logging: false, useCORS: true });
@@ -219,21 +220,18 @@
           const imgData = canvas.toDataURL('image/png');
           const imgProps = doc.getImageProperties(imgData);
           let imgHeight = (imgProps.height * colWidth) / imgProps.width;
-          
-          // Hotfix: Constrain the image height to prevent it from taking up the whole page.
-          const maxImgHeight = 90; 
+
+          const maxImgHeight = 90;
           if (imgHeight > maxImgHeight) {
             imgHeight = maxImgHeight;
           }
 
-          const widgetHeight = imgHeight + 15; // Title + image + padding
-
+          const widgetHeight = imgHeight + 15; // Base height for title + image
           let currentY = colHeights[colIndex];
 
           if (currentY + widgetHeight > pageHeight - 20) {
-            colIndex++; // Move to next column
+            colIndex++;
             if (colIndex >= xPositions.length) {
-              // New page
               pageCount++;
               doc.addPage();
               addHeader(reportData.name);
@@ -250,9 +248,38 @@
           doc.setFontSize(14);
           doc.setFont('helvetica', 'bold');
           doc.text(widget.title, currentX, currentY);
-          
           doc.addImage(imgData, 'PNG', currentX, currentY + 7, colWidth, imgHeight);
-          colHeights[colIndex] += widgetHeight + 10; // Add some padding
+
+          let finalY = currentY + 7 + imgHeight;
+
+          if (widget.kpi_data && widget.kpi_data.length > 0) {
+            const autoTableDoc = doc as any;
+            autoTable(autoTableDoc, {
+              head: [['Date', 'Value']],
+              body: widget.kpi_data.map((d: any) => [d.date, d.value]),
+              startY: finalY + 5,
+              theme: 'grid',
+              styles: { fontSize: 7, cellPadding: 1.5, overflow: 'linebreak' },
+              headStyles: { fillColor: '#1e40af', fontSize: 8 },
+              margin: { left: currentX, right: pageWidth - (currentX + colWidth) },
+              didDrawPage: (data) => {
+                addHeader(reportData.name);
+                addFooter(data.pageNumber);
+              },
+            });
+            finalY = autoTableDoc.lastAutoTable.finalY;
+          }
+
+          colHeights[colIndex] = finalY + 10;
+
+          // After processing a widget, move to the next column
+          colIndex++;
+          if (colIndex >= xPositions.length) {
+            colIndex = 0;
+            // Set the next row's Y position to the max height of the completed row
+            yPos = Math.max(...colHeights);
+            colHeights = [yPos, yPos];
+          }
         }
       }
 
@@ -391,26 +418,35 @@
         </div>
 
         {#if isEditor}
-                <div class="flex items-center space-x-2">
-        <button on:click={() => isReportModalOpen = true} class="btn-secondary">Generate Report</button>
+          <div class="flex items-center space-x-2">
             {#if editMode}
-              <button on:click={addWidget} class="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700">
+              <button on:click={addWidget} class="bg-blue-900 hover:bg-blue-800 text-white font-medium py-2 px-4 text-sm rounded-md inline-flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
                 Add Widget
               </button>
-              <button on:click={handleCancel} class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+              <button on:click={handleCancel} class="bg-white hover:bg-gray-100 text-blue-900 font-medium py-2 px-4 text-sm rounded-md border border-blue-900 inline-flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
                 Cancel
               </button>
-              <button on:click={handleSave} class="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700">
+              <button on:click={handleSave} class="bg-blue-900 hover:bg-blue-800 text-white font-medium py-2 px-4 text-sm rounded-md inline-flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
                 Save Layout
               </button>
             {:else}
-              <button on:click={() => isViewersModalOpen = true} class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+              <button on:click={() => isViewersModalOpen = true} class="bg-white hover:bg-gray-100 text-blue-900 font-medium py-2 px-4 text-sm rounded-md border border-blue-900 inline-flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.522 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.478 0-8.268-2.943-9.542 7z" /></svg>
                 Manage Viewers
               </button>
-              <button on:click={() => isUploadModalOpen = true} class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+              <button on:click={() => isUploadModalOpen = true} class="bg-white hover:bg-gray-100 text-blue-900 font-medium py-2 px-4 text-sm rounded-md border border-blue-900 inline-flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
                 Upload Data
               </button>
-              <button on:click={() => editMode = true} class="px-4 py-2 text-sm font-medium text-white bg-gray-800 border border-transparent rounded-md hover:bg-gray-900">
+              <button on:click={() => isReportModalOpen = true} class="bg-blue-900 hover:bg-blue-800 text-white font-medium py-2 px-4 text-sm rounded-md inline-flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                Generate Report
+              </button>
+              <button on:click={() => editMode = true} class="bg-blue-900 hover:bg-blue-800 text-white font-medium py-2 px-4 text-sm rounded-md inline-flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z" /></svg>
                 Edit Layout
               </button>
             {/if}
@@ -461,17 +497,21 @@
       </div>
 
       <div class="mt-8 flex justify-end space-x-3">
-        <button on:click={() => isReportModalOpen = false} class="btn-secondary" disabled={isGeneratingReport}>Cancel</button>
-        <button on:click={generateReport} class="btn-primary flex items-center justify-center w-36" disabled={isGeneratingReport}>
-          {#if isGeneratingReport}
+        <button on:click={() => isReportModalOpen = false} class="bg-white hover:bg-gray-100 text-blue-900 font-medium py-2 px-4 text-sm rounded-md border border-blue-900 inline-flex items-center justify-center" disabled={isGeneratingReport}>
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+          Cancel
+        </button>
+        <button on:click={generateReport} class="bg-blue-900 hover:bg-blue-800 text-white font-medium py-2 px-4 text-sm rounded-md inline-flex items-center justify-center w-40" disabled={isGeneratingReport}>
+           {#if isGeneratingReport}
             <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
             <span>Generating...</span>
-          {:else}
+           {:else}
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
             <span>Generate PDF</span>
-          {/if}
+           {/if}
         </button>
       </div>
     </div>

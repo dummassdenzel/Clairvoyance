@@ -203,11 +203,12 @@ class Dashboard {
                         $widgetStartDate = !empty($widget['startDate']) ? $widget['startDate'] : $startDate;
                         $widgetEndDate = !empty($widget['endDate']) ? $widget['endDate'] : $endDate;
 
-                        if (isset($widget['aggregation'])) {
-                            $widget['data'] = $kpiEntryModel->getAggregateValue($kpi_id, $widget['aggregation'], $widgetStartDate, $widgetEndDate);
-                        } else {
-                            $widget['data'] = $kpiEntryModel->listByKpiId($kpi_id, $widgetStartDate, $widgetEndDate);
-                        }
+                        // Get the aggregate value for the main display
+                        $aggregationType = $widget['aggregation'] ?? 'latest';
+                        $widget['data'] = $kpiEntryModel->getAggregateValue($kpi_id, $aggregationType, $widgetStartDate, $widgetEndDate);
+
+                        // Get the detailed data for the report table
+                        $widget['kpi_data'] = $kpiEntryModel->listByKpiId($kpi_id, $widgetStartDate, $widgetEndDate);
                     }
                 }
                 $widgetsData[] = $widget;

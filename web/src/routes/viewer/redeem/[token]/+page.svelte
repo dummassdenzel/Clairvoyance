@@ -63,18 +63,42 @@
   <title>Redeem Invitation</title>
 </svelte:head>
 
-<div class="flex items-center justify-center min-h-screen bg-gray-50">
-  <div class="p-8 bg-white rounded-lg shadow-md text-center w-full max-w-md">
+<div class="flex items-center justify-center min-h-screen bg-slate-100 dark:bg-slate-900">
+  <div class="w-full max-w-md p-8 space-y-6 bg-white rounded-2xl shadow-lg dark:bg-slate-800">
     {#if status === 'loading'}
-      <h1 class="text-2xl font-bold text-gray-800">Redeeming Invitation...</h1>
-      <p class="text-gray-600 mt-2">Please wait while we grant you access to the dashboard.</p>
+      <div class="text-center">
+        <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-blue-100 dark:bg-slate-700">
+          <svg class="animate-spin h-8 w-8 text-blue-600 dark:text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+        </div>
+        <h1 class="mt-5 text-2xl font-bold text-slate-900 dark:text-white">Redeeming Invitation</h1>
+        <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">Please wait while we grant you access to the dashboard.</p>
+      </div>
     {:else if status === 'success'}
-      <h1 class="text-2xl font-bold text-green-600">Success!</h1>
-      <p class="text-gray-600 mt-2">Access granted. You will be redirected to your dashboards shortly.</p>
+      <div class="text-center">
+        <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 dark:bg-slate-700">
+          <svg class="h-8 w-8 text-green-600 dark:text-green-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+          </svg>
+        </div>
+        <h1 class="mt-5 text-2xl font-bold text-slate-900 dark:text-white">Success!</h1>
+        <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">Access granted. Redirecting you to your dashboards...</p>
+      </div>
     {:else if status === 'error'}
-      <h1 class="text-2xl font-bold text-red-600">Redemption Failed</h1>
-      <p class="text-gray-600 mt-2">{errorMessage}</p>
-      <a href="/viewer/dashboards" class="mt-4 inline-block bg-blue-600 text-white font-semibold px-4 py-2 rounded hover:bg-blue-700 transition">Go to My Dashboards</a>
+      <div class="text-center">
+        <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-red-100 dark:bg-slate-700">
+          <svg class="h-8 w-8 text-red-600 dark:text-red-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </div>
+        <h1 class="mt-5 text-2xl font-bold text-slate-900 dark:text-white">Redemption Failed</h1>
+        <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">{errorMessage}</p>
+        <a href="/viewer/dashboards" class="mt-6 inline-flex items-center justify-center w-full px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-offset-slate-900 transition-colors">
+          Go to My Dashboards
+        </a>
+      </div>
     {/if}
   </div>
 </div>

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { writable } from 'svelte/store';
   import * as api from '$lib/services/api';
   import ShareModal from '$lib/components/ShareModal.svelte';
@@ -14,6 +14,7 @@
   let currentShareLink = '';
   let sharingDashboardId: number | null = null;
   let deletingDashboardId: number | null = null;
+  let openDropdownId: number | null = null;
 
   async function fetchDashboards() {
     loading.set(true);
@@ -25,6 +26,10 @@
       error.set('Failed to load dashboards');
     }
     loading.set(false);
+  }
+
+  function toggleDropdown(id: number) {
+    openDropdownId = openDropdownId === id ? null : id;
   }
 
   async function handleShare(dashboardId: number) {
@@ -64,61 +69,74 @@
     }
   }
 
-  onMount(fetchDashboards);
+  onMount(() => {
+    fetchDashboards();
+    const handleGlobalClick = () => { openDropdownId = null; };
+    window.addEventListener('click', handleGlobalClick);
+
+    return () => window.removeEventListener('click', handleGlobalClick);
+  });
+
 </script>
 
 <svelte:head>
-  <title>Editor Dashboards</title>
+  <title>Editor | My Dashboards</title>
 </svelte:head>
 
-<div class="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-  <div class="flex justify-between items-center mb-6 border-b border-gray-200 pb-4">
+<div class="space-y-8">
+  <div class="flex justify-between items-start">
     <div>
       <h1 class="text-3xl font-bold text-gray-900">My Dashboards</h1>
-      <p class="mt-1 text-sm text-gray-600">Manage and view your KPI dashboards.</p>
+      <p class="mt-1 text-sm text-gray-600">Create, manage, and share your KPI dashboards.</p>
     </div>
-    <button on:click={() => showCreateModal = true} class="inline-flex items-center justify-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
-      + Create Dashboard
+    <button on:click={() => showCreateModal = true} class="inline-flex items-center gap-2 justify-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" /></svg>
+      <span>Create Dashboard</span>
     </button>
   </div>
 
   {#if $loading}
     <div class="text-center py-12 text-gray-500">Loading dashboards...</div>
   {:else if $error}
-    <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-      <strong class="font-bold">Error:</strong>
-      <span class="block sm:inline">{$error}</span>
+    <div class="bg-red-50 border-l-4 border-red-400 text-red-700 p-4" role="alert">
+      <p class="font-bold">Error</p>
+      <p>{$error}</p>
     </div>
   {:else if $dashboards.length === 0}
-    <div class="text-center py-12 text-gray-500 bg-gray-50 rounded-lg">
-      <h3 class="text-lg font-medium">No dashboards yet</h3>
-      <p class="mt-1 text-sm">Click the "Create Dashboard" button to get started.</p>
+    <div class="text-center py-20 px-6 bg-white rounded-lg border-2 border-dashed border-gray-300">
+        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+            <path vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"></path>
+        </svg>
+        <h3 class="mt-2 text-lg font-medium text-gray-900">No dashboards yet</h3>
+        <p class="mt-1 text-sm text-gray-500">Get started by creating a new dashboard.</p>
     </div>
   {:else}
-    <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+    <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {#each $dashboards as dash (dash.id)}
-        <div class="bg-white rounded-lg shadow border border-gray-200 flex flex-col">
-          <div class="p-6 flex-grow">
-            <h3 class="font-semibold text-lg text-gray-900">
-              <a href={`/editor/dashboards/${dash.id}`} class="hover:text-blue-700 transition">{dash.name}</a>
-            </h3>
-            <p class="mt-2 text-sm text-gray-600 line-clamp-2">{dash.description || 'No description provided.'}</p>
-          </div>
-          <div class="p-4 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
-            <button
-              on:click={() => handleDelete(dash.id)}
-              disabled={deletingDashboardId === dash.id}
-              class="inline-flex items-center justify-center rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-700 shadow-sm hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed">
-              {deletingDashboardId === dash.id ? 'Deleting...' : 'Delete'}
-            </button>
-            <div class="flex items-center space-x-3">
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col transition hover:shadow-lg hover:border-blue-500">
+          <a href={`/editor/dashboards/${dash.id}`} class="p-5 flex-grow block">
+            <h3 class="font-semibold text-lg text-gray-900 truncate">{dash.name}</h3>
+            <p class="mt-2 text-sm text-gray-500 line-clamp-2 h-10">{dash.description || 'No description provided.'}</p>
+          </a>
+          <div class="p-3 bg-gray-50 border-t border-gray-200 flex items-center justify-end">
+            <div class="relative">
               <button 
-                on:click={() => handleShare(dash.id)} 
-                disabled={sharingDashboardId === dash.id}
-                class="inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed">
-                {sharingDashboardId === dash.id ? 'Sharing...' : 'Share'}
+                on:click|stopPropagation={() => toggleDropdown(dash.id)} 
+                class="p-1 rounded-full hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-600" viewBox="0 0 20 20" fill="currentColor"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" /></svg>
               </button>
-              <a href={`/editor/dashboards/${dash.id}`} class="inline-flex items-center justify-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">View</a>
+              {#if openDropdownId === dash.id}
+                <div on:click|stopPropagation class="absolute right-0 bottom-full mb-2 w-48 bg-white rounded-md shadow-lg z-20 border border-gray-200">
+                  <button on:click={() => { handleShare(dash.id); openDropdownId = null; }} disabled={sharingDashboardId === dash.id} class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-3 disabled:opacity-50">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" /></svg>
+                    <span>{sharingDashboardId === dash.id ? 'Sharing...' : 'Share'}</span>
+                  </button>
+                  <button on:click={() => { handleDelete(dash.id); openDropdownId = null; }} disabled={deletingDashboardId === dash.id} class="w-full text-left px-4 py-2 text-sm text-red-700 hover:bg-red-50 flex items-center gap-3 disabled:opacity-50">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
+                    <span>{deletingDashboardId === dash.id ? 'Deleting...' : 'Delete'}</span>
+                  </button>
+                </div>
+              {/if}
             </div>
           </div>
         </div>
