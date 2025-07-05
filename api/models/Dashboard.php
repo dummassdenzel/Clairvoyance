@@ -26,10 +26,15 @@ class Dashboard {
             $stmt = $this->db->prepare('SELECT u.id, u.email FROM dashboard_access da JOIN users u ON da.user_id = u.id WHERE da.dashboard_id = ?');
             $stmt->execute([$id]);
             $dashboard['viewers'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            // Admin can access any dashboard.
+            if ($role === 'admin') {
+                return ['success' => true, 'dashboard' => $dashboard];
+            }
+            // Editor can access their own dashboard.
             if ($role === 'editor' && $dashboard['user_id'] == $user_id) {
                 return ['success' => true, 'dashboard' => $dashboard];
             }
-            // Check dashboard_access for viewers
+            // Check dashboard_access for viewers.
             $stmt = $this->db->prepare('SELECT * FROM dashboard_access WHERE dashboard_id = ? AND user_id = ?');
             $stmt->execute([$id, $user_id]);
             if ($stmt->fetch()) {
@@ -57,7 +62,11 @@ class Dashboard {
     }
     public function listAll($user_id, $role) {
         try {
-            if ($role === 'editor') {
+            if ($role === 'admin') {
+                $stmt = $this->db->prepare('SELECT * FROM dashboards');
+                $stmt->execute();
+                return $stmt->fetchAll(PDO::FETCH_ASSOC);
+            } elseif ($role === 'editor') {
                 $stmt = $this->db->prepare('SELECT * FROM dashboards WHERE user_id = ?');
                 $stmt->execute([$user_id]);
                 return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -80,7 +89,7 @@ class Dashboard {
         }
     }
 
-    public function update($id, $data, $user_id) {
+    public function update($id, $data, $user_id, $role) {
         try {
             $stmt = $this->db->prepare('SELECT user_id FROM dashboards WHERE id = ?');
             $stmt->execute([$id]);
@@ -89,7 +98,9 @@ class Dashboard {
             if (!$dashboard) {
                 return ['success' => false, 'error' => 'Dashboard not found'];
             }
-            if ($dashboard['user_id'] != $user_id) {
+
+            // Admin can update any dashboard, editor can only update their own.
+            if ($role !== 'admin' && $dashboard['user_id'] != $user_id) {
                 return ['success' => false, 'error' => 'Access denied'];
             }
 
@@ -117,14 +128,14 @@ class Dashboard {
         }
     }
 
-    public function createShareToken($dashboard_id, $user_id) {
+    public function createShareToken($dashboard_id, $user_id, $role) {
         try {
             // First, verify the user owns the dashboard
             $stmt = $this->db->prepare('SELECT user_id FROM dashboards WHERE id = ?');
             $stmt->execute([$dashboard_id]);
             $dashboard = $stmt->fetch(PDO::FETCH_ASSOC);
 
-            if (!$dashboard || $dashboard['user_id'] != $user_id) {
+            if (!$dashboard || ($role !== 'admin' && $dashboard['user_id'] != $user_id)) {
                 return ['success' => false, 'error' => 'Access denied or dashboard not found'];
             }
 
@@ -226,7 +237,7 @@ class Dashboard {
         }
     }
 
-    public function delete($id, $user_id) {
+    public function delete($id, $user_id, $role) {
         try {
             $stmt = $this->db->prepare('SELECT user_id FROM dashboards WHERE id = ?');
             $stmt->execute([$id]);
@@ -235,7 +246,9 @@ class Dashboard {
             if (!$dashboard) {
                 return ['success' => false, 'error' => 'Dashboard not found'];
             }
-            if ($dashboard['user_id'] != $user_id) {
+
+            // Admin can delete any dashboard, editor can only delete their own.
+            if ($role !== 'admin' && $dashboard['user_id'] != $user_id) {
                 return ['success' => false, 'error' => 'Access denied'];
             }
 

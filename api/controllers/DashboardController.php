@@ -73,7 +73,8 @@ class DashboardController {
 
         $dashboard = new Dashboard();
         $userId = $_SESSION['user']['id'];
-        $result = $dashboard->update($id, $data, $userId);
+        $userRole = $_SESSION['user']['role'];
+        $result = $dashboard->update($id, $data, $userId, $userRole);
 
         if ($result['success']) {
             Response::success('Dashboard updated successfully.');
@@ -91,7 +92,8 @@ class DashboardController {
 
         $dashboard = new Dashboard();
         $userId = $_SESSION['user']['id'];
-        $result = $dashboard->delete($id, $userId);
+        $userRole = $_SESSION['user']['role'];
+        $result = $dashboard->delete($id, $userId, $userRole);
 
         if ($result['success']) {
             Response::success('Dashboard deleted successfully.');
@@ -121,8 +123,9 @@ class DashboardController {
 
     public function generateShareLink($dashboardId) {
         $userId = $_SESSION['user']['id'];
+        $userRole = $_SESSION['user']['role'];
         $dashboard = new Dashboard();
-        $result = $dashboard->createShareToken($dashboardId, $userId);
+        $result = $dashboard->createShareToken($dashboardId, $userId, $userRole);
 
         if ($result['success']) {
             Response::success('Share token created successfully.', ['token' => $result['token']]);
