@@ -72,6 +72,20 @@ export async function getUsers() {
   return await get('/users');
 }
 
+// --- Admin Service ---
+
+export async function getAdminUsers() {
+  return await get('/admin/users');
+}
+
+export async function updateUserRole(id: number, role: string) {
+  return await put(`/admin/users/${id}`, { role });
+}
+
+export async function deleteUser(id: number) {
+  return await del(`/admin/users/${id}`);
+}
+
 // --- Dashboard Service ---
 
 export async function getDashboards() {
