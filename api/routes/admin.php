@@ -13,7 +13,7 @@ $adminController = new AdminController();
 // First, ensure the user is an admin for all routes in this file.
 $user = $authMiddleware->authenticate();
 if (!$user || !$authMiddleware->verifyRole($user, 'admin')) {
-    Response::forbidden('Access denied. Administrator privileges required.');
+    Response::error('Access denied. Administrator privileges required.', null, 403);
     exit;
 }
 
