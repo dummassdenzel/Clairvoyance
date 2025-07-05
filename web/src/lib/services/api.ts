@@ -114,12 +114,8 @@ export async function addViewer(dashboardId: string, email: string) {
   return await post(`dashboards/${dashboardId}/viewers`, { email });
 }
 
-export async function getDashboardReport(dashboardId: string, startDate: string, endDate: string) {
-  const params = new URLSearchParams({
-    start_date: startDate,
-    end_date: endDate,
-  });
-  return await get(`/dashboards/${dashboardId}/report?${params.toString()}`);
+export async function getDashboardReport(dashboardId: string) {
+  return await get(`/dashboards/${dashboardId}/report`);
 }
 
 // --- KPI Service ---

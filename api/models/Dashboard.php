@@ -170,7 +170,7 @@ class Dashboard {
         }
     }
 
-    public function getReportData($id, $user_id, $role, $startDate = null, $endDate = null) {
+    public function getReportData($id, $user_id, $role) {
         require_once __DIR__ . '/Kpi.php';
         require_once __DIR__ . '/KpiEntry.php';
 
@@ -200,8 +200,8 @@ class Dashboard {
                         $widget['kpi_details'] = $kpiDetails;
                         
                         // Use widget-specific date range, falling back to the report's global date range.
-                        $widgetStartDate = !empty($widget['startDate']) ? $widget['startDate'] : $startDate;
-                        $widgetEndDate = !empty($widget['endDate']) ? $widget['endDate'] : $endDate;
+                        $widgetStartDate = !empty($widget['startDate']) ? $widget['startDate'] : null;
+                        $widgetEndDate = !empty($widget['endDate']) ? $widget['endDate'] : null;
 
                         // Get the aggregate value for the main display
                         $aggregationType = $widget['aggregation'] ?? 'latest';

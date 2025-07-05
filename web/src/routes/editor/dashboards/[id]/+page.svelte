@@ -31,9 +31,7 @@
   let isUploadModalOpen = false;
     let editMode = false;
 
-  let isReportModalOpen = false;
-  let reportStartDate = new Date().toISOString().split('T')[0];
-  let reportEndDate = new Date().toISOString().split('T')[0];
+
   let isGeneratingReport = false;
   
 
@@ -141,14 +139,10 @@
   }
 
   async function generateReport() {
-    if (!reportStartDate || !reportEndDate) {
-      alert('Please select a start and end date.');
-      return;
-    }
     isGeneratingReport = true;
 
     try {
-      const result = await api.getDashboardReport(dashboardId, reportStartDate, reportEndDate);
+      const result = await api.getDashboardReport(dashboardId);
       if (result.status !== 'success') {
         throw new Error(result.message || 'Failed to fetch report data.');
       }
@@ -163,7 +157,7 @@
         doc.setFontSize(10);
         doc.setTextColor(100);
         doc.text(title, margin, 10);
-        doc.text(`Report for ${reportStartDate} to ${reportEndDate}`, pageWidth - margin, 10, { align: 'right' });
+        // The date range is now per-widget, so we remove it from the global header
         doc.setDrawColor(200);
         doc.line(margin, 12, pageWidth - margin, 12);
       };
@@ -187,8 +181,7 @@
         doc.text(descLines, pageWidth / 2, 100, { align: 'center' });
       }
 
-      doc.setFontSize(16);
-      doc.text(`Date Range: ${reportStartDate} to ${reportEndDate}`, pageWidth / 2, 150, { align: 'center' });
+      // We no longer have a global date range for the cover page.
       
       doc.setFontSize(12);
       doc.setTextColor(150);
@@ -197,18 +190,19 @@
       // --- Widgets Pages ---
       if (reportData.widgets.length > 0) {
         doc.addPage();
-        let pageCount = 2;
+        let currentPage = 2; // Start content on page 2
         addHeader(reportData.name);
-        addFooter(pageCount);
+        addFooter(currentPage);
         
-        let yPos = 25; // Start below header
         const colWidth = (contentWidth - 10) / 2;
-        const xPositions = [margin, margin + colWidth + 10];
-        let colIndex = 0;
-        let colHeights = [yPos, yPos];
+        const chartX = margin;
+        const tableX = margin + colWidth + 10;
+        let yPos = 25;
 
-        for (let i = 0; i < reportData.widgets.length; i++) {
-          const widget = reportData.widgets[i];
+        const widgetRenderInfo = [];
+
+        // --- PASS 1: RENDER CHARTS AND RECORD POSITIONS ---
+        for (const widget of reportData.widgets) {
           const element = document.getElementById(`widget-container-${widget.id}`);
           if (!element) continue;
 
@@ -220,65 +214,56 @@
           const imgData = canvas.toDataURL('image/png');
           const imgProps = doc.getImageProperties(imgData);
           let imgHeight = (imgProps.height * colWidth) / imgProps.width;
-
           const maxImgHeight = 90;
           if (imgHeight > maxImgHeight) {
             imgHeight = maxImgHeight;
           }
 
-          const widgetHeight = imgHeight + 15; // Base height for title + image
-          let currentY = colHeights[colIndex];
+          const widgetHeightWithPadding = 7 + imgHeight + 10; // title + image + padding
 
-          if (currentY + widgetHeight > pageHeight - 20) {
-            colIndex++;
-            if (colIndex >= xPositions.length) {
-              pageCount++;
-              doc.addPage();
-              addHeader(reportData.name);
-              addFooter(pageCount);
-              yPos = 25;
-              colIndex = 0;
-              colHeights = [yPos, yPos];
-            }
-            currentY = colHeights[colIndex];
+          if (yPos + widgetHeightWithPadding > pageHeight - 20 && yPos > 25) {
+            doc.addPage();
+            currentPage++;
+            addHeader(reportData.name);
+            addFooter(currentPage);
+            yPos = 25;
           }
 
-          const currentX = xPositions[colIndex];
+          widgetRenderInfo.push({ widget, imgData, imgHeight, page: currentPage, y: yPos });
 
+          doc.setPage(currentPage);
           doc.setFontSize(14);
           doc.setFont('helvetica', 'bold');
-          doc.text(widget.title, currentX, currentY);
-          doc.addImage(imgData, 'PNG', currentX, currentY + 7, colWidth, imgHeight);
+          doc.text(widget.title, chartX, yPos);
+          doc.addImage(imgData, 'PNG', chartX, yPos + 7, colWidth, imgHeight);
+          
+          yPos += widgetHeightWithPadding;
+        }
 
-          let finalY = currentY + 7 + imgHeight;
+        const totalPagesAfterCharts = (doc.internal as any).getNumberOfPages();
 
-          if (widget.kpi_data && widget.kpi_data.length > 0) {
+        // --- PASS 2: RENDER TABLES NEXT TO CHARTS ---
+        for (const info of widgetRenderInfo) {
+          if (info.widget.kpi_data && info.widget.kpi_data.length > 0) {
+            doc.setPage(info.page);
+            
             const autoTableDoc = doc as any;
             autoTable(autoTableDoc, {
               head: [['Date', 'Value']],
-              body: widget.kpi_data.map((d: any) => [d.date, d.value]),
-              startY: finalY + 5,
+              body: info.widget.kpi_data.map((d: any) => [d.date, d.value]),
+              startY: info.y + 7, // Align with chart image
               theme: 'grid',
               styles: { fontSize: 7, cellPadding: 1.5, overflow: 'linebreak' },
               headStyles: { fillColor: '#1e40af', fontSize: 8 },
-              margin: { left: currentX, right: pageWidth - (currentX + colWidth) },
+              margin: { left: tableX, right: pageWidth - (tableX + colWidth) },
               didDrawPage: (data) => {
-                addHeader(reportData.name);
-                addFooter(data.pageNumber);
+                // Only add headers on new pages created by autoTable to avoid doubling.
+                if (data.pageNumber > totalPagesAfterCharts) {
+                  addHeader(reportData.name);
+                  addFooter(data.pageNumber);
+                }
               },
             });
-            finalY = autoTableDoc.lastAutoTable.finalY;
-          }
-
-          colHeights[colIndex] = finalY + 10;
-
-          // After processing a widget, move to the next column
-          colIndex++;
-          if (colIndex >= xPositions.length) {
-            colIndex = 0;
-            // Set the next row's Y position to the max height of the completed row
-            yPos = Math.max(...colHeights);
-            colHeights = [yPos, yPos];
           }
         }
       }
@@ -289,13 +274,6 @@
       alert(`Failed to generate report: ${e.message}`);
     } finally {
       isGeneratingReport = false;
-      isReportModalOpen = false;
-    }
-  }
-
-  function handleKeydown(event: KeyboardEvent) {
-    if (event.key === 'Escape' && isReportModalOpen) {
-        isReportModalOpen = false;
     }
   }
 
@@ -374,7 +352,7 @@
   }
 </script>
 
-<svelte:window on:keydown={handleKeydown}/>
+
 
 <style>
   :global(.svlt-grid-container) {
@@ -420,32 +398,32 @@
         {#if isEditor}
           <div class="flex items-center space-x-2">
             {#if editMode}
-              <button on:click={addWidget} class="bg-blue-900 hover:bg-blue-800 text-white font-medium py-2 px-4 text-sm rounded-md inline-flex items-center justify-center">
+              <button on:click={addWidget} class="bg-blue-900 hover:bg-blue-800 text-white font-medium py-2 px-4 text-sm rounded-full inline-flex items-center justify-center">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
                 Add Widget
               </button>
-              <button on:click={handleCancel} class="bg-white hover:bg-gray-100 text-blue-900 font-medium py-2 px-4 text-sm rounded-md border border-blue-900 inline-flex items-center justify-center">
+              <button on:click={handleCancel} class="bg-white hover:bg-gray-100 text-blue-900 font-medium py-2 px-4 text-sm rounded-full border border-blue-900 inline-flex items-center justify-center">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
                 Cancel
               </button>
-              <button on:click={handleSave} class="bg-blue-900 hover:bg-blue-800 text-white font-medium py-2 px-4 text-sm rounded-md inline-flex items-center justify-center">
+              <button on:click={handleSave} class="bg-blue-900 hover:bg-blue-800 text-white font-medium py-2 px-4 text-sm rounded-full inline-flex items-center justify-center">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
                 Save Layout
               </button>
             {:else}
-              <button on:click={() => isViewersModalOpen = true} class="bg-white hover:bg-gray-100 text-blue-900 font-medium py-2 px-4 text-sm rounded-md border border-blue-900 inline-flex items-center justify-center">
+              <button on:click={() => isViewersModalOpen = true} class="bg-white hover:bg-gray-100 text-blue-900 font-medium py-2 px-4 text-sm rounded-full border border-blue-900 inline-flex items-center justify-center">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.522 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.478 0-8.268-2.943-9.542 7z" /></svg>
                 Manage Viewers
               </button>
-              <button on:click={() => isUploadModalOpen = true} class="bg-white hover:bg-gray-100 text-blue-900 font-medium py-2 px-4 text-sm rounded-md border border-blue-900 inline-flex items-center justify-center">
+              <button on:click={() => isUploadModalOpen = true} class="bg-white hover:bg-gray-100 text-blue-900 font-medium py-2 px-4 text-sm rounded-full border border-blue-900 inline-flex items-center justify-center">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
                 Upload Data
               </button>
-              <button on:click={() => isReportModalOpen = true} class="bg-blue-900 hover:bg-blue-800 text-white font-medium py-2 px-4 text-sm rounded-md inline-flex items-center justify-center">
+              <button on:click={generateReport} class="bg-blue-900 hover:bg-blue-800 text-white font-medium py-2 px-4 text-sm rounded-full inline-flex items-center justify-center" disabled={isGeneratingReport}>
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                 Generate Report
               </button>
-              <button on:click={() => editMode = true} class="bg-blue-900 hover:bg-blue-800 text-white font-medium py-2 px-4 text-sm rounded-md inline-flex items-center justify-center">
+              <button on:click={() => editMode = true} class="bg-blue-900 hover:bg-blue-800 text-white font-medium py-2 px-4 text-sm rounded-full inline-flex items-center justify-center">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z" /></svg>
                 Edit Layout
               </button>
@@ -479,44 +457,6 @@
     </div>
   {/if}
 </div>
-
-{#if isReportModalOpen}
-  <div class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-    <div role="dialog" aria-modal="true" aria-labelledby="report-modal-title" class="bg-white p-8 rounded-lg shadow-xl w-full max-w-md">
-      <h2 id="report-modal-title" class="text-2xl font-bold mb-6">Generate Report</h2>
-      
-      <div class="space-y-4">
-        <div>
-          <label for="startDate" class="block text-sm font-medium text-gray-700">Start Date</label>
-          <input type="date" id="startDate" bind:value={reportStartDate} class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
-        </div>
-        <div>
-          <label for="endDate" class="block text-sm font-medium text-gray-700">End Date</label>
-          <input type="date" id="endDate" bind:value={reportEndDate} class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
-        </div>
-      </div>
-
-      <div class="mt-8 flex justify-end space-x-3">
-        <button on:click={() => isReportModalOpen = false} class="bg-white hover:bg-gray-100 text-blue-900 font-medium py-2 px-4 text-sm rounded-md border border-blue-900 inline-flex items-center justify-center" disabled={isGeneratingReport}>
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
-          Cancel
-        </button>
-        <button on:click={generateReport} class="bg-blue-900 hover:bg-blue-800 text-white font-medium py-2 px-4 text-sm rounded-md inline-flex items-center justify-center w-40" disabled={isGeneratingReport}>
-           {#if isGeneratingReport}
-            <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            <span>Generating...</span>
-           {:else}
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-            <span>Generate PDF</span>
-           {/if}
-        </button>
-      </div>
-    </div>
-  </div>
-{/if}
 
 {#if $dashboard}
   <ViewersModal 

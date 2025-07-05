@@ -144,13 +144,12 @@ class DashboardController {
 
     public function getReportData($id) {
         // Middleware handles auth and role checks.
-        $startDate = $_GET['start_date'] ?? null;
-        $endDate = $_GET['end_date'] ?? null;
+
         $userId = $_SESSION['user']['id'];
         $userRole = $_SESSION['user']['role'];
 
         $dashboard = new Dashboard();
-        $result = $dashboard->getReportData($id, $userId, $userRole, $startDate, $endDate);
+                $result = $dashboard->getReportData($id, $userId, $userRole);
 
         if ($result['success']) {
             Response::success('Report data retrieved successfully.', $result['report_data']);
