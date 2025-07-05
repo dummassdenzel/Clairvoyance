@@ -14,43 +14,81 @@ class KpiEntry {
             return ['success' => false, 'error' => $e->getMessage()];
         }
     }
-    public function bulkInsertFromCsv($csvPath) {
-        $inserted = 0;
-        $failed = 0;
-        $errors = [];
-        if (($handle = fopen($csvPath, 'r')) !== false) {
-            $header = fgetcsv($handle);
-            $expected = ['kpi_id', 'date', 'value'];
-            if (array_map('strtolower', $header) !== $expected) {
-                fclose($handle);
-                return ['inserted' => 0, 'failed' => 0, 'errors' => ['Invalid CSV header. Expected: kpi_id,date,value']];
-            }
-            while (($row = fgetcsv($handle)) !== false) {
-                if (count($row) !== 3) {
-                    $failed++;
-                    $errors[] = ['row' => $row, 'error' => 'Invalid column count'];
-                    continue;
-                }
-                list($kpi_id, $date, $value) = $row;
-                if (!is_numeric($kpi_id) || !strtotime($date) || !is_numeric($value)) {
-                    $failed++;
-                    $errors[] = ['row' => $row, 'error' => 'Invalid data types'];
-                    continue;
-                }
-                try {
-                    $stmt = $this->db->prepare('INSERT INTO kpi_entries (kpi_id, date, value) VALUES (?, ?, ?)');
-                    $stmt->execute([$kpi_id, $date, $value]);
-                    $inserted++;
-                } catch (PDOException $e) {
-                    $failed++;
-                    $errors[] = ['row' => $row, 'error' => $e->getMessage()];
-                }
-            }
-            fclose($handle);
-        } else {
-            return ['inserted' => 0, 'failed' => 0, 'errors' => ['Could not open CSV file']];
+    public function bulkInsertFromCsv($kpi_id, $csvPath) {
+        $report = ['inserted' => 0, 'failed' => 0, 'errors' => []];
+        $rowsToInsert = [];
+
+        if (($handle = fopen($csvPath, 'r')) === false) {
+            $report['errors'][] = 'Could not open CSV file.';
+            return $report;
         }
-        return ['inserted' => $inserted, 'failed' => $failed, 'errors' => $errors];
+
+        // Read header and validate
+        $header = array_map('trim', array_map('strtolower', fgetcsv($handle)));
+        $expected = ['date', 'value'];
+        if ($header !== $expected) {
+            fclose($handle);
+            $report['errors'][] = 'Invalid CSV header. Expected columns: date, value. Found: ' . implode(',', $header);
+            return $report;
+        }
+
+        // Read rows and perform validation
+        $lineNumber = 1;
+        while (($row = fgetcsv($handle)) !== false) {
+            $lineNumber++;
+            if (count($row) !== 2) {
+                $report['failed']++;
+                $report['errors'][] = "Row {$lineNumber}: Invalid column count. Expected 2, got " . count($row) . ".";
+                continue;
+            }
+
+            list($date, $value) = $row;
+            $trimmedDate = trim($date);
+            $trimmedValue = trim($value);
+
+            // Validate date format (YYYY-MM-DD)
+            $d = DateTime::createFromFormat('Y-m-d', $trimmedDate);
+            if (!$d || $d->format('Y-m-d') !== $trimmedDate) {
+                $report['failed']++;
+                $report['errors'][] = "Row {$lineNumber}: Invalid date format for '{$date}'. Please use YYYY-MM-DD.";
+                continue;
+            }
+
+            // Validate value is numeric
+            if (!is_numeric($trimmedValue)) {
+                $report['failed']++;
+                $report['errors'][] = "Row {$lineNumber}: Value '{$value}' is not a valid number.";
+                continue;
+            }
+
+            $rowsToInsert[] = ['date' => $trimmedDate, 'value' => $trimmedValue];
+        }
+        fclose($handle);
+
+        // If validation errors occurred, stop before inserting anything
+        if ($report['failed'] > 0) {
+            return $report;
+        }
+
+        // All rows are valid, proceed with database transaction
+        try {
+            $this->db->beginTransaction();
+            $stmt = $this->db->prepare('INSERT INTO kpi_entries (kpi_id, date, value) VALUES (?, ?, ?)');
+            
+            foreach ($rowsToInsert as $row) {
+                $stmt->execute([$kpi_id, $row['date'], $row['value']]);
+                $report['inserted']++;
+            }
+
+            $this->db->commit();
+        } catch (PDOException $e) {
+            $this->db->rollBack();
+            $report['inserted'] = 0;
+            $report['failed'] = count($rowsToInsert);
+            $report['errors'][] = 'Database error: ' . $e->getMessage();
+        }
+
+        return $report;
     }
     public function getAggregateValue($kpi_id, $aggregationType, $startDate = null, $endDate = null)
     {

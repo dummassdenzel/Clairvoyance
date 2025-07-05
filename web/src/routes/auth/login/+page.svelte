@@ -20,13 +20,15 @@
       }
 
       // Role-based redirect
-      if ($user.role === 'editor' || $user.role === 'admin') {
+      if ($user.role === 'admin') {
+        goto('/admin');
+      } else if ($user.role === 'editor') {
         goto('/editor/dashboards');
       } else if ($user.role === 'viewer') {
-        goto('/viewer/dashboards');
+        goto('/viewer');
       } else {
         // Fallback for any other roles or just in case
-        goto('/viewer/dashboards');
+        goto('/viewer');
       }
     }
   }

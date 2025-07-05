@@ -111,14 +111,15 @@
         <p class="mt-1 text-sm text-gray-500">Get started by creating a new dashboard.</p>
     </div>
   {:else}
-    <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+    <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3">
       {#each $dashboards as dash (dash.id)}
         <div class="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col transition hover:shadow-lg hover:border-blue-500">
           <a href={`/editor/dashboards/${dash.id}`} class="p-5 flex-grow block">
             <h3 class="font-semibold text-lg text-gray-900 truncate">{dash.name}</h3>
             <p class="mt-2 text-sm text-gray-500 line-clamp-2 h-10">{dash.description || 'No description provided.'}</p>
           </a>
-          <div class="p-3 bg-gray-50 border-t border-gray-200 flex items-center justify-end">
+          <div class="p-3 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
+            <a href={`/editor/dashboards/${dash.id}`} class="px-3 text-xs text-gray-500">View Dashboard &rarr;</a>
             <div class="relative">
               <button 
                 on:click|stopPropagation={() => toggleDropdown(dash.id)} 

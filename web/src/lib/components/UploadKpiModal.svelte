@@ -33,8 +33,11 @@
     try {
       const data = await api.uploadKpiCsv(selectedKpiForUpload, csvFile);
       csvResult = data;
-      if (data.status === 'success' && data.inserted > 0) {
-        dispatch('update');
+      if (data.status === 'success') {
+        // Dispatch success event to notify parent component to refetch data
+        dispatch('success');
+        // Optionally close the modal on success
+        // closeModal(); 
       }
     } catch (e) {
       csvResult = { status: 'error', message: 'An unexpected error occurred.' };

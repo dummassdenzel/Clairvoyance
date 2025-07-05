@@ -29,15 +29,21 @@ class KpiEntryController {
             return;
         }
 
+        if (!isset($_POST['kpi_id']) || !is_numeric($_POST['kpi_id'])) {
+            Response::error('A numeric kpi_id is required.', null, 400);
+            return;
+        }
+        $kpi_id = (int)$_POST['kpi_id'];
+
         $kpiEntry = new KpiEntry();
-        $result = $kpiEntry->bulkInsertFromCsv($_FILES['file']['tmp_name']);
+        $result = $kpiEntry->bulkInsertFromCsv($kpi_id, $_FILES['file']['tmp_name']);
 
         // The model returns a report: ['inserted' => int, 'failed' => int, 'errors' => array]
         // Check if there were any errors during processing.
         if (!empty($result['errors'])) {
             // If there are errors, it's a failure or partial failure.
             // Return a 400 Bad Request with the details.
-            Response::error('CSV processing finished with errors.', [
+            Response::error('CSV processing finished with errors. No data was imported.', [
                 'inserted' => $result['inserted'],
                 'failed' => $result['failed'],
                 'errors' => $result['errors']

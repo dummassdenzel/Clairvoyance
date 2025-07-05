@@ -468,7 +468,7 @@
 {/if}
 
 {#if $dashboard}
-  <UploadKpiModal
+  <UploadKpiModal on:success={fetchDashboard}
     bind:isOpen={isUploadModalOpen}
     kpis={kpisForSelect}
     on:update={fetchDashboard}
