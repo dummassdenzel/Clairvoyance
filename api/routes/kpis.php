@@ -1,10 +1,9 @@
 <?php
 
-require_once __DIR__ . '/../controllers/KpiController.php';
-require_once __DIR__ . '/../middleware/RoleMiddleware.php';
-require_once __DIR__ . '/../utils/Response.php';
+require_once __DIR__ . '/../bootstrap.php';
 
-$roleMiddleware = new RoleMiddleware();
+use Controllers\KpiController;
+
 $controller = new KpiController();
 
 // The global $request variable is parsed in index.php
@@ -14,31 +13,31 @@ $part2 = $request[2] ?? null;
 
 // --- Sub-resource routing for /kpis/{id}/entries and /kpis/{id}/aggregate ---
 if (is_numeric($part1) && in_array($part2, ['entries', 'aggregate'])) {
-    $kpiId = $part1;
+    $kpiId = (int)$part1;
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-        $roleMiddleware->requireViewer();
         if ($part2 === 'entries') {
             $controller->listEntries($kpiId);
         } elseif ($part2 === 'aggregate') {
             $controller->getAggregate($kpiId);
         }
     } else {
-        Response::error('Method not allowed for this resource.', null, 405);
+        http_response_code(405);
+        echo json_encode(['success' => false, 'error' => 'Method not allowed for this resource']);
     }
     exit(); // Stop further processing
 }
 
 // --- Primary resource routing for /kpis ---
-$id = is_numeric($part1) ? $part1 : null;
+$id = is_numeric($part1) ? (int)$part1 : null;
 
 switch ($_SERVER['REQUEST_METHOD']) {
     case 'GET':
-        $roleMiddleware->requireViewer();
         if ($id) {
             $controller->getOne($id);
         } else {
              if ($part1 !== null) {
-                Response::error('Invalid KPI ID specified.', null, 400);
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Invalid KPI ID specified']);
             } else {
                 $controller->listAll();
             }
@@ -46,27 +45,27 @@ switch ($_SERVER['REQUEST_METHOD']) {
         break;
 
     case 'POST':
-        $roleMiddleware->requireEditor();
         $controller->create();
         break;
 
     case 'PUT':
-        $roleMiddleware->requireEditor();
         if (!$id) {
-            Response::error('A numeric KPI ID is required for updating.', null, 400);
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'A numeric KPI ID is required for updating']);
         }
         $controller->update($id);
         break;
 
     case 'DELETE':
-        $roleMiddleware->requireEditor();
         if (!$id) {
-            Response::error('A numeric KPI ID is required for deletion.', null, 400);
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'A numeric KPI ID is required for deletion']);
         }
         $controller->delete($id);
         break;
 
     default:
-        Response::error('Method not allowed.', null, 405);
+        http_response_code(405);
+        echo json_encode(['success' => false, 'error' => 'Method not allowed']);
         break;
 }

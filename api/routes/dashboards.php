@@ -1,10 +1,9 @@
 <?php
 
-require_once __DIR__ . '/../controllers/DashboardController.php';
-require_once __DIR__ . '/../middleware/RoleMiddleware.php';
-require_once __DIR__ . '/../utils/Response.php';
+require_once __DIR__ . '/../bootstrap.php';
 
-$roleMiddleware = new RoleMiddleware();
+use Controllers\DashboardController;
+
 $controller = new DashboardController();
 
 // The global $request variable is parsed in index.php
@@ -16,44 +15,45 @@ $part3 = $request[3] ?? null;
 // --- Route for dashboard sharing ---
 if ($part1 === 'share' && isset($part2)) {
     $token = $part2;
-    $roleMiddleware->requireLogin(); // Any logged-in user can redeem
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $controller->redeemShareLink($token);
     } else {
-        Response::methodNotAllowed();
+        http_response_code(405);
+        echo json_encode(['success' => false, 'error' => 'Method not allowed']);
     }
     exit();
 }
 
 // --- Sub-resource routing for /dashboards/{id}/viewers and /dashboards/{id}/share ---  
 if (is_numeric($part1) && $part2 === 'share') {
-    $dashboardId = $part1;
-    $roleMiddleware->requireEditor(); // Only editors can generate share links
+    $dashboardId = (int)$part1;
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $controller->generateShareLink($dashboardId);
     } else {
-        Response::methodNotAllowed();
+        http_response_code(405);
+        echo json_encode(['success' => false, 'error' => 'Method not allowed']);
     }
     exit();
 }
 
 if (is_numeric($part1) && $part2 === 'viewers') {
-    $dashboardId = $part1;
-    $userId = is_numeric($part3) ? $part3 : null;
+    $dashboardId = (int)$part1;
+    $userId = is_numeric($part3) ? (int)$part3 : null;
 
-    $roleMiddleware->requireEditor(); // Only editors can manage viewers
     switch ($_SERVER['REQUEST_METHOD']) {
         case 'POST':
             $controller->assignViewer($dashboardId);
             break;
         case 'DELETE':
             if (!$userId) {
-                Response::error('User ID is required to remove a viewer.', null, 400);
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'User ID is required to remove a viewer']);
             }
             $controller->removeViewer($dashboardId, $userId);
             break;
         default:
-            Response::error('Method not allowed for this resource.', null, 405);
+            http_response_code(405);
+            echo json_encode(['success' => false, 'error' => 'Method not allowed for this resource']);
             break;
     }
     exit(); // Stop further processing
@@ -61,24 +61,23 @@ if (is_numeric($part1) && $part2 === 'viewers') {
 
 // --- Route for dashboard reports ---
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && is_numeric($part1) && $part2 === 'report') {
-    $dashboardId = $part1;
-    $roleMiddleware->requireViewer(); // Any authenticated user with view access can generate a report.
+    $dashboardId = (int)$part1;
     $controller->getReportData($dashboardId);
     exit();
 }
 
 // --- Primary resource routing for /dashboards --- 
-$id = is_numeric($part1) ? $part1 : null;
+$id = is_numeric($part1) ? (int)$part1 : null;
 
 switch ($_SERVER['REQUEST_METHOD']) {
     case 'GET':
-        $roleMiddleware->requireViewer();
         if ($id) {
             $controller->get($id);
         } else {
             // If part1 exists but is not numeric, it's an invalid path
             if ($part1 !== null) {
-                Response::error('Invalid dashboard ID specified.', null, 400);
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Invalid dashboard ID specified']);
             } else {
                 $controller->listAll();
             }
@@ -86,27 +85,27 @@ switch ($_SERVER['REQUEST_METHOD']) {
         break;
 
     case 'POST':
-        $roleMiddleware->requireEditor();
         $controller->create();
         break;
 
     case 'PUT':
-        $roleMiddleware->requireEditor();
         if (!$id) {
-            Response::error('A numeric Dashboard ID is required for updating.', null, 400);
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'A numeric Dashboard ID is required for updating']);
         }
         $controller->update($id);
         break;
 
     case 'DELETE':
-        $roleMiddleware->requireEditor();
         if (!$id) {
-            Response::error('A numeric Dashboard ID is required for deletion.', null, 400);
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'A numeric Dashboard ID is required for deletion']);
         }
         $controller->delete($id);
         break;
 
     default:
-        Response::error('Method not allowed.', null, 405);
+        http_response_code(405);
+        echo json_encode(['success' => false, 'error' => 'Method not allowed']);
         break;
 }

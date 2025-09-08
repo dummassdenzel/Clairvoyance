@@ -1,51 +1,271 @@
 <?php
-class UserController {
-        public function register($data) {
-        require_once __DIR__ . '/../models/User.php';
 
-        if (!isset($data['email'], $data['password'])) {
-            Response::error('Missing required fields: email, password.', null, 400);
-            return;
-        }
+namespace Controllers;
 
-        // Default role to 'viewer' for public registration
-        $role = $data['role'] ?? 'viewer';
+use Core\BaseController;
+use Services\UserService;
+use Services\AuthService;
 
-        $user = new User();
-        $result = $user->create($data['email'], $data['password'], $role);
+class UserController extends BaseController
+{
+    private UserService $userService;
+    private AuthService $authService;
 
-        if ($result['success']) {
-            Response::success('User registered successfully.', ['id' => $result['id']], 201);
-        } else {
-            Response::error($result['error'], null, 400);
+    public function __construct()
+    {
+        parent::__construct();
+        $this->userService = $this->getService(\Services\UserService::class);
+        $this->authService = $this->getService(\Services\AuthService::class);
+    }
+
+    public function register(): void
+    {
+        try {
+            $data = $this->getRequestData();
+            
+            if (!$this->validateRequired($data, ['email', 'password'])) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'Missing required fields: email, password'
+                ], 400);
+                return;
+            }
+
+            // Default role to 'viewer' for public registration
+            $data['role'] = $data['role'] ?? 'viewer';
+
+            $result = $this->userService->createUser($data);
+
+            if ($result['success']) {
+                $this->jsonResponse([
+                    'success' => true,
+                    'message' => 'User registered successfully',
+                    'data' => ['id' => $result['user']['id']]
+                ], 201);
+            } else {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => $result['error']
+                ], 400);
+            }
+
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], $e->getCode() ?: 400);
         }
     }
 
-    public function login($data) {
-        require_once __DIR__ . '/../models/User.php';
-        if (!isset($data['email'], $data['password'])) {
-            Response::error('Missing email or password', null, 400);
-            return;
-        }
-        $user = new User();
-        $result = $user->authenticate($data['email'], $data['password']);
-        if ($result['success']) {
-            $_SESSION['user'] = [
-                'id' => $result['user']['id'],
-                'email' => $result['user']['email'],
-                'role' => $result['user']['role']
-            ];
-            Response::success('Login successful', ['user' => $result['user']]);
-        } else {
-            Response::error($result['error'], null, 401);
+    public function login(): void
+    {
+        try {
+            $data = $this->getRequestData();
+            
+            if (!$this->validateRequired($data, ['email', 'password'])) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'Missing email or password'
+                ], 400);
+                return;
+            }
+
+            $result = $this->authService->login($data['email'], $data['password']);
+
+            if ($result['success']) {
+                $this->jsonResponse([
+                    'success' => true,
+                    'message' => 'Login successful',
+                    'data' => ['user' => $result['user']]
+                ]);
+            } else {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => $result['error']
+                ], 401);
+            }
+
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], $e->getCode() ?: 401);
         }
     }
 
-    public function listAll() {
-        require_once __DIR__ . '/../models/User.php';
-        $user = new User();
-        $result = $user->listAll();
-        http_response_code(200);
-        echo json_encode(['users' => $result]);
+    public function me(): void
+    {
+        try {
+            $this->authService->requireAuth();
+            
+            $user = $this->getCurrentUser();
+
+            $this->jsonResponse([
+                'success' => true,
+                'message' => 'Session is valid',
+                'data' => ['user' => $user]
+            ]);
+
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => 'No active session'
+            ], 401);
+        }
     }
-} 
+
+    public function listAll(): void
+    {
+        try {
+            $this->authService->requireRole('admin');
+            
+            $users = $this->userService->listAllUsers();
+
+            $this->jsonResponse([
+                'success' => true,
+                'message' => 'Users retrieved successfully',
+                'data' => $users
+            ]);
+
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], $e->getCode() ?: 403);
+        }
+    }
+
+    public function updateRole(int $userId): void
+    {
+        try {
+            $this->authService->requireRole('admin');
+            
+            if (!$userId) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'Missing user ID'
+                ], 400);
+                return;
+            }
+
+            $data = $this->getRequestData();
+            
+            if (!isset($data['role'])) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'Missing role field'
+                ], 400);
+                return;
+            }
+
+            $result = $this->userService->updateUserRole($userId, $data['role']);
+
+            if ($result['success']) {
+                $this->jsonResponse([
+                    'success' => true,
+                    'message' => $result['message']
+                ]);
+            } else {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => $result['error']
+                ], 400);
+            }
+
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], $e->getCode() ?: 400);
+        }
+    }
+
+    public function delete(int $userId): void
+    {
+        try {
+            $this->authService->requireRole('admin');
+            
+            if (!$userId) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'Missing user ID'
+                ], 400);
+                return;
+            }
+
+            $result = $this->userService->deleteUser($userId);
+
+            if ($result['success']) {
+                $this->jsonResponse([
+                    'success' => true,
+                    'message' => $result['message']
+                ]);
+            } else {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => $result['error']
+                ], 400);
+            }
+
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], $e->getCode() ?: 400);
+        }
+    }
+
+    public function getOne(int $userId): void
+    {
+        try {
+            $this->authService->requireRole('admin');
+            
+            if (!$userId) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'Missing user ID'
+                ], 400);
+                return;
+            }
+
+            $user = $this->userService->getUserById($userId);
+
+            if ($user) {
+                $this->jsonResponse([
+                    'success' => true,
+                    'message' => 'User retrieved successfully',
+                    'data' => $user
+                ]);
+            } else {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'User not found'
+                ], 404);
+            }
+
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], $e->getCode() ?: 404);
+        }
+    }
+
+    public function logout(): void
+    {
+        try {
+            $this->authService->logout();
+
+            $this->jsonResponse([
+                'success' => true,
+                'message' => 'Logged out successfully'
+            ]);
+
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], $e->getCode() ?: 500);
+        }
+    }
+}

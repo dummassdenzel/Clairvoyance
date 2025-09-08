@@ -1,111 +1,70 @@
 <?php
-class Dashboard {
-    private $db;
-    public function __construct() {
-        require_once __DIR__ . '/../config/database.php';
-        $this->db = (new Connection())->connect();
+
+namespace Models;
+
+use PDO;
+use PDOException;
+
+class Dashboard
+{
+    private PDO $db;
+    
+    public function __construct(PDO $db)
+    {
+        $this->db = $db;
     }
-    public function create($name, $description, $layout, $user_id) {
+    
+    // CRUD Operations
+    public function create(string $name, string $description, string $layout, int $userId): array
+    {
         try {
             $stmt = $this->db->prepare('INSERT INTO dashboards (name, description, layout, user_id) VALUES (?, ?, ?, ?)');
-            $stmt->execute([$name, $description, $layout, $user_id]);
+            $stmt->execute([$name, $description, $layout, $userId]);
             return ['success' => true, 'id' => $this->db->lastInsertId()];
         } catch (PDOException $e) {
             return ['success' => false, 'error' => $e->getMessage()];
         }
     }
-    public function getById($id, $user_id, $role) {
+    
+    public function findById(int $id): ?array
+    {
         try {
             $stmt = $this->db->prepare('SELECT * FROM dashboards WHERE id = ?');
             $stmt->execute([$id]);
-            $dashboard = $stmt->fetch(PDO::FETCH_ASSOC);
-            if (!$dashboard) {
-                return ['success' => false, 'error' => 'Dashboard not found'];
-            }
-            // Fetch assigned viewers
-            $stmt = $this->db->prepare('SELECT u.id, u.email FROM dashboard_access da JOIN users u ON da.user_id = u.id WHERE da.dashboard_id = ?');
-            $stmt->execute([$id]);
-            $dashboard['viewers'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            // Admin can access any dashboard.
-            if ($role === 'admin') {
-                return ['success' => true, 'dashboard' => $dashboard];
-            }
-            // Editor can access their own dashboard.
-            if ($role === 'editor' && $dashboard['user_id'] == $user_id) {
-                return ['success' => true, 'dashboard' => $dashboard];
-            }
-            // Check dashboard_access for viewers.
-            $stmt = $this->db->prepare('SELECT * FROM dashboard_access WHERE dashboard_id = ? AND user_id = ?');
-            $stmt->execute([$id, $user_id]);
-            if ($stmt->fetch()) {
-                return ['success' => true, 'dashboard' => $dashboard];
-            }
-            return ['success' => false, 'error' => 'Access denied'];
+            return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
         } catch (PDOException $e) {
-            return ['success' => false, 'error' => $e->getMessage()];
+            return null;
         }
     }
-    public function assignViewer($dashboard_id, $user_id) {
+    
+    public function findByUserId(int $userId): array
+    {
         try {
-            // Check if already assigned
-            $stmt = $this->db->prepare('SELECT * FROM dashboard_access WHERE dashboard_id = ? AND user_id = ?');
-            $stmt->execute([$dashboard_id, $user_id]);
-            if ($stmt->fetch()) {
-                return ['success' => false, 'error' => 'Viewer already assigned to this dashboard'];
-            }
-            $stmt = $this->db->prepare('INSERT INTO dashboard_access (dashboard_id, user_id) VALUES (?, ?)');
-            $stmt->execute([$dashboard_id, $user_id]);
-            return ['success' => true];
-        } catch (PDOException $e) {
-            return ['success' => false, 'error' => $e->getMessage()];
-        }
-    }
-    public function listAll($user_id, $role) {
-        try {
-            if ($role === 'admin') {
-                $stmt = $this->db->prepare('SELECT * FROM dashboards');
-                $stmt->execute();
-                return $stmt->fetchAll(PDO::FETCH_ASSOC);
-            } elseif ($role === 'editor') {
-                $stmt = $this->db->prepare('SELECT * FROM dashboards WHERE user_id = ?');
-                $stmt->execute([$user_id]);
-                return $stmt->fetchAll(PDO::FETCH_ASSOC);
-            } else {
-                $stmt = $this->db->prepare('SELECT d.* FROM dashboards d JOIN dashboard_access da ON d.id = da.dashboard_id WHERE da.user_id = ?');
-                $stmt->execute([$user_id]);
-                return $stmt->fetchAll(PDO::FETCH_ASSOC);
-            }
+            $stmt = $this->db->prepare('SELECT * FROM dashboards WHERE user_id = ? ORDER BY created_at DESC');
+            $stmt->execute([$userId]);
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (PDOException $e) {
             return [];
         }
     }
-    public function removeViewer($dashboard_id, $user_id) {
+    
+    public function findAll(): array
+    {
         try {
-            $stmt = $this->db->prepare('DELETE FROM dashboard_access WHERE dashboard_id = ? AND user_id = ?');
-            $stmt->execute([$dashboard_id, $user_id]);
-            return ['success' => true];
+            $stmt = $this->db->prepare('SELECT * FROM dashboards ORDER BY created_at DESC');
+                $stmt->execute();
+                return $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (PDOException $e) {
-            return ['success' => false, 'error' => $e->getMessage()];
+            return [];
         }
     }
-
-    public function update($id, $data, $user_id, $role) {
+    
+    public function update(int $id, array $data): bool
+    {
         try {
-            $stmt = $this->db->prepare('SELECT user_id FROM dashboards WHERE id = ?');
-            $stmt->execute([$id]);
-            $dashboard = $stmt->fetch(PDO::FETCH_ASSOC);
-
-            if (!$dashboard) {
-                return ['success' => false, 'error' => 'Dashboard not found'];
-            }
-
-            // Admin can update any dashboard, editor can only update their own.
-            if ($role !== 'admin' && $dashboard['user_id'] != $user_id) {
-                return ['success' => false, 'error' => 'Access denied'];
-            }
-
             $fields = [];
             $params = [];
+            
             foreach ($data as $key => $value) {
                 if (in_array($key, ['name', 'description', 'layout'])) {
                     $fields[] = "$key = ?";
@@ -114,152 +73,170 @@ class Dashboard {
             }
 
             if (empty($fields)) {
-                return ['success' => false, 'error' => 'No valid fields to update'];
+                return false;
             }
 
             $params[] = $id;
-            $sql = 'UPDATE dashboards SET ' . implode(', ', $fields) . ' WHERE id = ?';
+            $sql = 'UPDATE dashboards SET ' . implode(', ', $fields) . ', updated_at = CURRENT_TIMESTAMP WHERE id = ?';
 
             $stmt = $this->db->prepare($sql);
-            $stmt->execute($params);
-            return ['success' => true];
+            return $stmt->execute($params);
         } catch (PDOException $e) {
-            return ['success' => false, 'error' => $e->getMessage()];
+            return false;
         }
     }
-
-    public function createShareToken($dashboard_id, $user_id, $role) {
+    
+    public function delete(int $id): bool
+    {
         try {
-            // First, verify the user owns the dashboard
-            $stmt = $this->db->prepare('SELECT user_id FROM dashboards WHERE id = ?');
-            $stmt->execute([$dashboard_id]);
-            $dashboard = $stmt->fetch(PDO::FETCH_ASSOC);
-
-            if (!$dashboard || ($role !== 'admin' && $dashboard['user_id'] != $user_id)) {
-                return ['success' => false, 'error' => 'Access denied or dashboard not found'];
-            }
-
-            // Generate a secure token and set expiration for 7 days
-            $token = bin2hex(random_bytes(32));
-            $expires_at = date('Y-m-d H:i:s', strtotime('+7 days'));
-
-            $stmt = $this->db->prepare('INSERT INTO dashboard_share_tokens (dashboard_id, token, expires_at) VALUES (?, ?, ?)');
-            $stmt->execute([$dashboard_id, $token, $expires_at]);
-
-            return ['success' => true, 'token' => $token];
-        } catch (PDOException $e) {
-            return ['success' => false, 'error' => $e->getMessage()];
-        }
-    }
-
-    public function redeemToken($token, $user_id) {
-        try {
-            // Find the token and check if it's valid and not expired
-            $stmt = $this->db->prepare('SELECT * FROM dashboard_share_tokens WHERE token = ? AND expires_at > NOW()');
-            $stmt->execute([$token]);
-            $tokenData = $stmt->fetch(PDO::FETCH_ASSOC);
-
-            if (!$tokenData) {
-                return ['success' => false, 'error' => 'Invalid or expired token'];
-            }
-
-            $dashboard_id = $tokenData['dashboard_id'];
-            $result = $this->assignViewer($dashboard_id, $user_id);
-
-            // If access was granted or already existed, delete the token
-            if ($result['success'] || strpos($result['error'], 'already assigned') !== false) {
-                $stmt = $this->db->prepare('DELETE FROM dashboard_share_tokens WHERE id = ?');
-                $stmt->execute([$tokenData['id']]);
-                
-                // Return success even if already assigned
-                return ['success' => true, 'dashboard_id' => $dashboard_id, 'message' => 'Access granted successfully.'];
-            }
-
-            return $result; // Propagate other errors from assignViewer
-        } catch (PDOException $e) {
-            return ['success' => false, 'error' => $e->getMessage()];
-        }
-    }
-
-    public function getReportData($id, $user_id, $role) {
-        require_once __DIR__ . '/Kpi.php';
-        require_once __DIR__ . '/KpiEntry.php';
-
-        try {
-            // First, get the dashboard and verify access rights.
-            $dashboardResult = $this->getById($id, $user_id, $role);
-            if (!$dashboardResult['success']) {
-                return $dashboardResult; // Return original error if access is denied or not found.
-            }
-            $dashboard = $dashboardResult['dashboard'];
-
-            $layout = json_decode($dashboard['layout'], true);
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                return ['success' => false, 'error' => 'Invalid dashboard layout JSON.'];
-            }
-
-            $kpiModel = new Kpi();
-            $kpiEntryModel = new KpiEntry();
-            $widgetsData = [];
-
-            foreach ($layout as $widget) {
-                if (isset($widget['kpi_id'])) {
-                    $kpi_id = $widget['kpi_id'];
-                    $kpiDetails = $kpiModel->getById($kpi_id, $user_id);
-
-                    if ($kpiDetails) {
-                        $widget['kpi_details'] = $kpiDetails;
-                        
-                        // Use widget-specific date range, falling back to the report's global date range.
-                        $widgetStartDate = !empty($widget['startDate']) ? $widget['startDate'] : null;
-                        $widgetEndDate = !empty($widget['endDate']) ? $widget['endDate'] : null;
-
-                        // Get the aggregate value for the main display
-                        $aggregationType = $widget['aggregation'] ?? 'latest';
-                        $widget['data'] = $kpiEntryModel->getAggregateValue($kpi_id, $aggregationType, $widgetStartDate, $widgetEndDate);
-
-                        // Get the detailed data for the report table
-                        $widget['kpi_data'] = $kpiEntryModel->listByKpiId($kpi_id, $widgetStartDate, $widgetEndDate);
-                    }
-                }
-                $widgetsData[] = $widget;
-            }
-
-            $reportData = [
-                'name' => $dashboard['name'],
-                'description' => $dashboard['description'] ?? null,
-                'widgets' => $widgetsData
-            ];
-
-            return ['success' => true, 'report_data' => $reportData];
-        } catch (Exception $e) {
-            return ['success' => false, 'error' => $e->getMessage()];
-        }
-    }
-
-    public function delete($id, $user_id, $role) {
-        try {
-            $stmt = $this->db->prepare('SELECT user_id FROM dashboards WHERE id = ?');
-            $stmt->execute([$id]);
-            $dashboard = $stmt->fetch(PDO::FETCH_ASSOC);
-
-            if (!$dashboard) {
-                return ['success' => false, 'error' => 'Dashboard not found'];
-            }
-
-            // Admin can delete any dashboard, editor can only delete their own.
-            if ($role !== 'admin' && $dashboard['user_id'] != $user_id) {
-                return ['success' => false, 'error' => 'Access denied'];
-            }
-
+            $this->db->beginTransaction();
+            
+            // Delete related access records first
             $stmt = $this->db->prepare('DELETE FROM dashboard_access WHERE dashboard_id = ?');
             $stmt->execute([$id]);
-
+            
+            // Delete related share tokens
+            $stmt = $this->db->prepare('DELETE FROM dashboard_share_tokens WHERE dashboard_id = ?');
+            $stmt->execute([$id]);
+            
+            // Delete the dashboard
             $stmt = $this->db->prepare('DELETE FROM dashboards WHERE id = ?');
             $stmt->execute([$id]);
-            return ['success' => true];
+            
+            $this->db->commit();
+            return true;
         } catch (PDOException $e) {
-            return ['success' => false, 'error' => $e->getMessage()];
+            $this->db->rollBack();
+            return false;
+        }
+    }
+    
+    // Dashboard Access Management (Data Layer Only)
+    public function addViewer(int $dashboardId, int $userId): bool
+    {
+        try {
+            $stmt = $this->db->prepare('INSERT INTO dashboard_access (dashboard_id, user_id) VALUES (?, ?)');
+            return $stmt->execute([$dashboardId, $userId]);
+        } catch (PDOException $e) {
+            return false;
+        }
+    }
+    
+    public function removeViewer(int $dashboardId, int $userId): bool
+    {
+        try {
+            $stmt = $this->db->prepare('DELETE FROM dashboard_access WHERE dashboard_id = ? AND user_id = ?');
+            return $stmt->execute([$dashboardId, $userId]);
+        } catch (PDOException $e) {
+            return false;
+        }
+    }
+    
+    public function getViewers(int $dashboardId): array
+    {
+        try {
+            $stmt = $this->db->prepare('
+                SELECT u.id, u.email, u.role, da.created_at as access_granted_at 
+                FROM dashboard_access da 
+                JOIN users u ON da.user_id = u.id 
+                WHERE da.dashboard_id = ? 
+                ORDER BY da.created_at DESC
+            ');
+            $stmt->execute([$dashboardId]);
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            return [];
+        }
+    }
+    
+    public function hasViewerAccess(int $dashboardId, int $userId): bool
+    {
+        try {
+            $stmt = $this->db->prepare('SELECT 1 FROM dashboard_access WHERE dashboard_id = ? AND user_id = ? LIMIT 1');
+            $stmt->execute([$dashboardId, $userId]);
+            return $stmt->fetch() !== false;
+        } catch (PDOException $e) {
+            return false;
+        }
+    }
+    
+    public function getDashboardsByViewer(int $userId): array
+    {
+        try {
+            $stmt = $this->db->prepare('
+                SELECT d.*, u.email as owner_email 
+                FROM dashboards d 
+                JOIN dashboard_access da ON d.id = da.dashboard_id 
+                JOIN users u ON d.user_id = u.id 
+                WHERE da.user_id = ? 
+                ORDER BY d.created_at DESC
+            ');
+            $stmt->execute([$userId]);
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            return [];
+        }
+    }
+    
+    // Data Validation Methods
+    public function validateLayout(string $layout): bool
+    {
+        $decoded = json_decode($layout, true);
+        return json_last_error() === JSON_ERROR_NONE && is_array($decoded);
+    }
+    
+    public function validateName(string $name): bool
+    {
+        return !empty(trim($name)) && strlen($name) <= 255;
+    }
+    
+    public function validateDescription(string $description): bool
+    {
+        return strlen($description) <= 65535; // TEXT field limit
+    }
+    
+    // Utility Methods
+    public function getOwner(int $dashboardId): ?array
+    {
+        try {
+            $stmt = $this->db->prepare('
+                SELECT u.id, u.email, u.role 
+                FROM dashboards d 
+                JOIN users u ON d.user_id = u.id 
+                WHERE d.id = ?
+            ');
+            $stmt->execute([$dashboardId]);
+            return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        } catch (PDOException $e) {
+            return null;
+        }
+    }
+    
+    public function exists(int $id): bool
+    {
+        try {
+            $stmt = $this->db->prepare('SELECT 1 FROM dashboards WHERE id = ? LIMIT 1');
+            $stmt->execute([$id]);
+            return $stmt->fetch() !== false;
+        } catch (PDOException $e) {
+            return false;
+        }
+    }
+    
+    public function getStats(int $userId): array
+    {
+        try {
+            $stmt = $this->db->prepare('
+                SELECT 
+                    COUNT(*) as total_dashboards,
+                    COUNT(CASE WHEN created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 END) as recent_dashboards
+                FROM dashboards 
+                WHERE user_id = ?
+            ');
+            $stmt->execute([$userId]);
+            return $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+        } catch (PDOException $e) {
+            return [];
         }
     }
 }

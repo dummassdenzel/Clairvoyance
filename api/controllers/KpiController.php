@@ -1,124 +1,261 @@
 <?php
-require_once __DIR__ . '/../utils/Response.php';
-require_once __DIR__ . '/../models/Kpi.php';
-require_once __DIR__ . '/../models/KpiEntry.php';
 
-class KpiController {
-    public function getOne($kpiId) {
-        $userId = $_SESSION['user']['id'];
-        $kpi = new Kpi();
-        $result = $kpi->getById($kpiId, $userId);
-        if ($result) {
-            Response::success('KPI retrieved successfully.', $result);
-        } else {
-            Response::error('KPI not found or you do not have permission to view it.', null, 404);
-        }
-    }
+namespace Controllers;
 
-    public function update($kpiId) {
-        // Middleware handles auth, role checks, and starts the session.
-        $data = json_decode(file_get_contents('php://input'), true);
-        $userId = $_SESSION['user']['id'];
+use Core\BaseController;
+use Services\KpiService;
+use Services\KpiEntryService;
+use Services\AuthService;
 
-        // Provide defaults for optional fields
-        $data['direction'] = $data['direction'] ?? 'higher_is_better';
-        $data['format_prefix'] = $data['format_prefix'] ?? null;
-        $data['format_suffix'] = $data['format_suffix'] ?? null;
+class KpiController extends BaseController
+{
+    private KpiService $kpiService;
+    private KpiEntryService $kpiEntryService;
+    private AuthService $authService;
 
-        if (!isset($data['name'], $data['target'], $data['rag_red'], $data['rag_amber'])) {
-            Response::error('Missing required fields.', null, 400);
-            return;
-        }
-
-        $kpi = new Kpi();
-        $result = $kpi->update($kpiId, $data, $userId);
-
-        if ($result['success']) {
-            Response::success('KPI updated successfully.', $result['data']);
-        } else {
-            Response::error($result['error'], null, $result['code'] ?? 400);
-        }
-    }
-
-    public function create() {
-        // Middleware handles auth, role checks, and starts the session.
-        $data = json_decode(file_get_contents('php://input'), true);
-
-        // Provide defaults for optional fields
-        $data['direction'] = $data['direction'] ?? 'higher_is_better';
-        $data['format_prefix'] = $data['format_prefix'] ?? null;
-        $data['format_suffix'] = $data['format_suffix'] ?? null;
-
-        if (!isset($data['name'], $data['target'], $data['rag_red'], $data['rag_amber'])) {
-            Response::error('Missing required fields: name, target, rag_red, rag_amber.', null, 400);
-            return;
-        }
-
-        $kpi = new Kpi();
-        $userId = $_SESSION['user']['id'];
-        $result = $kpi->create($data, $userId);
-
-        if ($result['success']) {
-            Response::success('KPI created successfully.', ['id' => $result['id']], 201);
-        } else {
-            Response::error($result['error'], null, 400);
-        }
-    }
-
-    public function delete($kpiId) {
-        // Middleware handles auth, role checks, and starts the session.
-        $kpi = new Kpi();
-        $userId = $_SESSION['user']['id'];
-        $result = $kpi->delete($kpiId, $userId);
-
-        if ($result['success']) {
-            // Use 204 No Content for successful deletions with no response body.
-            Response::success('KPI deleted successfully.', null, 204);
-        } else {
-            // Use the error code from the model if provided, otherwise default.
-            Response::error($result['error'], null, $result['code'] ?? 400);
-        }
-    }
-
-    public function listAll() {
-        // Middleware handles auth and role checks.
-        $userId = $_SESSION['user']['id'];
-        $kpi = new Kpi();
-        $result = $kpi->listAll($userId);
-        Response::success('KPIs retrieved successfully.', $result);
-    }
-
-    public function getAggregate($kpiId)
+    public function __construct()
     {
-        $aggregationType = $_GET['type'] ?? null;
-        $validTypes = ['sum', 'average', 'latest'];
+        parent::__construct();
+        $this->kpiService = $this->getService(\Services\KpiService::class);
+        $this->kpiEntryService = $this->getService(\Services\KpiEntryService::class);
+        $this->authService = $this->getService(\Services\AuthService::class);
+    }
 
-        if (!$aggregationType || !in_array($aggregationType, $validTypes)) {
-            Response::error('Invalid or missing aggregation type.', 400);
-            return;
-        }
+    public function getOne(int $kpiId): void
+    {
+        try {
+            $this->authService->requireAuth();
+            
+            if (!$kpiId) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'Missing KPI ID'
+                ], 400);
+                return;
+            }
 
-        $startDate = $_GET['start_date'] ?? null;
-        $endDate = $_GET['end_date'] ?? null;
+            $currentUser = $this->getCurrentUser();
+            
+            $kpi = $this->kpiService->get($currentUser, $kpiId);
 
-        $entry = new KpiEntry();
-        $result = $entry->getAggregateValue($kpiId, $aggregationType, $startDate, $endDate);
+            $this->jsonResponse([
+                'success' => true,
+                'message' => 'KPI retrieved successfully',
+                'data' => $kpi
+            ]);
 
-        if ($result) {
-            Response::success('Aggregate value retrieved successfully.', $result);
-        } else {
-            Response::error('Could not retrieve aggregate value.', 500);
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], $e->getCode() ?: 404);
         }
     }
 
-    public function listEntries($kpiId)
+    public function update(int $kpiId): void
     {
-        // Get optional query parameters for date filtering
-        $startDate = $_GET['start_date'] ?? null;
-        $endDate = $_GET['end_date'] ?? null;
+        try {
+            $this->authService->requireRole('editor');
+            
+            if (!$kpiId) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'Missing KPI ID'
+                ], 400);
+                return;
+            }
 
-        $entry = new KpiEntry();
-        $result = $entry->listByKpiId($kpiId, $startDate, $endDate);
-        Response::success('Entries retrieved successfully.', $result);
+            $data = $this->getRequestData();
+            
+            if (empty($data)) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'No update data provided'
+                ], 400);
+                return;
+            }
+
+            // Provide defaults for optional fields
+            $data['direction'] = $data['direction'] ?? 'higher_is_better';
+            $data['format_prefix'] = $data['format_prefix'] ?? null;
+            $data['format_suffix'] = $data['format_suffix'] ?? null;
+
+            $currentUser = $this->getCurrentUser();
+            
+            $this->kpiService->update($currentUser, $kpiId, $data);
+
+            $this->jsonResponse([
+                'success' => true,
+                'message' => 'KPI updated successfully'
+            ]);
+
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], $e->getCode() ?: 400);
+        }
+    }
+
+    public function create(): void
+    {
+        try {
+            $this->authService->requireRole('editor');
+            
+            $data = $this->getRequestData();
+            
+            if (!$this->validateRequired($data, ['name', 'target', 'rag_red', 'rag_amber'])) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'Missing required fields: name, target, rag_red, rag_amber'
+                ], 400);
+                return;
+            }
+
+            // Provide defaults for optional fields
+            $data['direction'] = $data['direction'] ?? 'higher_is_better';
+            $data['format_prefix'] = $data['format_prefix'] ?? null;
+            $data['format_suffix'] = $data['format_suffix'] ?? null;
+
+            $currentUser = $this->getCurrentUser();
+            
+            $result = $this->kpiService->create($currentUser, $data);
+
+            $this->jsonResponse([
+                'success' => true,
+                'message' => 'KPI created successfully',
+                'data' => ['id' => $result['id']]
+            ], 201);
+
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], $e->getCode() ?: 400);
+        }
+    }
+
+    public function delete(int $kpiId): void
+    {
+        try {
+            $this->authService->requireRole('editor');
+            
+            if (!$kpiId) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'Missing KPI ID'
+                ], 400);
+                return;
+            }
+
+            $currentUser = $this->getCurrentUser();
+            
+            $this->kpiService->delete($currentUser, $kpiId);
+
+            $this->jsonResponse([
+                'success' => true,
+                'message' => 'KPI deleted successfully'
+            ], 204);
+
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], $e->getCode() ?: 400);
+        }
+    }
+
+    public function listAll(): void
+    {
+        try {
+            $this->authService->requireAuth();
+            
+            $currentUser = $this->getCurrentUser();
+            
+            $kpis = $this->kpiService->list($currentUser);
+
+            $this->jsonResponse([
+                'success' => true,
+                'message' => 'KPIs retrieved successfully',
+                'data' => $kpis
+            ]);
+
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], $e->getCode() ?: 500);
+        }
+    }
+
+    public function getAggregate(int $kpiId): void
+    {
+        try {
+            $this->authService->requireAuth();
+            
+            $aggregationType = $_GET['type'] ?? null;
+            $validTypes = ['sum', 'average', 'latest'];
+
+            if (!$aggregationType || !in_array($aggregationType, $validTypes)) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'Invalid or missing aggregation type'
+                ], 400);
+                return;
+            }
+
+            $startDate = $_GET['start_date'] ?? null;
+            $endDate = $_GET['end_date'] ?? null;
+
+            $currentUser = $this->getCurrentUser();
+            
+            $result = $this->kpiEntryService->aggregate($currentUser, $kpiId, $aggregationType, $startDate, $endDate);
+
+            if ($result) {
+                $this->jsonResponse([
+                    'success' => true,
+                    'message' => 'Aggregate value retrieved successfully',
+                    'data' => $result
+                ]);
+            } else {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'Could not retrieve aggregate value'
+                ], 500);
+            }
+
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], $e->getCode() ?: 500);
+        }
+    }
+
+    public function listEntries(int $kpiId): void
+    {
+        try {
+            $this->authService->requireAuth();
+            
+            // Get optional query parameters for date filtering
+            $startDate = $_GET['start_date'] ?? null;
+            $endDate = $_GET['end_date'] ?? null;
+
+            $currentUser = $this->getCurrentUser();
+            
+            $result = $this->kpiEntryService->query($currentUser, $kpiId, $startDate, $endDate);
+
+            $this->jsonResponse([
+                'success' => true,
+                'message' => 'Entries retrieved successfully',
+                'data' => $result
+            ]);
+
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], $e->getCode() ?: 500);
+        }
     }
 }

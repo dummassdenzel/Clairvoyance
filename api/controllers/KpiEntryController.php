@@ -1,60 +1,150 @@
 <?php
-require_once __DIR__ . '/../utils/Response.php';
-require_once __DIR__ . '/../models/KpiEntry.php';
 
-class KpiEntryController {
-    public function create() {
-        // Middleware handles auth, role checks, and session start.
-        $data = json_decode(file_get_contents('php://input'), true);
+namespace Controllers;
 
-        if (!isset($data['kpi_id'], $data['date'], $data['value'])) {
-            Response::error('Missing required fields: kpi_id, date, value.', null, 400);
-            return;
-        }
+use Core\BaseController;
+use Services\KpiEntryService;
+use Services\AuthService;
 
-        $entry = new KpiEntry();
-        $result = $entry->create($data['kpi_id'], $data['date'], $data['value']);
+class KpiEntryController extends BaseController
+{
+    private KpiEntryService $kpiEntryService;
+    private AuthService $authService;
 
-        if ($result['success']) {
-            Response::success('KPI Entry created successfully.', ['id' => $result['id']], 201);
-        } else {
-            Response::error($result['error'], null, 400);
+    public function __construct()
+    {
+        parent::__construct();
+        $this->kpiEntryService = $this->getService(\Services\KpiEntryService::class);
+        $this->authService = $this->getService(\Services\AuthService::class);
+    }
+
+    public function create(): void
+    {
+        try {
+            $this->authService->requireRole('editor');
+            
+            $data = $this->getRequestData();
+            
+            if (!$this->validateRequired($data, ['kpi_id', 'date', 'value'])) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'Missing required fields: kpi_id, date, value'
+                ], 400);
+                return;
+            }
+
+            $currentUser = $this->getCurrentUser();
+            
+            $result = $this->kpiEntryService->add(
+                $currentUser, 
+                (int)$data['kpi_id'], 
+                $data['date'], 
+                $data['value']
+            );
+
+            $this->jsonResponse([
+                'success' => true,
+                'message' => 'KPI Entry created successfully',
+                'data' => ['id' => $result['id']]
+            ], 201);
+
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], $e->getCode() ?: 400);
         }
     }
 
-    public function uploadCsv() {
-        // Middleware handles auth and role checks.
-        if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
-            Response::error('CSV file is required or upload failed.', null, 400);
-            return;
-        }
+    public function uploadCsv(): void
+    {
+        try {
+            $this->authService->requireRole('editor');
+            
+            if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'CSV file is required or upload failed'
+                ], 400);
+                return;
+            }
 
-        if (!isset($_POST['kpi_id']) || !is_numeric($_POST['kpi_id'])) {
-            Response::error('A numeric kpi_id is required.', null, 400);
-            return;
-        }
-        $kpi_id = (int)$_POST['kpi_id'];
+            if (!isset($_POST['kpi_id']) || !is_numeric($_POST['kpi_id'])) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'A numeric kpi_id is required'
+                ], 400);
+                return;
+            }
 
-        $kpiEntry = new KpiEntry();
-        $result = $kpiEntry->bulkInsertFromCsv($kpi_id, $_FILES['file']['tmp_name']);
+            $kpiId = (int)$_POST['kpi_id'];
+            $currentUser = $this->getCurrentUser();
 
-        // The model returns a report: ['inserted' => int, 'failed' => int, 'errors' => array]
-        // Check if there were any errors during processing.
-        if (!empty($result['errors'])) {
-            // If there are errors, it's a failure or partial failure.
-            // Return a 400 Bad Request with the details.
-            Response::error('CSV processing finished with errors. No data was imported.', [
-                'inserted' => $result['inserted'],
-                'failed' => $result['failed'],
-                'errors' => $result['errors']
-            ], 400);
-        } else {
-            // Success case: no errors.
-            Response::success('CSV processed successfully.', [
-                'inserted' => $result['inserted'],
-                'failed' => $result['failed']
-            ]);
+            // Parse CSV file
+            $csvData = $this->parseCsvFile($_FILES['file']['tmp_name']);
+            
+            if (empty($csvData)) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'No valid data found in CSV file'
+                ], 400);
+                return;
+            }
+
+            $result = $this->kpiEntryService->bulkInsert($currentUser, $kpiId, $csvData);
+
+            if ($result['success']) {
+                $this->jsonResponse([
+                    'success' => true,
+                    'message' => 'CSV processed successfully',
+                    'data' => [
+                        'inserted' => $result['inserted'],
+                        'failed' => $result['failed']
+                    ]
+                ]);
+            } else {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => $result['error']
+                ], $result['code'] ?? 400);
+            }
+
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], $e->getCode() ?: 400);
         }
     }
 
+    private function parseCsvFile(string $filePath): array
+    {
+        $data = [];
+        $handle = fopen($filePath, 'r');
+        
+        if ($handle === false) {
+            throw new \Exception('Could not read CSV file');
+        }
+
+        // Skip header row if it exists
+        $firstRow = fgetcsv($handle);
+        if ($firstRow && (strtolower($firstRow[0]) === 'date' || strtolower($firstRow[0]) === 'value')) {
+            // This is a header row, skip it
+        } else {
+            // First row is data, reset file pointer
+            rewind($handle);
+        }
+
+        while (($row = fgetcsv($handle)) !== false) {
+            if (count($row) >= 2) {
+                $data[] = [
+                    'date' => trim($row[0]),
+                    'value' => trim($row[1])
+                ];
+            }
+        }
+
+        fclose($handle);
+        return $data;
+    }
 }

@@ -18,11 +18,16 @@ class ComposerStaticInit20fad51902f91e7fd3039e016a6556b5
         array (
             'ZipStream\\' => 10,
         ),
+        'U' => 
+        array (
+            'Utils\\' => 6,
+        ),
         'S' => 
         array (
             'Symfony\\Polyfill\\Php80\\' => 23,
             'Symfony\\Polyfill\\Mbstring\\' => 26,
             'Symfony\\Polyfill\\Ctype\\' => 23,
+            'Services\\' => 9,
         ),
         'P' => 
         array (
@@ -34,6 +39,8 @@ class ComposerStaticInit20fad51902f91e7fd3039e016a6556b5
         ),
         'M' => 
         array (
+            'Models\\' => 7,
+            'Middleware\\' => 11,
             'Matrix\\' => 7,
         ),
         'G' => 
@@ -50,8 +57,14 @@ class ComposerStaticInit20fad51902f91e7fd3039e016a6556b5
         ),
         'C' => 
         array (
+            'Core\\' => 5,
+            'Controllers\\' => 12,
             'Composer\\Pcre\\' => 14,
             'Complex\\' => 8,
+        ),
+        'A' => 
+        array (
+            'App\\' => 4,
         ),
     );
 
@@ -59,6 +72,10 @@ class ComposerStaticInit20fad51902f91e7fd3039e016a6556b5
         'ZipStream\\' => 
         array (
             0 => __DIR__ . '/..' . '/maennchen/zipstream-php/src',
+        ),
+        'Utils\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/utils',
         ),
         'Symfony\\Polyfill\\Php80\\' => 
         array (
@@ -72,14 +89,18 @@ class ComposerStaticInit20fad51902f91e7fd3039e016a6556b5
         array (
             0 => __DIR__ . '/..' . '/symfony/polyfill-ctype',
         ),
+        'Services\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/services',
+        ),
         'Psr\\SimpleCache\\' => 
         array (
             0 => __DIR__ . '/..' . '/psr/simple-cache/src',
         ),
         'Psr\\Http\\Message\\' => 
         array (
-            0 => __DIR__ . '/..' . '/psr/http-message/src',
-            1 => __DIR__ . '/..' . '/psr/http-factory/src',
+            0 => __DIR__ . '/..' . '/psr/http-factory/src',
+            1 => __DIR__ . '/..' . '/psr/http-message/src',
         ),
         'Psr\\Http\\Client\\' => 
         array (
@@ -92,6 +113,14 @@ class ComposerStaticInit20fad51902f91e7fd3039e016a6556b5
         'PhpOffice\\PhpSpreadsheet\\' => 
         array (
             0 => __DIR__ . '/..' . '/phpoffice/phpspreadsheet/src/PhpSpreadsheet',
+        ),
+        'Models\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/models',
+        ),
+        'Middleware\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/middleware',
         ),
         'Matrix\\' => 
         array (
@@ -109,6 +138,14 @@ class ComposerStaticInit20fad51902f91e7fd3039e016a6556b5
         array (
             0 => __DIR__ . '/..' . '/vlucas/phpdotenv/src',
         ),
+        'Core\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/core',
+        ),
+        'Controllers\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/controllers',
+        ),
         'Composer\\Pcre\\' => 
         array (
             0 => __DIR__ . '/..' . '/composer/pcre/src',
@@ -116,6 +153,10 @@ class ComposerStaticInit20fad51902f91e7fd3039e016a6556b5
         'Complex\\' => 
         array (
             0 => __DIR__ . '/..' . '/markbaker/complex/classes/src',
+        ),
+        'App\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/',
         ),
     );
 
