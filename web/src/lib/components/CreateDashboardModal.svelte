@@ -23,10 +23,10 @@
     kpisLoading = true;
     kpisError = '';
     try {
-      const response: ApiResponse<{ kpis: Kpi[] }> = await api.getKpis();
+      const response: ApiResponse<Kpi[]> = await api.getKpis();
       
       if (response.success) {
-        kpis = response.data?.kpis || [];
+        kpis = response.data || [];
       } else {
         kpisError = response.message || 'Failed to load KPIs.';
       }

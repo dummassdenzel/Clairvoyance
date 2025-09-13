@@ -19,15 +19,34 @@
 
   $: isEditor = $user?.role === 'editor';
 
+  // Helper function to format KPI values
+  function formatKpiValue(value: string | number, prefix?: string, suffix?: string): string {
+    const formattedValue = typeof value === 'string' ? value : value.toString();
+    return `${prefix || ''}${formattedValue}${suffix || ''}`;
+  }
+
+  // Helper function to format the format display
+  function formatDisplay(prefix?: string, suffix?: string): string {
+    if (prefix && suffix) {
+      return `${prefix}${suffix}`;
+    } else if (prefix) {
+      return prefix;
+    } else if (suffix) {
+      return suffix;
+    } else {
+      return 'None';
+    }
+  }
+
   async function fetchKpis() {
     loading.set(true);
     error.set(null);
     try {
-      const response: ApiResponse<{ kpis: Kpi[] }> = await api.getKpis();
+      const response: ApiResponse<Kpi[]> = await api.getKpis();
       
       if (response.success) {
-        // Always set the KPIs array, even if it's empty
-        kpis.set(response.data?.kpis || []);
+        // The KPIs are directly in the data array, not in data.kpis
+        kpis.set(response.data || []);
       } else {
         error.set(response.message || 'Failed to load KPIs');
       }
@@ -183,16 +202,16 @@
                   </span>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {kpi.format_prefix || ''}{kpi.target}{kpi.format_suffix || ''}
+                  {formatKpiValue(kpi.target, kpi.format_prefix, kpi.format_suffix)}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {kpi.format_prefix || ''}{kpi.rag_red}{kpi.format_suffix || ''}
+                  {formatKpiValue(kpi.rag_red, kpi.format_prefix, kpi.format_suffix)}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {kpi.format_prefix || ''}{kpi.rag_amber}{kpi.format_suffix || ''}
+                  {formatKpiValue(kpi.rag_amber, kpi.format_prefix, kpi.format_suffix)}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {kpi.format_prefix || ''}{kpi.format_suffix || '' || 'None'}
+                  {formatDisplay(kpi.format_prefix, kpi.format_suffix)}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                   <div class="flex items-center justify-end space-x-2">

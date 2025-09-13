@@ -50,7 +50,8 @@
   async function handleShare(dashboardId: number) {
     sharingDashboardId = dashboardId;
     try {
-      const response: ApiResponse<{ token: ShareToken }> = await api.generateShareToken(dashboardId, '2024-12-31 23:59:59');
+      // Use the correct function name and parameters
+      const response: ApiResponse<{ token: ShareToken }> = await api.generateShareToken(dashboardId, '7'); // 7 days
       
       if (response.success && response.data?.token) {
         const baseUrl = window.location.origin;

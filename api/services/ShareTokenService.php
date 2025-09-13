@@ -23,9 +23,27 @@ class ShareTokenService
 		if ($currentUser['role'] !== 'admin' && (int)$dashboard['user_id'] !== (int)$currentUser['id']) {
 			throw new \Exception('Access denied', 403);
 		}
+		
 		$token = $this->tokens->generateToken();
 		$expires = $this->tokens->generateExpirationDate($days);
-		return $this->tokens->create($dashboardId, $token, $expires);
+		
+		$result = $this->tokens->create($dashboardId, $token, $expires);
+		
+		if ($result['success']) {
+			// Return the token data instead of just the create result
+			return [
+				'success' => true,
+				'token' => [
+					'id' => $result['id'],
+					'dashboard_id' => $dashboardId,
+					'token' => $token,
+					'expires_at' => $expires,
+					'created_at' => date('Y-m-d H:i:s')
+				]
+			];
+		} else {
+			throw new \Exception($result['error'] ?? 'Failed to create share token', 500);
+		}
 	}
 
 	public function redeem(array $currentUser, string $token): int

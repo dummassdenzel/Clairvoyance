@@ -154,8 +154,8 @@ export async function getDashboardReport(dashboardId: number): Promise<ApiRespon
 }
 
 // --- KPI Service ---
-export async function getKpis(): Promise<ApiResponse<{ kpis: Kpi[] }>> {
-  return await get<{ kpis: Kpi[] }>('/kpis');
+export async function getKpis(): Promise<ApiResponse<Kpi[]>> {
+  return await get<Kpi[]>('/kpis');
 }
 
 export async function getKpi(id: number): Promise<ApiResponse<{ kpi: Kpi }>> {
@@ -261,11 +261,12 @@ export async function generateShareLink(dashboardId: string): Promise<ApiRespons
   if (response.success && response.data?.token) {
     return { 
       success: true, 
-      data: { token: response.data.token.token }
+      data: { token: response.data.token.token } // Extract the string token
+    };
+  } else {
+    return { 
+      success: false, 
+      error: response.message || 'Failed to generate share token' 
     };
   }
-  return {
-    success: false,
-    message: response.message || 'Failed to generate share token'
-  };
 }
