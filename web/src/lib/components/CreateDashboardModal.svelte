@@ -1,6 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher, tick } from 'svelte';
   import * as api from '$lib/services/api';
+  import type { Kpi, ApiResponse, CreateDashboardForm, DashboardWidget } from '$lib/types';
 
   export let show = false;
 
@@ -8,9 +9,10 @@
   let description = '';
   let isSubmitting = false;
   let error = '';
+  let successMessage = '';
   let dialogElement: HTMLDivElement;
 
-  let kpis: any[] = [];
+  let kpis: Kpi[] = [];
   let selectedKpiIds: number[] = [];
   let kpisLoading = true;
   let kpisError = '';
@@ -21,14 +23,15 @@
     kpisLoading = true;
     kpisError = '';
     try {
-      const result = await api.getKpis();
-      if (result.status === 'success') {
-        kpis = result.data;
+      const response: ApiResponse<{ kpis: Kpi[] }> = await api.getKpis();
+      
+      if (response.success) {
+        kpis = response.data?.kpis || [];
       } else {
-        kpisError = result.message || 'Failed to load KPIs.';
+        kpisError = response.message || 'Failed to load KPIs.';
       }
     } catch (e) {
-      kpisError = 'An unexpected error occurred while fetching KPIs.';
+      kpisError = e instanceof Error ? e.message : 'An unexpected error occurred while fetching KPIs.';
     } finally {
       kpisLoading = false;
     }
@@ -38,43 +41,59 @@
     if (!name) return;
     isSubmitting = true;
     error = '';
+    successMessage = '';
 
-    const layout = selectedKpiIds.map((kpi_id, index) => {
+    const layout: DashboardWidget[] = selectedKpiIds.map((kpi_id, index) => {
       const kpi = kpis.find(k => k.id === kpi_id);
       return {
-        id: index, // Assign a unique ID
-        x: (index % 3) * 4, // Position in a grid-like layout
+        id: index,
+        x: (index % 3) * 4,
         y: Math.floor(index / 3) * 10,
-        w: 4, // Default width
-        h: 10, // Default height
-        type: 'line',
+        w: 4,
+        h: 10,
+        type: 'line' as const,
         kpi_id: kpi_id,
         title: kpi ? `${kpi.name} Trend` : 'KPI Trend'
       };
     });
 
     try {
-      const result = await api.createDashboard({ name, description, layout });
-      if (result.status === 'success') {
-        dispatch('success', result.data.dashboard);
-        closeModal();
+      const layoutData = layout.length > 0 ? JSON.stringify(layout) : '[]';
+      
+      const response: ApiResponse<{ dashboard: any }> = await api.createDashboard({ 
+        name, 
+        description, 
+        layout: layoutData
+      });
+      
+      if (response.success) {
+        successMessage = 'Dashboard created successfully!';
+        // Reset form immediately after success
+        resetForm();
+        // Dispatch success - parent will handle closing
+        dispatch('success', response.data?.dashboard);
       } else {
-        error = result.message || 'Failed to create dashboard.';
+        error = response.message || 'Failed to create dashboard.';
       }
     } catch (e) {
-      error = 'An unexpected error occurred.';
+      error = e instanceof Error ? e.message : 'An unexpected error occurred.';
     } finally {
       isSubmitting = false;
     }
   }
 
-  function closeModal() {
-    if (isSubmitting) return;
-    show = false;
+  function resetForm() {
     name = '';
     description = '';
     error = '';
+    successMessage = '';
     selectedKpiIds = [];
+  }
+
+  function closeModal() {
+    if (isSubmitting) return;
+    show = false;
+    resetForm();
     dispatch('close');
   }
 
@@ -110,11 +129,22 @@
         <div class="space-y-4">
           <div>
             <label for="name" class="block text-sm font-medium text-gray-700">Name</label>
-            <input type="text" id="name" bind:value={name} required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+            <input 
+              type="text" 
+              id="name" 
+              bind:value={name} 
+              required 
+              class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+            >
           </div>
           <div>
             <label for="description" class="block text-sm font-medium text-gray-700">Description (Optional)</label>
-            <textarea id="description" bind:value={description} rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"></textarea>
+            <textarea 
+              id="description" 
+              bind:value={description} 
+              rows="3" 
+              class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+            ></textarea>
           </div>
 
           <div role="group" aria-labelledby="kpi-group-label">
@@ -136,7 +166,12 @@
               <div class="mt-2 border border-gray-200 rounded-md max-h-40 overflow-y-auto">
                 {#each kpis as kpi (kpi.id)}
                   <label class="flex items-center p-3 border-b border-gray-200 last:border-b-0 hover:bg-gray-50 cursor-pointer">
-                    <input type="checkbox" bind:group={selectedKpiIds} value={kpi.id} class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                    <input 
+                      type="checkbox" 
+                      bind:group={selectedKpiIds} 
+                      value={kpi.id} 
+                      class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    >
                     <span class="ml-3 text-sm text-gray-700">{kpi.name}</span>
                   </label>
                 {/each}
@@ -149,11 +184,23 @@
           <div class="mt-4 text-sm text-red-600 bg-red-50 p-3 rounded-md">{error}</div>
         {/if}
 
+        {#if successMessage}
+          <div class="mt-4 text-sm text-green-600 bg-green-50 p-3 rounded-md">{successMessage}</div>
+        {/if}
+
         <div class="mt-6 flex justify-end space-x-3">
-          <button type="button" on:click={closeModal} class="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+          <button 
+            type="button" 
+            on:click={closeModal} 
+            class="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
             Cancel
           </button>
-          <button type="submit" disabled={isSubmitting} class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50">
+          <button 
+            type="submit" 
+            disabled={isSubmitting} 
+            class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+          >
             {isSubmitting ? 'Creating...' : 'Create Dashboard'}
           </button>
         </div>

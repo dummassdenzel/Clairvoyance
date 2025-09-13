@@ -1,9 +1,10 @@
 <script lang="ts">
   import { createEventDispatcher, onMount } from 'svelte';
   import * as api from '$lib/services/api';
+  import type { Dashboard, ApiResponse } from '$lib/types';
 
   export let show: boolean = false;
-  export let dashboard: any | null = null;
+  export let dashboard: Dashboard | null = null;
 
   let name = '';
   let description = '';
@@ -31,19 +32,19 @@
     error = null;
 
     try {
-      const result = await api.updateDashboard(dashboard.id, {
+      const response: ApiResponse<{ dashboard: Dashboard }> = await api.updateDashboard(dashboard.id, {
         name: name.trim(),
         description: description.trim()
       });
 
-      if (result.status === 'success') {
-        dispatch('success');
+      if (response.success) {
+        dispatch('success', response.data?.dashboard);
         closeModal();
       } else {
-        error = result.message || 'Failed to update dashboard.';
+        error = response.message || 'Failed to update dashboard.';
       }
-    } catch (e: any) {
-      error = e.message || 'An unexpected error occurred.';
+    } catch (e) {
+      error = e instanceof Error ? e.message : 'An unexpected error occurred.';
     } finally {
       loading = false;
     }
@@ -60,11 +61,22 @@
           <div class="mt-4 space-y-4">
             <div>
               <label for="edit-dashboard-name" class="block text-sm font-medium text-gray-700">Name</label>
-              <input type="text" id="edit-dashboard-name" bind:value={name} required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+              <input 
+                type="text" 
+                id="edit-dashboard-name" 
+                bind:value={name} 
+                required 
+                class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              >
             </div>
             <div>
               <label for="edit-dashboard-description" class="block text-sm font-medium text-gray-700">Description</label>
-              <textarea id="edit-dashboard-description" bind:value={description} rows="4" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"></textarea>
+              <textarea 
+                id="edit-dashboard-description" 
+                bind:value={description} 
+                rows="4" 
+                class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              ></textarea>
             </div>
           </div>
           {#if error}
@@ -72,10 +84,18 @@
           {/if}
         </div>
         <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-          <button type="submit" disabled={loading} class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-900 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50">
+          <button 
+            type="submit" 
+            disabled={loading} 
+            class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-900 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50"
+          >
             {loading ? 'Saving...' : 'Save Changes'}
           </button>
-          <button type="button" on:click={closeModal} class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:w-auto sm:text-sm">
+          <button 
+            type="button" 
+            on:click={closeModal} 
+            class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:w-auto sm:text-sm"
+          >
             Cancel
           </button>
         </div>

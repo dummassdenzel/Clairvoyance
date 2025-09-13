@@ -50,7 +50,6 @@
   async function handleShare(dashboardId: number) {
     sharingDashboardId = dashboardId;
     try {
-      // Use the correct function name and parameters
       const response: ApiResponse<{ token: ShareToken }> = await api.generateShareToken(dashboardId, '2024-12-31 23:59:59');
       
       if (response.success && response.data?.token) {
@@ -85,6 +84,25 @@
     } finally {
       deletingDashboardId = null;
     }
+  }
+
+  // Handle modal events
+  function handleCreateSuccess() {
+    showCreateModal = false;
+    fetchDashboards(); // Refresh the dashboard list
+  }
+
+  function handleCreateClose() {
+    showCreateModal = false;
+  }
+
+  function handleEditSuccess() {
+    showEditModal = false;
+    fetchDashboards(); // Refresh the dashboard list
+  }
+
+  function handleEditClose() {
+    showEditModal = false;
   }
 
   onMount(() => {
@@ -201,5 +219,14 @@
 </div>
 
 <ShareModal bind:show={showShareModal} shareLink={currentShareLink} on:close={() => showShareModal = false} />
-<CreateDashboardModal bind:show={showCreateModal} on:success={fetchDashboards} />
-<EditDashboardModal bind:show={showEditModal} dashboard={editingDashboard} on:success={fetchDashboards} />
+<CreateDashboardModal 
+  bind:show={showCreateModal} 
+  on:success={handleCreateSuccess}
+  on:close={handleCreateClose}
+/>
+<EditDashboardModal 
+  bind:show={showEditModal} 
+  dashboard={editingDashboard} 
+  on:success={handleEditSuccess}
+  on:close={handleEditClose}
+/>

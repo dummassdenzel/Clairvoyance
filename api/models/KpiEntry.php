@@ -179,7 +179,7 @@ class KpiEntry
             return null;
         }
     }
-    
+
     public function getLatestValue(int $kpiId): ?float
     {
         try {

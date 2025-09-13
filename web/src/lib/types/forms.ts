@@ -13,7 +13,7 @@ export interface RegisterForm {
 export interface CreateDashboardForm {
   name: string;
   description?: string;
-  layout?: DashboardWidget[];
+  layout: string; // This should be a JSON string, not DashboardWidget[]
 }
 
 export interface CreateKpiForm {
