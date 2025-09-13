@@ -41,7 +41,7 @@ class KpiController extends BaseController
             $this->jsonResponse([
                 'success' => true,
                 'message' => 'KPI retrieved successfully',
-                'data' => $kpi
+                'data' => ['kpi' => $kpi]  // Fix: Wrap in 'kpi' property
             ]);
 
         } catch (\Exception $e) {
@@ -248,7 +248,7 @@ class KpiController extends BaseController
             $this->jsonResponse([
                 'success' => true,
                 'message' => 'Entries retrieved successfully',
-                'data' => $result
+                'data' => ['entries' => $result]  // Fix: Wrap in 'entries' property
             ]);
 
         } catch (\Exception $e) {

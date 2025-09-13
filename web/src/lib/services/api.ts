@@ -207,9 +207,10 @@ export async function createKpiEntry(data: CreateKpiEntryForm): Promise<ApiRespo
   return await post<{ entry: KpiEntry }>('/kpi_entries', data);
 }
 
-export async function uploadKpiCsv(file: File): Promise<ApiResponse<{ entries: KpiEntry[] }>> {
+export async function uploadKpiCsv(kpiId: number, file: File): Promise<ApiResponse<{ inserted: number; failed: number; errors: string[] }>> {
   const formData = new FormData();
   formData.append('file', file);
+  formData.append('kpi_id', kpiId.toString());
 
   const res = await fetch(`${API_BASE}/kpi_entries`, {
     method: 'POST',

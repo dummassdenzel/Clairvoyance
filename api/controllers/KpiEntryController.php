@@ -93,20 +93,36 @@ class KpiEntryController extends BaseController
 
             $result = $this->kpiEntryService->bulkInsert($currentUser, $kpiId, $csvData);
 
-            if ($result['success']) {
+            // Check if the bulk insert was successful
+            if (isset($result['success']) && $result['success'] === false) {
+                // This is an error from the service layer (validation errors, etc.)
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => $result['error']
+                ], $result['code'] ?? 400);
+                return;
+            }
+
+            // This is the result from the model's bulkInsert method
+            $inserted = $result['inserted'] ?? 0;
+            $failed = $result['failed'] ?? 0;
+            $errors = $result['errors'] ?? [];
+
+            if ($inserted > 0) {
                 $this->jsonResponse([
                     'success' => true,
                     'message' => 'CSV processed successfully',
                     'data' => [
-                        'inserted' => $result['inserted'],
-                        'failed' => $result['failed']
+                        'inserted' => $inserted,
+                        'failed' => $failed,
+                        'errors' => $errors
                     ]
                 ]);
             } else {
                 $this->jsonResponse([
                     'success' => false,
-                    'error' => $result['error']
-                ], $result['code'] ?? 400);
+                    'error' => 'No entries were inserted. ' . implode('; ', $errors)
+                ], 400);
             }
 
         } catch (\Exception $e) {

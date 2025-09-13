@@ -4,13 +4,16 @@
   import { onMount } from 'svelte';
   import { writable, type Writable } from 'svelte/store';
   import * as api from '$lib/services/api';
+  import type { Dashboard, ApiResponse, Kpi } from '$lib/types';
   import DashboardWidget from '$lib/components/DashboardWidget.svelte';
   
   import ViewersModal from '$lib/components/ViewersModal.svelte';
   import UploadKpiModal from '$lib/components/UploadKpiModal.svelte';
+  import WidgetSettingsModal from '$lib/components/WidgetSettingsModal.svelte';
+  import KpiEntriesModal from '$lib/components/KpiEntriesModal.svelte';
   import Grid from 'svelte-grid';
   import gridHelp from 'svelte-grid/build/helper/index.mjs';
-    import { getContext } from 'svelte';
+  import { getContext } from 'svelte';
   import jsPDF from 'jspdf';
   import html2canvas from 'html2canvas-pro';
   import autoTable from 'jspdf-autotable';
@@ -23,26 +26,24 @@
     h: number;
   } & Record<string, any>;
 
-  const dashboard = writable<any>(null);
+  const dashboard = writable<Dashboard | null>(null);
   const loading = writable(true);
   const error = writable<string | null>(null);
 
   let isViewersModalOpen = false;
   let isUploadModalOpen = false;
-    let editMode = false;
-
-
+  let isWidgetSettingsModalOpen = false;
+  let isKpiEntriesModalOpen = false;
+  let editMode = false;
   let isGeneratingReport = false;
-  
+  let newWidgetTemplate: any = null; // Template for new widget
+  let selectedKpiForEntries: Kpi | null = null;
+  let selectedKpiIdForEntries: number | null = null;
 
   function handleCancel() {
     editMode = false;
     fetchDashboard();
   }
-
-  
-
-  
 
   const cols: any = [[0, 12]];
 
@@ -70,10 +71,17 @@
     });
 
     try {
-      await api.updateDashboard(dashboardId, { layout: layoutToSave });
-      editMode = false;
-      await fetchDashboard();
-    } catch (e: any) {
+      const response: ApiResponse<{ dashboard: Dashboard }> = await api.updateDashboard(parseInt(dashboardId), { 
+        layout: JSON.stringify(layoutToSave) 
+      });
+      
+      if (response.success) {
+        editMode = false;
+        await fetchDashboard();
+      } else {
+        alert(response.message || 'Failed to save layout.');
+      }
+    } catch (e) {
       console.error('Failed to save layout:', e);
       alert('Failed to save layout. See console for details.');
     }
@@ -117,8 +125,9 @@
     }
 
     const newId = items.length > 0 ? Math.max(...items.map(item => Number(item.id))) + 1 : 0;
-    const newItem = {
-      [cols[0][1]]: gridHelp.item({ ...nextPos, w: newWidgetWidth, h: newWidgetHeight, fixed: !editMode, min: { w: 2, h: 4 }, customDragger: true }),
+    
+    // Create a template for the new widget
+    newWidgetTemplate = {
       id: String(newId),
       title: 'New Widget',
       type: 'line',
@@ -129,12 +138,50 @@
       endDate: '',
       aggregation: 'latest',
       showLegend: true,
-      legendPosition: 'top'
+      legendPosition: 'top',
+      // Add the layout information
+      x: nextPos.x,
+      y: nextPos.y,
+      w: newWidgetWidth,
+      h: newWidgetHeight
     };
-    items = [...items, newItem];
+
+    // Open the widget settings modal
+    isWidgetSettingsModalOpen = true;
   }
 
-    function removeWidget(id: string) {
+  function handleWidgetSettingsSave(event: CustomEvent) {
+    const widgetData = event.detail;
+    
+    // Create the new widget with the configured data
+    const newItem = {
+      [cols[0][1]]: gridHelp.item({ 
+        x: widgetData.x, 
+        y: widgetData.y, 
+        w: widgetData.w, 
+        h: widgetData.h, 
+        fixed: !editMode, 
+        min: { w: 2, h: 4 }, 
+        customDragger: true 
+      }),
+      id: widgetData.id,
+      title: widgetData.title,
+      type: widgetData.type,
+      kpi_id: widgetData.kpi_id,
+      backgroundColor: widgetData.backgroundColor,
+      borderColor: widgetData.borderColor,
+      startDate: widgetData.startDate,
+      endDate: widgetData.endDate,
+      aggregation: widgetData.aggregation,
+      showLegend: widgetData.showLegend,
+      legendPosition: widgetData.legendPosition
+    };
+    
+    items = [...items, newItem];
+    newWidgetTemplate = null;
+  }
+
+  function removeWidget(id: string) {
     items = items.filter(item => item.id !== id);
   }
 
@@ -142,11 +189,13 @@
     isGeneratingReport = true;
 
     try {
-      const result = await api.getDashboardReport(dashboardId);
-      if (result.status !== 'success') {
-        throw new Error(result.message || 'Failed to fetch report data.');
+      const response: ApiResponse<any> = await api.getDashboardReport(parseInt(dashboardId));
+      
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to fetch report data.');
       }
-      const reportData = result.data;
+      
+      const reportData = response.data;
       const doc = new jsPDF('p', 'mm', 'a4');
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
@@ -157,7 +206,6 @@
         doc.setFontSize(10);
         doc.setTextColor(100);
         doc.text(title, margin, 10);
-        // The date range is now per-widget, so we remove it from the global header
         doc.setDrawColor(200);
         doc.line(margin, 12, pageWidth - margin, 12);
       };
@@ -181,16 +229,14 @@
         doc.text(descLines, pageWidth / 2, 100, { align: 'center' });
       }
 
-      // We no longer have a global date range for the cover page.
-      
       doc.setFontSize(12);
       doc.setTextColor(150);
       doc.text(`Generated on: ${new Date().toLocaleString()}`, pageWidth / 2, pageHeight - 30, { align: 'center' });
 
       // --- Widgets Pages ---
-      if (reportData.widgets.length > 0) {
+      if (reportData.widgets && reportData.widgets.length > 0) {
         doc.addPage();
-        let currentPage = 2; // Start content on page 2
+        let currentPage = 2;
         addHeader(reportData.name);
         addFooter(currentPage);
         
@@ -219,7 +265,7 @@
             imgHeight = maxImgHeight;
           }
 
-          const widgetHeightWithPadding = 7 + imgHeight + 10; // title + image + padding
+          const widgetHeightWithPadding = 7 + imgHeight + 10;
 
           if (yPos + widgetHeightWithPadding > pageHeight - 20 && yPos > 25) {
             doc.addPage();
@@ -251,13 +297,12 @@
             autoTable(autoTableDoc, {
               head: [['Date', 'Value']],
               body: info.widget.kpi_data.map((d: any) => [d.date, d.value]),
-              startY: info.y + 7, // Align with chart image
+              startY: info.y + 7,
               theme: 'grid',
               styles: { fontSize: 7, cellPadding: 1.5, overflow: 'linebreak' },
               headStyles: { fillColor: '#1e40af', fontSize: 8 },
               margin: { left: tableX, right: pageWidth - (tableX + colWidth) },
               didDrawPage: (data) => {
-                // Only add headers on new pages created by autoTable to avoid doubling.
                 if (data.pageNumber > totalPagesAfterCharts) {
                   addHeader(reportData.name);
                   addFooter(data.pageNumber);
@@ -269,12 +314,18 @@
       }
 
       doc.save(`${reportData.name.replace(/\s/g, '_')}_Report.pdf`);
-    } catch (e: any) {
+    } catch (e) {
       console.error('Failed to generate report:', e);
-      alert(`Failed to generate report: ${e.message}`);
+      alert(`Failed to generate report: ${e instanceof Error ? e.message : 'Unknown error'}`);
     } finally {
       isGeneratingReport = false;
     }
+  }
+
+  function handleViewEntries(event: CustomEvent) {
+    selectedKpiForEntries = event.detail.kpi;
+    selectedKpiIdForEntries = event.detail.kpiId;
+    isKpiEntriesModalOpen = true;
   }
 
   $: dashboardId = $page.params.id;
@@ -284,15 +335,16 @@
     loading.set(true);
     error.set(null);
     try {
-      const data = await api.getDashboard(dashboardId);
-      if (data.error || !data.data || !data.data.dashboard) {
-        error.set(data.error || 'Invalid dashboard data received.');
-        dashboard.set(null);
+      const response: ApiResponse<{ dashboard: Dashboard }> = await api.getDashboard(parseInt(dashboardId));
+      
+      if (response.success && response.data?.dashboard) {
+        dashboard.set(response.data.dashboard);
       } else {
-        dashboard.set(data.data.dashboard);
+        error.set(response.message || 'Invalid dashboard data received.');
+        dashboard.set(null);
       }
-    } catch (e: any) {
-      error.set('Failed to load dashboard');
+    } catch (e) {
+      error.set(e instanceof Error ? e.message : 'Failed to load dashboard');
       dashboard.set(null);
     }
     loading.set(false);
@@ -306,8 +358,9 @@
     .filter(w => w.kpi_id)
     .map(w => ({ id: w.kpi_id, title: w.title || `KPI ${w.kpi_id}` }))
     .filter((kpi, index, self) => self.findIndex(k => k.id === kpi.id) === index);
+    
   $: widgetsArr = (() => {
-    const layoutData = $dashboard?.layout || $dashboard?.widgets;
+    const layoutData = $dashboard?.layout;
     if (typeof layoutData === 'string') {
       try {
         const parsed = JSON.parse(layoutData);
@@ -348,11 +401,9 @@
 
   $: if ($savedWidget) {
     items = items.map(item => (item.id === $savedWidget.id ? { ...item, ...$savedWidget } : item));
-    $savedWidget = null; // Reset store after processing
+    $savedWidget = null;
   }
 </script>
-
-
 
 <style>
   :global(.svlt-grid-container) {
@@ -415,13 +466,13 @@
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.522 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.478 0-8.268-2.943-9.542 7z" /></svg>
                 Manage Viewers
               </button>
-              <button on:click={() => isUploadModalOpen = true} class="bg-white hover:bg-gray-100 text-blue-900 font-medium py-2 px-4 text-sm rounded-full border border-blue-900 inline-flex items-center justify-center">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                Upload Data
-              </button>
-              <button on:click={generateReport} class="bg-blue-900 hover:bg-blue-800 text-white font-medium py-2 px-4 text-sm rounded-full inline-flex items-center justify-center" disabled={isGeneratingReport}>
+              <button on:click={generateReport} class="bg-white hover:bg-gray-100 text-blue-900 font-medium py-2 px-4 text-sm rounded-full border border-blue-900 inline-flex items-center justify-center" disabled={isGeneratingReport}>
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                 Generate Report
+              </button>
+              <button on:click={() => isUploadModalOpen = true} class="bg-blue-900 hover:bg-blue-800 text-white font-medium py-2 px-4 text-sm rounded-full inline-flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                Upload Data
               </button>
               <button on:click={() => editMode = true} class="bg-blue-900 hover:bg-blue-800 text-white font-medium py-2 px-4 text-sm rounded-full inline-flex items-center justify-center">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z" /></svg>
@@ -434,7 +485,7 @@
     </div>
 
     <div class="mt-8">
-      {#if widgetsArr.length > 0}
+      {#if items.length > 0}
         <div class="svelte-grid-container -mx-2">
           <Grid {cols} bind:items={items} rowHeight={40} let:item let:dataItem let:movePointerDown>
             <div id="widget-container-{dataItem.id}" class="h-full w-full p-2">
@@ -444,6 +495,7 @@
                   {movePointerDown}
                   on:openSettings={(event) => openWidgetSettings(event.detail.widget)}
                   on:remove={(event) => removeWidget(event.detail.id)}
+                  on:viewEntries={handleViewEntries}
                 />
             </div>
           </Grid>
@@ -452,6 +504,25 @@
         <div class="text-center py-12 text-gray-500 bg-gray-50 rounded-lg">
           <h3 class="text-lg font-medium">No widgets yet</h3>
           <p class="mt-1 text-sm">This dashboard doesn't have any widgets configured.</p>
+          {#if isEditor}
+            <div class="mt-6">
+              <button 
+                on:click={() => {
+                  editMode = true;
+                  // Use a small delay to ensure edit mode is set before opening the modal
+                  setTimeout(() => {
+                    addWidget();
+                  }, 100);
+                }} 
+                class="bg-blue-900 hover:bg-blue-800 text-white font-medium py-2 px-4 text-sm rounded-full inline-flex items-center justify-center"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+                Add Your First Widget
+              </button>
+            </div>
+          {/if}
         </div>
       {/if}
     </div>
@@ -461,8 +532,8 @@
 {#if $dashboard}
   <ViewersModal 
     bind:isOpen={isViewersModalOpen} 
-    dashboardId={$dashboard.id}
-    viewers={$dashboard.viewers || []}
+    dashboardId={dashboardId}
+    viewers={[]}
     on:update={fetchDashboard}
   />
 {/if}
@@ -473,4 +544,27 @@
     kpis={kpisForSelect}
     on:update={fetchDashboard}
   />
-{/if} 
+{/if}
+
+<!-- Widget Settings Modal for new widgets -->
+<WidgetSettingsModal
+  bind:show={isWidgetSettingsModalOpen}
+  widget={newWidgetTemplate}
+  on:save={handleWidgetSettingsSave}
+  on:close={() => {
+    isWidgetSettingsModalOpen = false;
+    newWidgetTemplate = null;
+  }}
+/>
+
+<!-- KPI Entries Modal -->
+<KpiEntriesModal
+  bind:isOpen={isKpiEntriesModalOpen}
+  kpi={selectedKpiForEntries}
+  kpiId={selectedKpiIdForEntries}
+  on:close={() => {
+    isKpiEntriesModalOpen = false;
+    selectedKpiForEntries = null;
+    selectedKpiIdForEntries = null;
+  }}
+/> 
