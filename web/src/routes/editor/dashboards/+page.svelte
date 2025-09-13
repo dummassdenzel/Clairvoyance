@@ -2,11 +2,12 @@
   import { onMount, onDestroy } from 'svelte';
   import { writable } from 'svelte/store';
   import * as api from '$lib/services/api';
+  import type { Dashboard, ApiResponse, ShareToken } from '$lib/types';
   import ShareModal from '$lib/components/ShareModal.svelte';
   import CreateDashboardModal from '$lib/components/CreateDashboardModal.svelte';
   import EditDashboardModal from '$lib/components/EditDashboardModal.svelte';
 
-  const dashboards = writable<any[]>([]);
+  const dashboards = writable<Dashboard[]>([]);
   const loading = writable(true);
   const error = writable<string | null>(null);
 
@@ -17,16 +18,21 @@
   let sharingDashboardId: number | null = null;
   let deletingDashboardId: number | null = null;
   let openDropdownId: number | null = null;
-  let editingDashboard: any | null = null;
+  let editingDashboard: Dashboard | null = null;
 
   async function fetchDashboards() {
     loading.set(true);
     error.set(null);
     try {
-      const data = await api.getDashboards();
-      dashboards.set(data.data.dashboards || []);
+      const response: ApiResponse<{ dashboards: Dashboard[] }> = await api.getDashboards();
+      
+      if (response.success && response.data?.dashboards) {
+        dashboards.set(response.data.dashboards);
+      } else {
+        error.set(response.message || 'Failed to load dashboards');
+      }
     } catch (e) {
-      error.set('Failed to load dashboards');
+      error.set(e instanceof Error ? e.message : 'Failed to load dashboards');
     }
     loading.set(false);
   }
@@ -35,7 +41,7 @@
     openDropdownId = openDropdownId === id ? null : id;
   }
 
-  function handleEditClick(dashboard: any) {
+  function handleEditClick(dashboard: Dashboard) {
     editingDashboard = dashboard;
     showEditModal = true;
     openDropdownId = null;
@@ -44,16 +50,18 @@
   async function handleShare(dashboardId: number) {
     sharingDashboardId = dashboardId;
     try {
-      const res = await api.generateShareLink(String(dashboardId));
-      if (res.status === 'success' && res.data.token) {
+      // Use the correct function name and parameters
+      const response: ApiResponse<{ token: ShareToken }> = await api.generateShareToken(dashboardId, '2024-12-31 23:59:59');
+      
+      if (response.success && response.data?.token) {
         const baseUrl = window.location.origin;
-        currentShareLink = `${baseUrl}/viewer/redeem/${res.data.token}`;
+        currentShareLink = `${baseUrl}/viewer/redeem/${response.data.token.token}`;
         showShareModal = true;
       } else {
-        alert(res.message || 'Failed to generate share link.');
+        alert(response.message || 'Failed to generate share link.');
       }
     } catch (err) {
-      alert('An unexpected error occurred while generating the link.');
+      alert(err instanceof Error ? err.message : 'An unexpected error occurred while generating the link.');
     }
     sharingDashboardId = null;
   }
@@ -65,14 +73,15 @@
 
     deletingDashboardId = dashboardId;
     try {
-      const result = await api.deleteDashboard(String(dashboardId));
-      if (result.status === 'success') {
+      const response: ApiResponse = await api.deleteDashboard(dashboardId);
+      
+      if (response.success) {
         dashboards.update(currentDashboards => currentDashboards.filter(d => d.id !== dashboardId));
       } else {
-        alert(result.message || 'Failed to delete dashboard.');
+        alert(response.message || 'Failed to delete dashboard.');
       }
     } catch (err) {
-      alert('An unexpected error occurred while deleting the dashboard.');
+      alert(err instanceof Error ? err.message : 'An unexpected error occurred while deleting the dashboard.');
     } finally {
       deletingDashboardId = null;
     }
@@ -85,7 +94,6 @@
 
     return () => window.removeEventListener('click', handleGlobalClick);
   });
-
 </script>
 
 <svelte:head>
@@ -98,8 +106,13 @@
       <h1 class="text-3xl font-bold text-gray-900">My Dashboards</h1>
       <p class="mt-1 text-sm text-gray-600">Create, manage, and share your KPI dashboards.</p>
     </div>
-    <button on:click={() => showCreateModal = true} class="inline-flex items-center gap-2 justify-center rounded-md border border-transparent bg-blue-900 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" /></svg>
+    <button 
+      on:click={() => showCreateModal = true} 
+      class="inline-flex items-center gap-2 justify-center rounded-md border border-transparent bg-blue-900 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+        <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+      </svg>
       <span>Create Dashboard</span>
     </button>
   </div>
@@ -113,11 +126,11 @@
     </div>
   {:else if $dashboards.length === 0}
     <div class="text-center py-20 px-6 bg-white rounded-lg border-2 border-dashed border-gray-300">
-        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-            <path vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"></path>
-        </svg>
-        <h3 class="mt-2 text-lg font-medium text-gray-900">No dashboards yet</h3>
-        <p class="mt-1 text-sm text-gray-500">Get started by creating a new dashboard.</p>
+      <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+        <path vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"></path>
+      </svg>
+      <h3 class="mt-2 text-lg font-medium text-gray-900">No dashboards yet</h3>
+      <p class="mt-1 text-sm text-gray-500">Get started by creating a new dashboard.</p>
     </div>
   {:else}
     <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3">
@@ -133,21 +146,48 @@
               <button 
                 on:click|stopPropagation={() => toggleDropdown(dash.id)} 
                 aria-label="Dashboard options"
-                class="p-1 rounded-full hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-600" viewBox="0 0 20 20" fill="currentColor"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" /></svg>
+                class="p-1 rounded-full hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-600" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                </svg>
               </button>
               {#if openDropdownId === dash.id}
-                <div on:click|stopPropagation on:keydown={() => {}} role="menu" tabindex="-1" class="absolute right-0 bottom-full mb-2 w-48 bg-white rounded-md shadow-lg z-20 border border-gray-200">
-                  <button on:click={() => handleEditClick(dash)} class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-3">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" /></svg>
+                <div 
+                  on:click|stopPropagation 
+                  on:keydown={() => {}} 
+                  role="menu" 
+                  tabindex="-1" 
+                  class="absolute right-0 bottom-full mb-2 w-48 bg-white rounded-md shadow-lg z-20 border border-gray-200"
+                >
+                  <button 
+                    on:click={() => handleEditClick(dash)} 
+                    class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-3"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
+                      <path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" />
+                    </svg>
                     <span>Edit</span>
                   </button>
-                  <button on:click={() => { handleShare(dash.id); openDropdownId = null; }} disabled={sharingDashboardId === dash.id} class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-3 disabled:opacity-50">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" /></svg>
+                  <button 
+                    on:click={() => { handleShare(dash.id); openDropdownId = null; }} 
+                    disabled={sharingDashboardId === dash.id} 
+                    class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-3 disabled:opacity-50"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" />
+                    </svg>
                     <span>{sharingDashboardId === dash.id ? 'Sharing...' : 'Share'}</span>
                   </button>
-                  <button on:click={() => { handleDelete(dash.id); openDropdownId = null; }} disabled={deletingDashboardId === dash.id} class="w-full text-left px-4 py-2 text-sm text-red-700 hover:bg-red-50 flex items-center gap-3 disabled:opacity-50">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
+                  <button 
+                    on:click={() => { handleDelete(dash.id); openDropdownId = null; }} 
+                    disabled={deletingDashboardId === dash.id} 
+                    class="w-full text-left px-4 py-2 text-sm text-red-700 hover:bg-red-50 flex items-center gap-3 disabled:opacity-50"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                      <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+                    </svg>
                     <span>{deletingDashboardId === dash.id ? 'Deleting...' : 'Delete'}</span>
                   </button>
                 </div>

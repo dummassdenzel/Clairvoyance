@@ -62,9 +62,5 @@ class Application
         $this->container->bind(\Services\KpiService::class, \Services\KpiService::class);
         $this->container->bind(\Services\KpiEntryService::class, \Services\KpiEntryService::class);
         $this->container->bind(\Services\ShareTokenService::class, \Services\ShareTokenService::class);
-
-        // Register utilities
-        $this->container->bind(\Utils\Response::class, \Utils\Response::class);
-        $this->container->bind(\Utils\Validator::class, \Utils\Validator::class);
     }
 }

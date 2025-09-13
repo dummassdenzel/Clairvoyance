@@ -30,9 +30,27 @@ date_default_timezone_set('Asia/Manila');
 set_time_limit(1000);
 
 // Handle CORS for API requests
-header('Access-Control-Allow-Origin: *');
+$origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+$allowedOrigins = [
+    'http://localhost:5173',  // SvelteKit dev server
+    'http://localhost:3000',  // Alternative dev port
+    'http://127.0.0.1:5173',
+    'http://127.0.0.1:3000',
+    'http://localhost',       // XAMPP default
+    'http://127.0.0.1'
+];
+
+if (in_array($origin, $allowedOrigins)) {
+    header("Access-Control-Allow-Origin: $origin");
+    header('Access-Control-Allow-Credentials: true');
+} else {
+    // For development, allow all origins
+    header('Access-Control-Allow-Origin: *');
+}
+
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization');
+header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
+header('Access-Control-Max-Age: 86400'); // Cache preflight for 24 hours
 
 // Handle preflight requests
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {

@@ -48,7 +48,7 @@
       
       <div class="relative">
         <label for="email" class="text-sm font-medium text-gray-700 sr-only">Email</label>
-                <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+        <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
             <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
           </svg>
@@ -65,7 +65,7 @@
 
       <div class="relative">
         <label for="password" class="text-sm font-medium text-gray-700 sr-only">Password</label>
-                <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+        <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
           </svg>

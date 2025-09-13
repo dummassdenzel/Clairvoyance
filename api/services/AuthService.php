@@ -18,7 +18,6 @@ class AuthService
         $result = $this->userModel->authenticate($email, $password);
         
         if ($result['success']) {
-            session_start();
             $_SESSION['user'] = $result['user'];
             return ['success' => true, 'user' => $result['user']];
         }
@@ -28,7 +27,6 @@ class AuthService
 
     public function logout(): void
     {
-        session_start();
         session_destroy();
     }
 

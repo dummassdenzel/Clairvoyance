@@ -3,18 +3,19 @@
   import { user } from '$lib/stores/auth';
   import { writable } from 'svelte/store';
   import * as api from '$lib/services/api';
+  import type { Kpi, ApiResponse } from '$lib/types';
   import CreateKpiModal from '$lib/components/CreateKpiModal.svelte';
   import ConfirmModal from '$lib/components/ConfirmModal.svelte';
   import EditKpiModal from '$lib/components/EditKpiModal.svelte';
 
-  const kpis = writable<any[]>([]);
+  const kpis = writable<Kpi[]>([]);
   const loading = writable(true);
   const error = writable<string | null>(null);
   let showCreateModal = false;
   let showDeleteConfirm = false;
-  let kpiToDelete: any = null;
+  let kpiToDelete: Kpi | null = null;
   let showEditModal = false;
-  let kpiToEdit: any = null;
+  let kpiToEdit: Kpi | null = null;
 
   $: isEditor = $user?.role === 'editor';
 
@@ -22,14 +23,16 @@
     loading.set(true);
     error.set(null);
     try {
-      const result = await api.getKpis();
-      if (result.status === 'success') {
-        kpis.set(result.data || []);
+      const response: ApiResponse<{ kpis: Kpi[] }> = await api.getKpis();
+      
+      if (response.success) {
+        // Always set the KPIs array, even if it's empty
+        kpis.set(response.data?.kpis || []);
       } else {
-        error.set(result.message || 'Failed to load KPIs');
+        error.set(response.message || 'Failed to load KPIs');
       }
     } catch (e) {
-      error.set('An unexpected error occurred while fetching KPIs.');
+      error.set(e instanceof Error ? e.message : 'An unexpected error occurred while fetching KPIs.');
     }
     loading.set(false);
   }
@@ -42,17 +45,18 @@
     if (!kpiToDelete) return;
 
     try {
-      const result = await api.deleteKpi(kpiToDelete.id);
-      if (result.status === 'success') {
+      const response: ApiResponse = await api.deleteKpi(kpiToDelete.id);
+      
+      if (response.success) {
         // On success, remove the KPI from the local list
-        kpis.update(currentKpis => currentKpis.filter(k => k.id !== kpiToDelete.id));
+        kpis.update(currentKpis => currentKpis.filter(k => k.id !== kpiToDelete!.id));
       } else {
         // If the API returns an error, show it
-        error.set(result.message || 'Failed to delete KPI.');
+        error.set(response.message || 'Failed to delete KPI.');
       }
-    } catch (e: any) {
+    } catch (e) {
       // Handle unexpected network errors
-      error.set(e.message || 'An unexpected error occurred.');
+      error.set(e instanceof Error ? e.message : 'An unexpected error occurred.');
     } finally {
       // Close modal and reset state
       showDeleteConfirm = false;
@@ -60,12 +64,12 @@
     }
   }
 
-  function handleDelete(kpi: any) {
+  function handleDelete(kpi: Kpi) {
     kpiToDelete = kpi;
     showDeleteConfirm = true;
   }
 
-  function handleEdit(kpi: any) {
+  function handleEdit(kpi: Kpi) {
     kpiToEdit = kpi;
     showEditModal = true;
   }
@@ -89,53 +93,128 @@
   on:close={() => (showDeleteConfirm = false)}
 />
 
-<div class="container mx-auto">
-  <div class="flex justify-between items-center mb-6">
-    <h1 class="text-3xl font-bold">KPI Management</h1>
+<div class="space-y-8">
+  <div class="flex justify-between items-center">
+    <div>
+      <h1 class="text-3xl font-bold text-gray-900">KPI Management</h1>
+      <p class="mt-1 text-sm text-gray-600">Create, manage, and track your Key Performance Indicators.</p>
+    </div>
     {#if isEditor}
-      <button on:click={() => (showCreateModal = true)} class="inline-flex items-center gap-2 bg-blue-900 text-sm hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" /></svg>
-        Create KPI
+      <button 
+        on:click={() => (showCreateModal = true)} 
+        class="inline-flex items-center gap-2 justify-center rounded-md border border-transparent bg-blue-900 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+        </svg>
+        <span>Create KPI</span>
       </button>
     {/if}
   </div>
 
   {#if $loading}
-    <div>Loading...</div>
+    <div class="text-center py-12 text-gray-500">Loading KPIs...</div>
   {:else if $error}
-    <div class="text-red-500">{$error}</div>
-  {:else if !$user}
-    <div class="text-gray-600">Please log in to view KPIs.</div>
-  {:else}
-    <div class="bg-white shadow-md rounded-lg overflow-hidden">
-      <table class="min-w-full divide-y divide-gray-200">
-        <thead class="bg-gray-50">
-          <tr>
-            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Target</th>
-            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">RAG Red</th>
-            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">RAG Amber</th>
-            <th scope="col" class="relative px-6 py-3">
-              <span class="sr-only">Actions</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody class="bg-white divide-y divide-gray-200">
-          {#each $kpis as kpi (kpi.id)}
-            <tr>
-              <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{kpi.name}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{kpi.target}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{kpi.rag_red}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{kpi.rag_amber}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                <button on:click={() => handleEdit(kpi)} class="text-indigo-600 hover:text-indigo-900">Edit</button>
-                <button on:click={() => handleDelete(kpi)} class="text-red-600 hover:text-red-900 ml-4">Delete</button>
-              </td>
-            </tr>
-          {/each}
-        </tbody>
-      </table>
+    <div class="bg-red-50 border-l-4 border-red-400 text-red-700 p-4" role="alert">
+      <p class="font-bold">Error</p>
+      <p>{$error}</p>
     </div>
-
+  {:else if !$user}
+    <div class="text-center py-12 text-gray-600">Please log in to view KPIs.</div>
+  {:else if $kpis.length === 0}
+    <div class="text-center py-20 px-6 bg-white rounded-lg border-2 border-dashed border-gray-300">
+      <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+        <path vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+      </svg>
+      <h3 class="mt-2 text-lg font-medium text-gray-900">No KPIs yet</h3>
+      <p class="mt-1 text-sm text-gray-500">Get started by creating your first KPI to track performance.</p>
+      {#if isEditor}
+        <div class="mt-6">
+          <button 
+            on:click={() => (showCreateModal = true)} 
+            class="inline-flex items-center gap-2 justify-center rounded-md border border-transparent bg-blue-900 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+            </svg>
+            <span>Create Your First KPI</span>
+          </button>
+        </div>
+      {/if}
+    </div>
+  {:else}
+    <div class="bg-white shadow-sm rounded-lg overflow-hidden border border-gray-200">
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50">
+            <tr>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Name
+              </th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Direction
+              </th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Target
+              </th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                RAG Red
+              </th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                RAG Amber
+              </th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Format
+              </th>
+              <th scope="col" class="relative px-6 py-3">
+                <span class="sr-only">Actions</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody class="bg-white divide-y divide-gray-200">
+            {#each $kpis as kpi (kpi.id)}
+              <tr class="hover:bg-gray-50">
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <div class="text-sm font-medium text-gray-900">{kpi.name}</div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {kpi.direction === 'higher_is_better' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
+                    {kpi.direction === 'higher_is_better' ? 'Higher is Better' : 'Lower is Better'}
+                  </span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  {kpi.format_prefix || ''}{kpi.target}{kpi.format_suffix || ''}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  {kpi.format_prefix || ''}{kpi.rag_red}{kpi.format_suffix || ''}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  {kpi.format_prefix || ''}{kpi.rag_amber}{kpi.format_suffix || ''}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {kpi.format_prefix || ''}{kpi.format_suffix || '' || 'None'}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                  <div class="flex items-center justify-end space-x-2">
+                    <button 
+                      on:click={() => handleEdit(kpi)} 
+                      class="text-indigo-600 hover:text-indigo-900 font-medium"
+                    >
+                      Edit
+                    </button>
+                    <button 
+                      on:click={() => handleDelete(kpi)} 
+                      class="text-red-600 hover:text-red-900 font-medium"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
+    </div>
   {/if}
 </div> 
