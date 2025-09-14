@@ -8,7 +8,6 @@
   import DashboardWidget from '$lib/components/DashboardWidget.svelte';
   
   import ViewersModal from '$lib/components/ViewersModal.svelte';
-  import UploadKpiModal from '$lib/components/UploadKpiModal.svelte';
   import WidgetSettingsModal from '$lib/components/WidgetSettingsModal.svelte';
   import KpiEntriesModal from '$lib/components/KpiEntriesModal.svelte';
   import Grid from 'svelte-grid';
@@ -31,7 +30,6 @@
   const error = writable<string | null>(null);
 
   let isViewersModalOpen = false;
-  let isUploadModalOpen = false;
   let isWidgetSettingsModalOpen = false;
   let isKpiEntriesModalOpen = false;
   let editMode = false;
@@ -196,129 +194,263 @@
       }
       
       const reportData = response.data;
+      
+      // Check if we have any widgets to report on
+      if (!reportData.widgets || reportData.widgets.length === 0) {
+        alert('No widgets found in this dashboard to generate a report.');
+        return;
+      }
+      
       const doc = new jsPDF('p', 'mm', 'a4');
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
       const margin = 15;
       const contentWidth = pageWidth - margin * 2;
 
-      const addHeader = (title: string) => {
-        doc.setFontSize(10);
-        doc.setTextColor(100);
-        doc.text(title, margin, 10);
-        doc.setDrawColor(200);
-        doc.line(margin, 12, pageWidth - margin, 12);
+      // Helper functions
+      const addHeader = (title: string, pageNumber?: number) => {
+        // Add logo and company name
+        try {
+          // Load the logo image
+          const logoImg = new Image();
+          logoImg.src = '/clairvoyance-logo.png';
+          
+          // Add logo (we'll handle this in the actual rendering)
+          doc.setFontSize(10);
+          doc.setTextColor(100);
+          doc.text(title, margin, 10);
+          if (pageNumber) {
+            doc.text(`Page ${pageNumber}`, pageWidth - margin, 10, { align: 'right' });
+          }
+          doc.setDrawColor(200);
+          doc.line(margin, 12, pageWidth - margin, 12);
+        } catch (e) {
+          console.warn('Could not load logo:', e);
+          // Fallback without logo
+          doc.setFontSize(10);
+          doc.setTextColor(100);
+          doc.text(title, margin, 10);
+          if (pageNumber) {
+            doc.text(`Page ${pageNumber}`, pageWidth - margin, 10, { align: 'right' });
+          }
+          doc.setDrawColor(200);
+          doc.line(margin, 12, pageWidth - margin, 12);
+        }
       };
 
       const addFooter = (pageNumber: number) => {
-        doc.setFontSize(10);
-        doc.setTextColor(100);
-        doc.text(`Page ${pageNumber}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
-        doc.text(`Generated on: ${new Date().toLocaleDateString()}`, pageWidth - margin, pageHeight - 10, { align: 'right' });
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(150);
+        doc.text(`Generated on: ${new Date().toLocaleString()}`, margin, pageHeight - 10);
+        doc.text(`Dashboard Report - ${reportData.name}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+        doc.text(`Page ${pageNumber}`, pageWidth - margin, pageHeight - 10, { align: 'right' });
       };
 
-      // --- Cover Page ---
-      doc.setFontSize(32);
-      doc.setFont('helvetica', 'bold');
-      doc.text(reportData.name, pageWidth / 2, 80, { align: 'center' });
-      
-      doc.setFontSize(14);
-      doc.setFont('helvetica', 'normal');
-      if (reportData.description) {
-        const descLines = doc.splitTextToSize(reportData.description, contentWidth);
-        doc.text(descLines, pageWidth / 2, 100, { align: 'center' });
-      }
-
-      doc.setFontSize(12);
-      doc.setTextColor(150);
-      doc.text(`Generated on: ${new Date().toLocaleString()}`, pageWidth / 2, pageHeight - 30, { align: 'center' });
-
-      // --- Widgets Pages ---
-      if (reportData.widgets && reportData.widgets.length > 0) {
-        doc.addPage();
-        let currentPage = 2;
-        addHeader(reportData.name);
-        addFooter(currentPage);
+      // --- Enhanced Cover Page with Logo ---
+      // Add logo and company branding
+      try {
+        const logoImg = new Image();
+        logoImg.src = '/clairvoyance-logo.png';
         
-        const colWidth = (contentWidth - 10) / 2;
-        const chartX = margin;
-        const tableX = margin + colWidth + 10;
-        let yPos = 25;
-
-        const widgetRenderInfo = [];
-
-        // --- PASS 1: RENDER CHARTS AND RECORD POSITIONS ---
-        for (const widget of reportData.widgets) {
-          const element = document.getElementById(`widget-container-${widget.id}`);
-          if (!element) continue;
-
-          const originalBg = element.style.backgroundColor;
-          element.style.backgroundColor = 'white';
-          const canvas = await html2canvas(element, { scale: 2, logging: false, useCORS: true });
-          element.style.backgroundColor = originalBg;
-
-          const imgData = canvas.toDataURL('image/png');
-          const imgProps = doc.getImageProperties(imgData);
-          let imgHeight = (imgProps.height * colWidth) / imgProps.width;
-          const maxImgHeight = 90;
-          if (imgHeight > maxImgHeight) {
-            imgHeight = maxImgHeight;
+        // Wait for logo to load
+        await new Promise((resolve) => {
+          if (logoImg.complete) {
+            resolve(true);
+          } else {
+            logoImg.onload = () => resolve(true);
+            logoImg.onerror = () => resolve(false);
           }
+        });
 
-          const widgetHeightWithPadding = 7 + imgHeight + 10;
-
-          if (yPos + widgetHeightWithPadding > pageHeight - 20 && yPos > 25) {
-            doc.addPage();
-            currentPage++;
-            addHeader(reportData.name);
-            addFooter(currentPage);
-            yPos = 25;
-          }
-
-          widgetRenderInfo.push({ widget, imgData, imgHeight, page: currentPage, y: yPos });
-
-          doc.setPage(currentPage);
-          doc.setFontSize(14);
-          doc.setFont('helvetica', 'bold');
-          doc.text(widget.title, chartX, yPos);
-          doc.addImage(imgData, 'PNG', chartX, yPos + 7, colWidth, imgHeight);
-          
-          yPos += widgetHeightWithPadding;
-        }
-
-        const totalPagesAfterCharts = (doc.internal as any).getNumberOfPages();
-
-        // --- PASS 2: RENDER TABLES NEXT TO CHARTS ---
-        for (const info of widgetRenderInfo) {
-          if (info.widget.kpi_data && info.widget.kpi_data.length > 0) {
-            doc.setPage(info.page);
-            
-            const autoTableDoc = doc as any;
-            autoTable(autoTableDoc, {
-              head: [['Date', 'Value']],
-              body: info.widget.kpi_data.map((d: any) => [d.date, d.value]),
-              startY: info.y + 7,
-              theme: 'grid',
-              styles: { fontSize: 7, cellPadding: 1.5, overflow: 'linebreak' },
-              headStyles: { fillColor: '#1e40af', fontSize: 8 },
-              margin: { left: tableX, right: pageWidth - (tableX + colWidth) },
-              didDrawPage: (data) => {
-                if (data.pageNumber > totalPagesAfterCharts) {
-                  addHeader(reportData.name);
-                  addFooter(data.pageNumber);
-                }
-              },
-            });
-          }
-        }
+        // Add logo (20mm height, maintain aspect ratio)
+        const logoHeight = 20;
+        const logoWidth = (logoImg.width / logoImg.height) * logoHeight;
+        const logoX = margin;
+        const logoY = 20;
+        
+        doc.addImage(logoImg.src, 'PNG', logoX, logoY, logoWidth, logoHeight);
+        
+        // Add company name next to logo
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(16);
+        doc.setTextColor(31, 41, 55);
+        doc.text('Clairvoyance', logoX + logoWidth, logoY + logoHeight/2 + 2);
+        
+      } catch (e) {
+        console.warn('Could not add logo to cover page:', e);
+        // Fallback: just add company name
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(16);
+        doc.setTextColor(30, 64, 175);
+        doc.text('Clairvoyance', margin, 30);
       }
 
-      doc.save(`${reportData.name.replace(/\s/g, '_')}_Report.pdf`);
+      // Dashboard title
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(36);
+      doc.setTextColor(30, 58, 138);
+      doc.text(reportData.name, pageWidth / 2, 70, { align: 'center' });
+      
+      // Dashboard description
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(12);
+      doc.setTextColor(75, 85, 99);
+      if (reportData.description) {
+        const descLines = doc.splitTextToSize(reportData.description, contentWidth - 40);
+        doc.text(descLines, pageWidth / 2, 80, { align: 'center' });
+      }
+
+      // Add a summary box
+      doc.setFillColor(249, 250, 251);
+      doc.rect(margin, 110, contentWidth, 40, 'F');
+      doc.setDrawColor(229, 231, 235);
+      doc.rect(margin, 110, contentWidth, 40, 'S');
+      
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.setTextColor(30, 58, 138);
+      doc.text('Report Summary', margin + 5, 120);
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor(75, 85, 99);
+      doc.text(`Total Widgets: ${reportData.widgets.length}`, margin + 5, 130);
+      doc.text(`Generated: ${new Date().toLocaleDateString()}`, margin + 5, 135);
+      doc.text(`Dashboard ID: ${dashboardId}`, margin + 5, 140);
+
+      // Add a decorative line
+      doc.setDrawColor(30, 58, 138);
+      doc.setLineWidth(2);
+      doc.line(margin, 160, pageWidth - margin, 160);
+
+      // --- Enhanced Widgets Pages ---
+      doc.addPage();
+      let currentPage = 2;
+      addHeader(reportData.name, currentPage);
+      addFooter(currentPage);
+      
+      let yPos = 25;
+      const widgetSpacing = 8;
+      const maxWidgetHeight = 75; // Reduced to fit more widgets per page
+
+      // Group widgets by type for better layout
+      const chartWidgets = reportData.widgets.filter((w:any) => ['line', 'bar', 'pie', 'doughnut'].includes(w.type));
+      const valueWidgets = reportData.widgets.filter((w:any) => w.type === 'single-value');
+
+      // Render value widgets first (they're smaller and can fit more per page)
+      for (const widget of valueWidgets) {
+        const element = document.getElementById(`widget-container-${widget.id}`);
+        if (!element) {
+          console.warn(`Widget container not found for widget ${widget.id}`);
+          continue;
+        }
+
+        // Check if we need a new page
+        if (yPos + maxWidgetHeight > pageHeight - 30) {
+          doc.addPage();
+          currentPage++;
+          addHeader(reportData.name, currentPage);
+          addFooter(currentPage);
+          yPos = 25;
+        }
+
+        // Render widget with enhanced styling
+        await renderWidgetToPDF(doc, element, widget, margin, yPos, contentWidth, maxWidgetHeight);
+        yPos += maxWidgetHeight + widgetSpacing;
+      }
+
+      // Render chart widgets (they need more space)
+      for (const widget of chartWidgets) {
+        const element = document.getElementById(`widget-container-${widget.id}`);
+        if (!element) {
+          console.warn(`Widget container not found for widget ${widget.id}`);
+          continue;
+        }
+
+        // Check if we need a new page
+        if (yPos + maxWidgetHeight > pageHeight - 30) {
+          doc.addPage();
+          currentPage++;
+          addHeader(reportData.name, currentPage);
+          addFooter(currentPage);
+          yPos = 25;
+        }
+
+        // Render widget with enhanced styling
+        await renderWidgetToPDF(doc, element, widget, margin, yPos, contentWidth, maxWidgetHeight);
+        yPos += maxWidgetHeight + widgetSpacing;
+      }
+
+      doc.save(`${reportData.name.replace(/\s/g, '_')}_Report_${new Date().toISOString().split('T')[0]}.pdf`);
     } catch (e) {
       console.error('Failed to generate report:', e);
       alert(`Failed to generate report: ${e instanceof Error ? e.message : 'Unknown error'}`);
     } finally {
       isGeneratingReport = false;
+    }
+  }
+
+  // Enhanced helper function to render individual widgets to PDF
+  async function renderWidgetToPDF(doc: any, element: HTMLElement, widget: any, x: number, y: number, width: number, maxHeight: number) {
+    // Add widget title with consistent Helvetica font
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    doc.setTextColor(30, 58, 138);
+    doc.text(widget.title || `Widget ${widget.id}`, x, y);
+    
+    // Add widget type badge
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(75, 85, 99);
+    doc.text(`Type: ${widget.type}`, x + width - 30, y);
+    
+    // Add a subtle border around the widget area
+    doc.setDrawColor(229, 231, 235);
+    doc.setLineWidth(0.5);
+    doc.rect(x, y + 2, width, maxHeight - 5, 'S');
+
+    // Capture widget screenshot
+    const originalBg = element.style.backgroundColor;
+    element.style.backgroundColor = 'white';
+    const canvas = await html2canvas(element, { 
+      scale: 2, 
+      logging: false, 
+      useCORS: true,
+      backgroundColor: '#ffffff'
+    });
+    element.style.backgroundColor = originalBg;
+
+    const imgData = canvas.toDataURL('image/png');
+    const imgProps = doc.getImageProperties(imgData);
+    
+    // Calculate optimal image dimensions - better space utilization
+    const aspectRatio = imgProps.width / imgProps.height;
+    let imgWidth = width - 10; // Leave some padding
+    let imgHeight = imgWidth / aspectRatio;
+    
+    // Ensure image fits within max height but try to use more space
+    if (imgHeight > maxHeight - 20) {
+      imgHeight = maxHeight - 20;
+      imgWidth = imgHeight * aspectRatio;
+    }
+    
+    // Center the image horizontally
+    const imgX = x + (width - imgWidth) / 2;
+    const imgY = y + 8;
+    
+    doc.addImage(imgData, 'PNG', imgX, imgY, imgWidth, imgHeight);
+    
+    // Add widget metadata at the bottom with consistent font
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(107, 114, 128);
+    const metadataY = y + maxHeight - 8;
+    if (widget.kpi_id) {
+      doc.text(`KPI ID: ${widget.kpi_id}`, x + 5, metadataY);
+    }
+    if (widget.aggregation) {
+      doc.text(`Aggregation: ${widget.aggregation}`, x + width - 50, metadataY);
     }
   }
 
@@ -359,11 +491,6 @@
     fetchDashboard();
   });
 
-  $: kpisForSelect = widgetsArr
-    .filter(w => w.kpi_id)
-    .map(w => ({ id: w.kpi_id, title: w.title || `KPI ${w.kpi_id}` }))
-    .filter((kpi, index, self) => self.findIndex(k => k.id === kpi.id) === index);
-    
   $: widgetsArr = (() => {
     const layoutData = $dashboard?.layout;
     if (typeof layoutData === 'string') {
@@ -454,13 +581,13 @@
         {#if isEditor}
           <div class="flex items-center space-x-2">
             {#if editMode}
+            <button on:click={handleCancel} class="bg-white hover:bg-gray-100 text-blue-900 font-medium py-2 px-4 text-sm rounded-full border border-blue-900 inline-flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+              Cancel
+            </button>
               <button on:click={addWidget} class="bg-blue-900 hover:bg-blue-800 text-white font-medium py-2 px-4 text-sm rounded-full inline-flex items-center justify-center">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
                 Add Widget
-              </button>
-              <button on:click={handleCancel} class="bg-white hover:bg-gray-100 text-blue-900 font-medium py-2 px-4 text-sm rounded-full border border-blue-900 inline-flex items-center justify-center">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                Cancel
               </button>
               <button on:click={handleSave} class="bg-blue-900 hover:bg-blue-800 text-white font-medium py-2 px-4 text-sm rounded-full inline-flex items-center justify-center">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
@@ -474,10 +601,6 @@
               <button on:click={generateReport} class="bg-white hover:bg-gray-100 text-blue-900 font-medium py-2 px-4 text-sm rounded-full border border-blue-900 inline-flex items-center justify-center" disabled={isGeneratingReport}>
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                 Generate Report
-              </button>
-              <button on:click={() => isUploadModalOpen = true} class="bg-blue-900 hover:bg-blue-800 text-white font-medium py-2 px-4 text-sm rounded-full inline-flex items-center justify-center">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                Upload Data
               </button>
               <button on:click={() => editMode = true} class="bg-blue-900 hover:bg-blue-800 text-white font-medium py-2 px-4 text-sm rounded-full inline-flex items-center justify-center">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z" /></svg>
@@ -539,14 +662,6 @@
     bind:isOpen={isViewersModalOpen} 
     dashboardId={dashboardId}
     viewers={[]}
-    on:update={fetchDashboard}
-  />
-{/if}
-
-{#if $dashboard}
-  <UploadKpiModal on:success={fetchDashboard}
-    bind:isOpen={isUploadModalOpen}
-    kpis={kpisForSelect}
     on:update={fetchDashboard}
   />
 {/if}

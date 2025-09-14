@@ -20,6 +20,7 @@
   let isEditEntryModalOpen = false;
   let selectedEntry: KpiEntry | null = null;
   let deletingEntryId: number | null = null;
+  let sortOrder: 'asc' | 'desc' = 'desc'; // Default to descending (newest first)
 
   function closeModal() {
     isOpen = false;
@@ -174,6 +175,22 @@
     });
   }
 
+  function toggleSortOrder() {
+    sortOrder = sortOrder === 'asc' ? 'desc' : 'asc';
+  }
+
+  function getSortedEntries(): KpiEntry[] {
+    return [...entries].sort((a, b) => {
+      const dateA = new Date(a.date).getTime();
+      const dateB = new Date(b.date).getTime();
+      return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
+    });
+  }
+
+  function getTotalValue(): number {
+    return entries.reduce((sum, entry) => sum + Number(entry.value), 0);
+  }
+
   $: if (isOpen && kpiId) {
     loadEntries();
   }
@@ -214,49 +231,74 @@
         <!-- Date Range Controls -->
         <div class="mb-6">
           <div class="flex flex-wrap gap-2 mb-4 justify-between">
-            <div>
-            <button 
-              on:click={() => setDateRange('all')} 
-              class="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-100 {!startDate && !endDate ? 'bg-blue-100 border-blue-300' : ''}"
-            >
-              All Time
-            </button>
-            <button 
-              on:click={() => setDateRange('7d')} 
-              class="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-100 {startDate && endDate ? 'bg-blue-100 border-blue-300' : ''}"
-            >
-              Last 7 Days
-            </button>
-            <button 
-              on:click={() => setDateRange('30d')} 
-              class="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-100"
-            >
-              Last 30 Days
-            </button>
-            <button 
-              on:click={() => setDateRange('month')} 
-              class="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-100"
-            >
-              This Month
-            </button>
-            <button 
-              on:click={() => setDateRange('ytd')} 
-              class="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-100"
-            >
-              Year to Date
-            </button>
+            <div class="flex items-center space-x-2">
+              <div class="flex gap-2">
+                <button 
+                  on:click={() => setDateRange('all')} 
+                  class="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-100 {!startDate && !endDate ? 'bg-blue-100 border-blue-300' : ''}"
+                >
+                  All Time
+                </button>
+                <button 
+                  on:click={() => setDateRange('7d')} 
+                  class="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-100 {startDate && endDate ? 'bg-blue-100 border-blue-300' : ''}"
+                >
+                  Last 7 Days
+                </button>
+                <button 
+                  on:click={() => setDateRange('30d')} 
+                  class="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-100"
+                >
+                  Last 30 Days
+                </button>
+                <button 
+                  on:click={() => setDateRange('month')} 
+                  class="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-100"
+                >
+                  This Month
+                </button>
+                <button 
+                  on:click={() => setDateRange('ytd')} 
+                  class="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-100"
+                >
+                  Year to Date
+                </button>
+              </div>
+              
+              <!-- Sort Toggle -->
+              <div class="flex items-center space-x-2 ml-4">
+                <span class="text-sm text-gray-600">Sort:</span>
+                <button 
+                  on:click={toggleSortOrder}
+                  class="flex items-center space-x-1 px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-100 bg-blue-50 border-blue-300"
+                  title={`Sort ${sortOrder === 'asc' ? 'Ascending' : 'Descending'}`}
+                >
+                  {#if sortOrder === 'asc'}
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+                    </svg>
+                    <span>Ascending</span>
+                  {:else}
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h13M3 8h9m-9 4h9m5-4v12m0 0l-4-4m4 4l4-4" />
+                    </svg>
+                    <span>Descending</span>
+                  {/if}
+                </button>
+              </div>
             </div>
 
-            <div><button 
-            on:click={() => isAddEntryModalOpen = true}
-            class="bg-blue-900 hover:bg-blue-800 text-white font-medium py-1 px-4 text-sm rounded-md inline-flex items-center"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-            </svg>
-            Add Entry
-          </button></div>
-            
+            <div>
+              <button 
+                on:click={() => isAddEntryModalOpen = true}
+                class="bg-blue-900 hover:bg-blue-800 text-white font-medium py-1 px-4 text-sm rounded-md inline-flex items-center"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+                Add Entry
+              </button>
+            </div>
           </div>
           
           <div class="grid grid-cols-2 gap-4">
@@ -323,10 +365,11 @@
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Value</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
-                  {#each entries as entry}
+                  {#each getSortedEntries() as entry}
                     <tr class="hover:bg-gray-50">
                       <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {new Date(entry.date).toLocaleDateString()}
@@ -361,19 +404,31 @@
                         </span>
                       </td>
                       <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <div class="flex items-center space-x-2">
+                        <div class="flex items-center justify-end space-x-2">
                           <button
                             on:click={() => editEntry(entry)}
-                            class="text-blue-600 hover:text-blue-900 text-sm"
+                            class="text-blue-600 hover:text-blue-900 p-1 rounded-md hover:bg-blue-50"
+                            title="Edit entry"
                           >
-                            Edit
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
                           </button>
                           <button
                             on:click={() => deleteEntry(entry.id)}
                             disabled={deletingEntryId === entry.id}
-                            class="text-red-600 hover:text-red-900 text-sm disabled:opacity-50"
+                            class="text-red-600 hover:text-red-900 p-1 rounded-md hover:bg-red-50 disabled:opacity-50"
+                            title="Delete entry"
                           >
-                            {deletingEntryId === entry.id ? 'Deleting...' : 'Delete'}
+                            {#if deletingEntryId === entry.id}
+                              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                              </svg>
+                            {:else}
+                              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            {/if}
                           </button>
                         </div>
                       </td>
@@ -388,10 +443,14 @@
         <!-- Summary Stats -->
         {#if entries.length > 0}
           <div class="mt-6 pt-6 border-t border-gray-200">
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
               <div class="text-center">
                 <p class="text-2xl font-bold text-gray-900">{entries.length}</p>
                 <p class="text-sm text-gray-500">Total Entries</p>
+              </div>
+              <div class="text-center">
+                <p class="text-2xl font-bold text-blue-900">{formatValue(getTotalValue())}</p>
+                <p class="text-sm text-gray-500">Total Value</p>
               </div>
               <div class="text-center">
                 <p class="text-2xl font-bold text-blue-900">{formatValue(Math.max(...entries.map(e => Number(e.value))))}</p>

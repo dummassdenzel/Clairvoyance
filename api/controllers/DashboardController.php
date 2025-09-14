@@ -261,12 +261,40 @@ class DashboardController extends BaseController
         try {
             $this->authService->requireAuth();
             
-            // Note: This method needs to be implemented in DashboardService
-            // For now, we'll return a placeholder response
+            if (!$id) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'Missing dashboard ID'
+                ], 400);
+                return;
+            }
+
+            $currentUser = $this->getCurrentUser();
+            
+            $dashboard = $this->dashboardService->get($currentUser, $id);
+            
+            // Parse the layout to get widget information
+            $layout = [];
+            if (isset($dashboard['layout'])) {
+                $layoutData = $dashboard['layout'];
+                if (is_string($layoutData)) {
+                    $layout = json_decode($layoutData, true) ?: [];
+                } elseif (is_array($layoutData)) {
+                    $layout = $layoutData;
+                }
+            }
+
+            // Prepare report data structure
+            $reportData = [
+                'name' => $dashboard['name'],
+                'description' => $dashboard['description'] ?? '',
+                'widgets' => $layout
+            ];
+
             $this->jsonResponse([
                 'success' => true,
                 'message' => 'Report data retrieved successfully',
-                'data' => ['report_data' => []]
+                'data' => $reportData
             ]);
 
         } catch (\Exception $e) {
