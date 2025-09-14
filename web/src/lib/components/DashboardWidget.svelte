@@ -19,6 +19,7 @@
   let kpiData: { labels: string[]; values: number[] } | null = null;
   let kpiDetails: Kpi | null = null;
   let aggregateValue: number | null = null;
+  let dateRange: { start?: string; end?: string } | null = null; // Add date range tracking
   let isLoading = true;
   let error: string | null = null;
   let canvasElement: HTMLCanvasElement;
@@ -57,6 +58,9 @@
           const valueData = dataResult.data as { value: number };
           aggregateValue = valueData.value !== null ? Number(valueData.value) : null;
           kpiData = null;
+          
+          // Get date range for single-value widgets
+          await loadDateRange();
         } else {
           // For chart widgets, handle different possible data structures
           let entries: KpiEntry[] = [];
@@ -87,6 +91,7 @@
             console.log(`Widget ${widget.id} loaded data:`, kpiData);
           }
           aggregateValue = null;
+          dateRange = null; // Reset date range for chart widgets
         }
       } else {
         throw new Error(dataResult.message || 'Failed to load widget data');
@@ -97,8 +102,69 @@
       kpiData = null;
       kpiDetails = null;
       aggregateValue = null;
+      dateRange = null;
     } finally {
       isLoading = false;
+    }
+  }
+
+  // New function to load date range for single-value widgets
+  async function loadDateRange() {
+    if (!widget.kpi_id || widget.type !== 'single-value') return;
+
+    try {
+      // Fetch all entries to determine date range
+      const entriesResponse = await api.getKpiEntries(widget.kpi_id, widget.startDate, widget.endDate);
+      
+      if (entriesResponse.success && entriesResponse.data) {
+        let entries: KpiEntry[] = [];
+        
+        if (Array.isArray(entriesResponse.data)) {
+          entries = entriesResponse.data as KpiEntry[];
+        } else {
+          const dataWithEntries = entriesResponse.data as { entries?: KpiEntry[] };
+          if (dataWithEntries.entries && Array.isArray(dataWithEntries.entries)) {
+            entries = dataWithEntries.entries;
+          }
+        }
+
+        if (entries.length > 0) {
+          // Sort entries by date to get start and end dates
+          const sortedEntries = entries.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+          dateRange = {
+            start: sortedEntries[0].date,
+            end: sortedEntries[sortedEntries.length - 1].date
+          };
+        } else {
+          dateRange = null;
+        }
+      }
+    } catch (e) {
+      console.warn(`Failed to load date range for widget ${widget.id}:`, e);
+      dateRange = null;
+    }
+  }
+
+  // Helper function to format date range text
+  function getDateRangeText(): string {
+    if (!dateRange) return '';
+    
+    const { start, end } = dateRange;
+    if (!start) return '';
+    
+    const formatDate = (dateStr: string) => {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'short', 
+        day: 'numeric' 
+      });
+    };
+    
+    if (start === end) {
+      return `on ${formatDate(start)}`;
+    } else {
+      return `since ${formatDate(start)}${end ? ` to ${formatDate(end)}` : ''}`;
     }
   }
 
@@ -392,6 +458,9 @@
           {kpiDetails?.format_prefix || ''}{aggregateValue !== null ? aggregateValue.toLocaleString() : 'N/A'}{kpiDetails?.format_suffix || ''}
         </h3>
         <p class="text-sm text-gray-500">{widget.aggregation.charAt(0).toUpperCase() + widget.aggregation.slice(1)} Value</p>
+        {#if dateRange}
+          <p class="text-xs text-gray-400 mt-1">{getDateRangeText()}</p>
+        {/if}
         {#if !editMode && widget.kpi_id}
           <!-- <p class="text-xs text-gray-400 mt-2">Click to view entries</p> -->
         {/if}

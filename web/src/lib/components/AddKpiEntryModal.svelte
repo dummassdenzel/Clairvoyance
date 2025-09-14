@@ -165,7 +165,7 @@
             <button
               type="button"
               on:click={() => entryMode = 'manual'}
-              class="flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors {entryMode === 'manual' ? 'bg-blue-900 text-white' : 'text-gray-700 hover:text-gray-900'}"
+              class="flex-1 py-2 cursor-pointer px-3 text-sm font-medium rounded-md transition-colors {entryMode === 'manual' ? 'bg-blue-900 text-white' : 'text-gray-700 hover:text-gray-900'}"
             >
               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -175,7 +175,7 @@
             <button
               type="button"
               on:click={() => entryMode = 'csv'}
-              class="flex-1 py-2 px-3 text-sm font-medium rounded-md transition-colors {entryMode === 'csv' ? 'bg-blue-900 text-white' : 'text-gray-700 hover:text-gray-900'}"
+              class="flex-1 py-2 cursor-pointer px-3 text-sm font-medium rounded-md transition-colors {entryMode === 'csv' ? 'bg-blue-900 text-white' : 'text-gray-700 hover:text-gray-900'}"
             >
               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
@@ -196,7 +196,7 @@
                   id="entry-date" 
                   bind:value={date} 
                   required
-                  class="flex-1 border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  class="flex-1 py-1 border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                 />
                 <button 
                   type="button" 
@@ -224,7 +224,7 @@
                 step="0.01"
                 min="0"
                 required
-                class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                class="mt-1 py-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                 placeholder="Enter the KPI value"
               />
             </div>

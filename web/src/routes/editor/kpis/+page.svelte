@@ -7,6 +7,7 @@
   import CreateKpiModal from '$lib/components/CreateKpiModal.svelte';
   import ConfirmModal from '$lib/components/ConfirmModal.svelte';
   import EditKpiModal from '$lib/components/EditKpiModal.svelte';
+  import KpiEntriesModal from '$lib/components/KpiEntriesModal.svelte';
 
   const kpis = writable<Kpi[]>([]);
   const loading = writable(true);
@@ -16,6 +17,9 @@
   let kpiToDelete: Kpi | null = null;
   let showEditModal = false;
   let kpiToEdit: Kpi | null = null;
+  let showKpiEntriesModal = false;
+  let selectedKpiForEntries: Kpi | null = null;
+  let selectedKpiIdForEntries: number | null = null;
 
   $: isEditor = $user?.role === 'editor';
 
@@ -97,12 +101,33 @@
     fetchKpis();
   }
 
+  function handleKpiClick(kpi: Kpi) {
+
+    console.log('KPI clicked:', kpi);
+    selectedKpiForEntries = kpi;
+    selectedKpiIdForEntries = kpi.id;
+    showKpiEntriesModal = true;
+  }
+
+  function handleEntriesUpdated(event: CustomEvent) {
+    // When KPI entries are updated, we could refresh the KPI list if needed
+    // For now, we'll just close the modal
+    console.log('KPI entries updated:', event.detail);
+  }
+
   onMount(fetchKpis);
 </script>
 
 <CreateKpiModal bind:show={showCreateModal} on:success={handleCreateSuccess} />
 
 <EditKpiModal bind:show={showEditModal} kpi={kpiToEdit} on:success={handleEditSuccess} />
+
+<KpiEntriesModal 
+  bind:isOpen={showKpiEntriesModal} 
+  kpi={selectedKpiForEntries} 
+  kpiId={selectedKpiIdForEntries}
+  on:entriesUpdated={handleEntriesUpdated}
+/>
 
 <ConfirmModal
   bind:show={showDeleteConfirm}
@@ -192,9 +217,15 @@
           </thead>
           <tbody class="bg-white divide-y divide-gray-200">
             {#each $kpis as kpi (kpi.id)}
-              <tr class="hover:bg-gray-50">
+              <tr class="hover:bg-gray-50 cursor-pointer" on:click={() => handleKpiClick(kpi)} on:keydown={(e) => e.key === 'Enter' && handleKpiClick(kpi)} role="button" tabindex="0">
                 <td class="px-6 py-4 whitespace-nowrap">
-                  <div class="text-sm font-medium text-gray-900">{kpi.name}</div>
+                  <div class="text-sm font-medium text-gray-900 flex items-center">
+                    {kpi.name}
+                    <svg class="ml-2 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                  </div>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
                   <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {kpi.direction === 'higher_is_better' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
@@ -216,16 +247,22 @@
                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                   <div class="flex items-center justify-end space-x-2">
                     <button 
-                      on:click={() => handleEdit(kpi)} 
-                      class="text-indigo-600 hover:text-indigo-900 font-medium"
+                      on:click|stopPropagation={() => handleEdit(kpi)} 
+                      class="text-blue-800 hover:text-blue-900 cursor-pointer p-1 rounded-md hover:bg-blue-50"
+                      title="Edit KPI"
                     >
-                      Edit
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
                     </button>
                     <button 
-                      on:click={() => handleDelete(kpi)} 
-                      class="text-red-600 hover:text-red-900 font-medium"
+                      on:click|stopPropagation={() => handleDelete(kpi)} 
+                      class="text-red-500 hover:text-red-900 cursor-pointer p-1 rounded-md hover:bg-red-50"
+                      title="Delete KPI"
                     >
-                      Delete
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
                     </button>
                   </div>
                 </td>

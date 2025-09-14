@@ -291,7 +291,7 @@
             <div>
               <button 
                 on:click={() => isAddEntryModalOpen = true}
-                class="bg-blue-900 hover:bg-blue-800 text-white font-medium py-1 px-4 text-sm rounded-md inline-flex items-center"
+                class="bg-blue-900 cursor-pointer hover:bg-blue-800 text-white font-medium py-1 px-4 text-sm rounded-md inline-flex items-center"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -308,7 +308,7 @@
                 type="date" 
                 id="start-date" 
                 bind:value={startDate} 
-                class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                class="mt-1 py-2 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
               />
             </div>
             <div>
@@ -317,7 +317,7 @@
                 type="date" 
                 id="end-date" 
                 bind:value={endDate} 
-                class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                class="mt-1 py-2 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
               />
             </div>
           </div>
@@ -407,7 +407,7 @@
                         <div class="flex items-center justify-end space-x-2">
                           <button
                             on:click={() => editEntry(entry)}
-                            class="text-blue-600 hover:text-blue-900 p-1 rounded-md hover:bg-blue-50"
+                            class="text-blue-800 hover:text-blue-900 cursor-pointer p-1 rounded-md hover:bg-blue-50"
                             title="Edit entry"
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -417,7 +417,7 @@
                           <button
                             on:click={() => deleteEntry(entry.id)}
                             disabled={deletingEntryId === entry.id}
-                            class="text-red-600 hover:text-red-900 p-1 rounded-md hover:bg-red-50 disabled:opacity-50"
+                            class="text-red-500 hover:text-red-900 cursor-pointer p-1 rounded-md hover:bg-red-50 disabled:opacity-50"
                             title="Delete entry"
                           >
                             {#if deletingEntryId === entry.id}

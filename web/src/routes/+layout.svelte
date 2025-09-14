@@ -6,10 +6,12 @@
   import { onMount } from 'svelte';
   import EditorNavbar from '$lib/components/EditorNavbar.svelte';
   import ViewerNavbar from '$lib/components/ViewerNavbar.svelte';
-    import AdminNavbar from '$lib/components/AdminNavbar.svelte';
+  import AdminNavbar from '$lib/components/AdminNavbar.svelte';
+  import CreateKpiModal from '$lib/components/CreateKpiModal.svelte';
 
   let showNavbar = false;
   let userRole: 'editor' | 'viewer' | 'admin' | null = null;
+  let showCreateKpiModal = false;
 
   // Routes where the navbar should be hidden entirely
   const noNavRoutes = ['/auth/login', '/auth/register'];
@@ -38,13 +40,21 @@
       goto('/auth/login');
     }
   });
+
+  // Function to handle Create KPI modal from navbar
+  function handleCreateKpi() {
+    showCreateKpiModal = true;
+  }
 </script>
+
+<!-- Create KPI Modal at layout level for proper z-index -->
+<CreateKpiModal bind:show={showCreateKpiModal} />
 
 <div class="flex min-h-screen bg-gray-50">
   {#if showNavbar}
     <div class="fixed h-full">
       {#if userRole === 'editor'}
-        <EditorNavbar />
+        <EditorNavbar on:createKpi={handleCreateKpi} />
       {:else if userRole === 'viewer'}
         <ViewerNavbar />
       {:else if userRole === 'admin'}

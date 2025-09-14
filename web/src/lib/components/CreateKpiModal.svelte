@@ -87,7 +87,7 @@
               id="kpi-name" 
               bind:value={name} 
               required 
-              class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              class="mt-1 py-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
             >
           </div>
           <div>
@@ -98,7 +98,7 @@
               bind:value={target} 
               required 
               step="0.01"
-              class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              class="mt-1 py-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
             >
           </div>
           <div>
@@ -109,7 +109,7 @@
               bind:value={rag_red} 
               required 
               step="0.01"
-              class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              class="mt-1 py-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
             >
           </div>
           <div>
@@ -120,7 +120,7 @@
               bind:value={rag_amber} 
               required 
               step="0.01"
-              class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              class="mt-1 py-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
             >
           </div>
 
@@ -129,7 +129,7 @@
             <select 
               id="kpi-direction" 
               bind:value={direction} 
-              class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              class="mt-1 py-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
             >
               <option value="higher_is_better">Higher is better</option>
               <option value="lower_is_better">Lower is better</option>
@@ -143,7 +143,7 @@
                 type="text" 
                 id="kpi-format-prefix" 
                 bind:value={format_prefix} 
-                class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm" 
+                class="mt-1 py-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm" 
                 placeholder="e.g. $"
               >
             </div>
@@ -153,7 +153,7 @@
                 type="text" 
                 id="kpi-format-suffix" 
                 bind:value={format_suffix} 
-                class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm" 
+                class="mt-1 py-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm" 
                 placeholder="e.g. %"
               >
             </div>

@@ -42,7 +42,7 @@
     }
   }
 
-  function setDateRange(range: '7d' | '30d' | 'month' | 'ytd') {
+  function setDateRange(range: '7d' | '30d' | 'month' | 'ytd' | 'all') {
     const endDate = new Date();
     let startDate = new Date();
 
@@ -59,6 +59,11 @@
       case 'ytd':
         startDate = new Date(endDate.getFullYear(), 0, 1);
         break;
+      case 'all':
+        // Clear both dates to include all data (better approach than setting to 1900)
+        internalWidget.startDate = null;
+        internalWidget.endDate = null;
+        return; // Exit early since we're not using the date formatting below
     }
 
     const formatDate = (date: Date) => date.toISOString().split('T')[0];
@@ -117,11 +122,11 @@
         <div class="space-y-4">
           <div>
             <label for="widget-title" class="block text-sm font-medium text-gray-700">Title</label>
-            <input type="text" id="widget-title" bind:value={internalWidget.title} required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+            <input type="text" id="widget-title" bind:value={internalWidget.title} required class="mt-1 py-2 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
           </div>
           <div>
             <label for="widget-kpi" class="block text-sm font-medium text-gray-700">Data Source (KPI)</label>
-            <select id="widget-kpi" bind:value={internalWidget.kpi_id} class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+            <select id="widget-kpi" bind:value={internalWidget.kpi_id} class="mt-1 py-2 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
               <option value={null}>-- Select a KPI --</option>
               {#if kpis.length > 0}
                 {#each kpis as kpi}
@@ -135,7 +140,7 @@
           </div>
           <div>
             <label for="widget-type" class="block text-sm font-medium text-gray-700">Widget Type</label>
-            <select id="widget-type" bind:value={internalWidget.type} class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md">
+            <select id="widget-type" bind:value={internalWidget.type} class="mt-1 py-2 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
               <optgroup label="Charts">
                 <option value="line">Line Chart</option>
                 <option value="bar">Bar Chart</option>
@@ -149,7 +154,7 @@
           </div>
 
           {#if ['line', 'bar', 'pie', 'doughnut'].includes(internalWidget.type)}
-            <div class="p-3 bg-gray-50 rounded-md border border-gray-200">
+            <div class="p-3 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm border-gray-300">
               <div class="flex items-center justify-between">
                 <label for="widget-show-legend" class="text-sm font-medium text-gray-900">Show Legend</label>
                 <input id="widget-show-legend" type="checkbox" bind:checked={internalWidget.showLegend} class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
@@ -157,7 +162,7 @@
               {#if internalWidget.showLegend}
                 <div class="mt-3">
                   <label for="widget-legend-position" class="block text-sm font-medium text-gray-700">Legend Position</label>
-                  <select id="widget-legend-position" bind:value={internalWidget.legendPosition} class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md">
+                  <select id="widget-legend-position" bind:value={internalWidget.legendPosition} class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                     <option value="top">Top</option>
                     <option value="bottom">Bottom</option>
                     <option value="left">Left</option>
@@ -171,7 +176,7 @@
           {#if internalWidget.type === 'single-value'}
           <div>
             <label for="widget-aggregation" class="block text-sm font-medium text-gray-700">Value to Display</label>
-            <select id="widget-aggregation" bind:value={internalWidget.aggregation} class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md">
+            <select id="widget-aggregation" bind:value={internalWidget.aggregation} class="mt-1 py-2 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
               <option value="latest">Most Recent Value</option>
               <option value="sum">Sum of Values</option>
               <option value="average">Average of Values</option>
@@ -181,11 +186,11 @@
 
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <label for="widget-bg-color" class="block text-sm font-medium text-gray-700">Background Color</label>
+              <label for="widget-bg-color" class="block text-sm font-medium text-gray-700">Shape Color</label>
               <input type="color" id="widget-bg-color" bind:value={internalWidget.backgroundColor} class="mt-1 block w-full h-10 border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
             </div>
             <div>
-              <label for="widget-border-color" class="block text-sm font-medium text-gray-700">Border Color</label>
+              <label for="widget-border-color" class="block text-sm font-medium text-gray-700">Line Color</label>
               <input type="color" id="widget-border-color" bind:value={internalWidget.borderColor} class="mt-1 block w-full h-10 border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
             </div>
           </div>
@@ -193,11 +198,11 @@
           <div class="grid grid-cols-2 gap-4">
             <div>
               <label for="widget-start-date" class="block text-sm font-medium text-gray-700">Start Date</label>
-              <input type="date" id="widget-start-date" bind:value={internalWidget.startDate} class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+              <input type="date" id="widget-start-date" bind:value={internalWidget.startDate} class="mt-1 py-2 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
             </div>
             <div>
               <label for="widget-end-date" class="block text-sm font-medium text-gray-700">End Date</label>
-              <input type="date" id="widget-end-date" bind:value={internalWidget.endDate} class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+              <input type="date" id="widget-end-date" bind:value={internalWidget.endDate} class="mt-1 py-2 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
             </div>
           </div>
 
@@ -207,6 +212,9 @@
               <button type="button" on:click={() => setDateRange('30d')} class="w-full text-xs py-1 px-2 border border-gray-300 rounded-md hover:bg-gray-100">Last 30 Days</button>
               <button type="button" on:click={() => setDateRange('month')} class="w-full text-xs py-1 px-2 border border-gray-300 rounded-md hover:bg-gray-100">This Month</button>
               <button type="button" on:click={() => setDateRange('ytd')} class="w-full text-xs py-1 px-2 border border-gray-300 rounded-md hover:bg-gray-100">Year to Date</button>
+            </div>
+            <div class="mt-2">
+              <button type="button" on:click={() => setDateRange('all')} class="w-full text-xs py-1 px-2 border border-gray-300 rounded-md hover:bg-gray-100 font-medium">All Time</button>
             </div>
           </div>
 

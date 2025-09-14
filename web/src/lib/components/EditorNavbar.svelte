@@ -1,17 +1,19 @@
 <script lang="ts">
   import { user, logout } from '$lib/stores/auth';
   import { goto } from '$app/navigation';
-  import CreateKpiModal from '$lib/components/CreateKpiModal.svelte';
+  import { createEventDispatcher } from 'svelte';
 
-  let showCreateKpiModal = false;
+  const dispatch = createEventDispatcher();
 
   async function handleLogout() {
     await logout();
     goto('/auth/login');
   }
-</script>
 
-<CreateKpiModal bind:show={showCreateKpiModal} />
+  function handleCreateKpi() {
+    dispatch('createKpi');
+  }
+</script>
 
 <aside class="w-64 h-screen bg-white shadow-md flex flex-col" aria-label="Sidebar">
   <div class="px-3 py-5 border-b">
@@ -23,13 +25,12 @@
       <span class="text-sm text-gray-500">Editor</span>
     </div>
       <button
-        on:click={() => (showCreateKpiModal = true)}
+        on:click={handleCreateKpi}
         class="w-full text-xs bg-blue-900 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-full transition-colors shadow-md"
       >
         Create KPI
       </button>
   </div>
-
 
   <nav class="flex-grow px-2 py-4 space-y-2">
     <a href="/editor/dashboards" class="flex items-center p-2 text-base font-normal text-gray-900 rounded-lg hover:bg-gray-100">
