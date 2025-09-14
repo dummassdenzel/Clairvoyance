@@ -32,7 +32,9 @@
 	},
 	"dependencies": {
 		"chart.js": "^4.5.0",
+		"chartjs-adapter-date-fns": "^3.0.0",
 		"chartjs-plugin-annotation": "^3.1.0",
+		"date-fns": "^4.1.0",
 		"html2canvas-pro": "^1.5.11",
 		"jspdf-autotable": "^5.0.2",
 		"svelte-grid": "^5.1.2"

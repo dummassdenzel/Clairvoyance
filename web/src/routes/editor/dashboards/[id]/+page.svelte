@@ -48,7 +48,7 @@
   async function handleSave() {
     const layoutToSave = items.map(dataItem => {
       const layout = dataItem[cols[0][1]];
-      const { id, title, type, kpi_id, backgroundColor, borderColor, startDate, endDate, aggregation, showLegend, legendPosition } = dataItem;
+      const { id, title, type, kpi_id, backgroundColor, borderColor, startDate, endDate, aggregation, showLegend, legendPosition, gapThresholdDays, timeUnit, aggregationMethod } = dataItem;
       return {
         id: Number(id),
         x: layout.x,
@@ -64,7 +64,10 @@
         endDate,
         aggregation,
         showLegend,
-        legendPosition
+        legendPosition,
+        gapThresholdDays,
+        timeUnit,
+        aggregationMethod
       };
     });
 
@@ -137,6 +140,7 @@
       aggregation: 'latest',
       showLegend: true,
       legendPosition: 'top',
+      gapThresholdDays: 7, // Add this line
       // Add the layout information
       x: nextPos.x,
       y: nextPos.y,
@@ -172,7 +176,10 @@
       endDate: widgetData.endDate,
       aggregation: widgetData.aggregation,
       showLegend: widgetData.showLegend,
-      legendPosition: widgetData.legendPosition
+      legendPosition: widgetData.legendPosition,
+      gapThresholdDays: widgetData.gapThresholdDays, // Add this line
+      timeUnit: widgetData.timeUnit, // Add this line
+      aggregationMethod: widgetData.aggregationMethod // Add this line
     };
     
     items = [...items, newItem];

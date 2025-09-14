@@ -2,6 +2,7 @@
   import { onMount, onDestroy, createEventDispatcher } from 'svelte';
   import Chart from 'chart.js/auto';
   import annotationPlugin from 'chartjs-plugin-annotation';
+  import 'chartjs-adapter-date-fns';
   import * as api from '$lib/services/api';
   import type { Kpi, ApiResponse, KpiEntry } from '$lib/types';
 
@@ -210,7 +211,41 @@
     return 'text-gray-900';
   }
 
-  async function handleWidgetClick() {
+  async function handleWidgetClick(event: MouseEvent) {
+    // Check if the click was on the legend area specifically
+    const target = event.target as HTMLElement;
+    
+    // If clicking on canvas, we need to check if it's in the legend area
+    if (target.tagName === 'CANVAS') {
+      const canvas = target as HTMLCanvasElement;
+      const rect = canvas.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      
+      // Get the chart instance to check if click is in legend area
+      if (chartInstance) {
+        const legend = chartInstance.legend;
+        if (legend && legend.options && legend.options.display) {
+          // Check if click is within legend bounds
+          const legendBox = legend.legendItems;
+          if (legendBox && legendBox.length > 0) {
+            // Get legend position and dimensions
+            const legendLeft = legend.left;
+            const legendTop = legend.top;
+            const legendWidth = legend.width;
+            const legendHeight = legend.height;
+            
+            // Check if click is within legend area
+            if (x >= legendLeft && x <= legendLeft + legendWidth && 
+                y >= legendTop && y <= legendTop + legendHeight) {
+              // Click is on legend - don't open modal
+              return;
+            }
+          }
+        }
+      }
+    }
+
     console.log(`Widget ${widget.id} clicked!`, {
       editMode,
       kpiId: widget.kpi_id,
@@ -253,6 +288,138 @@
     loadWidgetData();
   }
 
+  // Enhanced function to process time-series data with gap detection and aggregation
+  function processTimeSeriesData(entries: KpiEntry[], gapThresholdDays: number = 7, timeUnit: string = 'day', aggregationMethod: string = 'average') {
+    if (!entries || entries.length === 0) return { data: [], gaps: [], segments: [] };
+
+    // Sort entries by date
+    const sortedEntries = entries.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    
+    // Aggregate data by time unit
+    const aggregatedData = aggregateDataByTimeUnit(sortedEntries, timeUnit, aggregationMethod);
+    
+    const data: any[] = [];
+    const gaps: { start: string; end: string; days: number }[] = [];
+    const segments: any[][] = []; // Array of data segments
+    let currentSegment: any[] = [];
+    
+    for (let i = 0; i < aggregatedData.length; i++) {
+      const currentEntry = aggregatedData[i];
+      const nextEntry = aggregatedData[i + 1];
+      
+      // Add current data point to current segment
+      currentSegment.push({
+        x: new Date(currentEntry.date),
+        y: Number(currentEntry.value)
+      });
+      
+      // Check for gap to next entry
+      if (nextEntry) {
+        const currentDate = new Date(currentEntry.date);
+        const nextDate = new Date(nextEntry.date);
+        const daysDiff = Math.ceil((nextDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
+        
+        if (daysDiff > gapThresholdDays) {
+          // Gap detected - end current segment and start new one
+          gaps.push({
+            start: currentEntry.date,
+            end: nextEntry.date,
+            days: daysDiff
+          });
+          
+          // Save current segment and start new one
+          if (currentSegment.length > 0) {
+            segments.push([...currentSegment]);
+            currentSegment = [];
+          }
+        }
+      }
+    }
+    
+    // Add the final segment if it has data
+    if (currentSegment.length > 0) {
+      segments.push(currentSegment);
+    }
+    
+    return { data, gaps, segments };
+  }
+
+  // New function to aggregate data by time unit
+  function aggregateDataByTimeUnit(entries: KpiEntry[], timeUnit: string, aggregationMethod: string): KpiEntry[] {
+    if (timeUnit === 'day') {
+      return entries; // No aggregation needed for daily data
+    }
+
+    const groupedData = new Map<string, KpiEntry[]>();
+
+    // Group entries by time unit
+    entries.forEach(entry => {
+      const date = new Date(entry.date);
+      let key: string;
+
+      switch (timeUnit) {
+        case 'week':
+          // Get start of week (Monday)
+          const startOfWeek = new Date(date);
+          startOfWeek.setDate(date.getDate() - date.getDay() + 1);
+          key = startOfWeek.toISOString().split('T')[0];
+          break;
+        case 'month':
+          key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-01`;
+          break;
+        case 'year':
+          key = `${date.getFullYear()}-01-01`;
+          break;
+        default:
+          key = entry.date;
+      }
+
+      if (!groupedData.has(key)) {
+        groupedData.set(key, []);
+      }
+      groupedData.get(key)!.push(entry);
+    });
+
+    // Aggregate each group
+    const aggregatedEntries: KpiEntry[] = [];
+    groupedData.forEach((group, key) => {
+      const values = group.map(entry => Number(entry.value));
+      let aggregatedValue: number;
+
+      switch (aggregationMethod) {
+        case 'sum':
+          aggregatedValue = values.reduce((sum, val) => sum + val, 0);
+          break;
+        case 'max':
+          aggregatedValue = Math.max(...values);
+          break;
+        case 'min':
+          aggregatedValue = Math.min(...values);
+          break;
+        case 'latest':
+          // Sort by date and take the latest
+          const sortedGroup = group.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+          aggregatedValue = Number(sortedGroup[0].value);
+          break;
+        case 'average':
+        default:
+          aggregatedValue = values.reduce((sum, val) => sum + val, 0) / values.length;
+          break;
+      }
+
+      aggregatedEntries.push({
+        id: group[0].id, // Use first entry's ID
+        kpi_id: group[0].kpi_id,
+        date: key,
+        value: aggregatedValue
+      });
+    });
+
+    // Sort aggregated entries by date
+    return aggregatedEntries.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }
+
+  // Enhanced chart rendering with gap handling
   function renderChart(canvas: HTMLCanvasElement) {
     if (!canvas || !kpiData) {
       console.log(`Widget ${widget.id}: Cannot render chart - canvas: ${!!canvas}, kpiData: ${!!kpiData}`);
@@ -262,16 +429,42 @@
     try {
       console.log(`Widget ${widget.id}: Rendering chart with data:`, kpiData);
 
+      // Convert kpiData to proper KpiEntry format
+      const entries: KpiEntry[] = kpiData!.labels.map((label, index) => ({
+        id: index + 1,
+        kpi_id: widget.kpi_id,
+        date: label,
+        value: kpiData!.values[index]
+      }));
+
+      // Process data for time-series with gap detection
+      const { data: timeSeriesData, gaps, segments } = processTimeSeriesData(
+        entries,
+        widget.gapThresholdDays || 7,
+        widget.timeUnit || 'day',
+        widget.aggregationMethod || 'average'
+      );
+
+      console.log(`Widget ${widget.id}: Processed time-series data:`, { 
+        timeSeriesData, 
+        gaps, 
+        segments: segments.length 
+      });
+
       const chartPlugins: any = {
         legend: { 
-          display: widget.showLegend !== false, // Default to true if not specified
-          position: widget.legendPosition || 'top'
+          display: widget.showLegend !== false,
+          position: widget.legendPosition || 'top',
+          // Only show legend for the first dataset
+          filter: (legendItem: any, chartData: any) => {
+            return legendItem.datasetIndex === 0;
+          }
         },
         autocolors: false
       };
 
-      // Only add goal line for line/bar charts and if a valid target exists
-      if (['line', 'bar'].includes(widget.type)) {
+      // Add goal line for line charts if target exists
+      if (widget.type === 'line') {
         const targetValue = kpiDetails ? Number(kpiDetails.target) : null;
         if (targetValue !== null && !isNaN(targetValue)) {
           chartPlugins.annotation = {
@@ -294,35 +487,96 @@
         }
       }
 
+      // Create datasets based on gap handling mode
+      const gapHandlingMode = widget.gapHandlingMode || 'broken';
+      let datasets: any[] = [];
+
+      if (segments.length === 0) {
+        // No gaps found - single dataset
+        datasets = [{
+          label: widget.title || `KPI ${widget.kpi_id}`,
+          data: timeSeriesData,
+          backgroundColor: widget.backgroundColor || 'rgba(54, 162, 235, 0.2)',
+          borderColor: widget.borderColor || 'rgba(54, 162, 235, 1)',
+          borderWidth: 2,
+          pointRadius: 4,
+          pointHoverRadius: 6
+        }];
+      } else {
+        // Gaps detected - create separate datasets for each segment (broken lines)
+        datasets = segments.map((segment, index) => {
+          // Calculate date range for this segment
+          const segmentDates = segment.map(point => point.x);
+          const startDate = new Date(Math.min(...segmentDates));
+          const endDate = new Date(Math.max(...segmentDates));
+          
+          // Format the date range
+          const formatDate = (date: Date) => {
+            return date.toLocaleDateString('en-US', { 
+              month: 'short', 
+              day: 'numeric' 
+            });
+          };
+          
+          let label;
+          if (startDate.getTime() === endDate.getTime()) {
+            // Single date
+            label = formatDate(startDate);
+          } else {
+            // Date range
+            label = `${formatDate(startDate)} - ${formatDate(endDate)}`;
+          }
+          
+          return {
+            label: label,
+            data: segment,
+            backgroundColor: widget.backgroundColor || 'rgba(54, 162, 235, 0.2)',
+            borderColor: widget.borderColor || 'rgba(54, 162, 235, 1)',
+            borderWidth: 2,
+            pointRadius: 4,
+            pointHoverRadius: 6,
+            // No borderDash - clean broken lines
+          };
+        });
+      }
+
       chartInstance = new Chart(canvas, {
         type: widget.type,
         data: {
-          labels: kpiData.labels,
-          datasets: [{
-            label: widget.title || `KPI ${widget.kpi_id}`,
-            data: kpiData.values,
-            backgroundColor: widget.backgroundColor || 'rgba(54, 162, 235, 0.2)',
-            borderColor: widget.borderColor || 'rgba(54, 162, 235, 1)',
-            borderWidth: 2
-          }]
+          datasets: datasets
         },
         options: { 
           responsive: true, 
           maintainAspectRatio: ['pie', 'doughnut'].includes(widget.type),
           plugins: chartPlugins,
-          // Add some basic options to prevent rendering issues
-          scales: ['pie', 'doughnut'].includes(widget.type) ? {} : {
+          scales: {
             x: {
-              display: true
+              type: 'time',
+              time: {
+                unit: widget.timeUnit || 'day',
+                displayFormats: {
+                  day: 'MMM dd',
+                  week: 'MMM dd',
+                  month: 'MMM yyyy',
+                  year: 'yyyy'
+                }
+              },
+              title: {
+                display: true,
+                text: 'Date'
+              }
             },
             y: {
-              display: true
+              title: {
+                display: true,
+                text: 'Value'
+              }
             }
           }
         }
       });
 
-      console.log(`Widget ${widget.id}: Chart rendered successfully`);
+      console.log(`Widget ${widget.id}: Chart rendered successfully with ${gaps.length} gaps detected using ${gapHandlingMode} mode, ${segments.length} segments`);
     } catch (chartError) {
       console.error(`Widget ${widget.id}: Chart rendering failed:`, chartError);
       error = `Chart rendering failed: ${chartError instanceof Error ? chartError.message : 'Unknown error'}`;
@@ -450,7 +704,10 @@
       </div>
     {:else if ['line', 'bar', 'pie', 'doughnut'].includes(widget.type)}
       <div class="w-full h-full relative flex items-center justify-center">
-        <canvas bind:this={canvasElement}></canvas>
+        <canvas 
+          bind:this={canvasElement}
+          class="w-full h-full"
+        ></canvas>
       </div>
     {:else if widget.type === 'single-value'}
       <div class="flex flex-col items-center justify-center h-full text-center">

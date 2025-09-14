@@ -1,6 +1,9 @@
-automatically add blank intervals as data entry upon inserting entry with massive jump on date
-
 
 remove the viewer role entirely. all users are editor and can share ownership and view access
 
+bar pie and doughnut fix
+
+
 refine dashboard widget layout easiness in edit mode
+
+hovering on nodes automatically display 8 am
