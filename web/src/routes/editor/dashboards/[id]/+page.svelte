@@ -328,6 +328,11 @@
     isKpiEntriesModalOpen = true;
   }
 
+  function handleEntriesUpdated(event: CustomEvent) {
+    // When KPI entries are updated, refresh the dashboard to update all widgets
+    fetchDashboard();
+  }
+
   $: dashboardId = $page.params.id;
   $: isEditor = $user?.role === 'editor';
 
@@ -567,4 +572,5 @@
     selectedKpiForEntries = null;
     selectedKpiIdForEntries = null;
   }}
+  on:entriesUpdated={handleEntriesUpdated}
 /> 

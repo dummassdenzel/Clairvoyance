@@ -2,6 +2,8 @@
   import { createEventDispatcher, onMount } from 'svelte';
   import * as api from '$lib/services/api';
   import type { Kpi, KpiEntry, ApiResponse } from '$lib/types';
+  import AddKpiEntryModal from './AddKpiEntryModal.svelte';
+  import EditKpiEntryModal from './EditKpiEntryModal.svelte';
 
   export let isOpen = false;
   export let kpi: Kpi | null = null;
@@ -14,6 +16,10 @@
   let error: string | null = null;
   let startDate = '';
   let endDate = '';
+  let isAddEntryModalOpen = false;
+  let isEditEntryModalOpen = false;
+  let selectedEntry: KpiEntry | null = null;
+  let deletingEntryId: number | null = null;
 
   function closeModal() {
     isOpen = false;
@@ -67,13 +73,13 @@
     if (isNaN(redThreshold) || isNaN(amberThreshold)) return 'text-gray-900';
 
     if (direction === 'higher_is_better') {
-      if (value < redThreshold) return 'text-red-500';
-      if (value < amberThreshold) return 'text-yellow-500';
-      return 'text-green-500';
+      if (value < redThreshold) return 'text-red-700';
+      if (value < amberThreshold) return 'text-yellow-700';
+      return 'text-green-700';
     } else if (direction === 'lower_is_better') {
-      if (value > redThreshold) return 'text-red-500';
-      if (value > amberThreshold) return 'text-yellow-500';
-      return 'text-green-500';
+      if (value > redThreshold) return 'text-red-700';
+      if (value > amberThreshold) return 'text-yellow-700';
+      return 'text-green-700';
     }
 
     return 'text-gray-900';
@@ -110,6 +116,64 @@
     loadEntries();
   }
 
+  function handleAddEntrySuccess(event: CustomEvent) {
+    // Refresh the entries list after adding a new entry
+    loadEntries();
+    
+    // Notify the parent (dashboard page) that entries have been updated
+    // This will trigger a refresh of all widgets that use this KPI
+    dispatch('entriesUpdated', { 
+      kpiId: kpiId,
+      kpi: kpi 
+    });
+  }
+
+  async function deleteEntry(entryId: number) {
+    if (!confirm('Are you sure you want to delete this entry? This action cannot be undone.')) {
+      return;
+    }
+
+    deletingEntryId = entryId;
+    try {
+      const response: ApiResponse<void> = await api.deleteKpiEntry(entryId);
+      
+      if (response.success) {
+        // Remove the entry from the local array
+        entries = entries.filter(entry => entry.id !== entryId);
+        // Notify parent that entries have been updated
+        dispatch('entriesUpdated', { 
+          kpiId: kpiId,
+          kpi: kpi 
+        });
+      } else {
+        error = response.message || 'Failed to delete entry';
+      }
+    } catch (e) {
+      error = e instanceof Error ? e.message : 'An unexpected error occurred';
+    } finally {
+      deletingEntryId = null;
+    }
+  }
+
+  function editEntry(entry: KpiEntry) {
+    selectedEntry = entry;
+    isEditEntryModalOpen = true;
+  }
+
+  function handleEditEntrySuccess(event: CustomEvent) {
+    // Update the entry in the local array
+    const updatedEntry = event.detail.entry;
+    entries = entries.map(entry => 
+      entry.id === updatedEntry.id ? updatedEntry : entry
+    );
+    
+    // Notify parent that entries have been updated
+    dispatch('entriesUpdated', { 
+      kpiId: kpiId,
+      kpi: kpi 
+    });
+  }
+
   $: if (isOpen && kpiId) {
     loadEntries();
   }
@@ -140,13 +204,17 @@
             </p>
           {/if}
         </div>
-        <button on:click={closeModal} class="text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
+        <div class="flex items-center space-x-3">
+          
+          <button on:click={closeModal} class="text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
+        </div>
       </div>
 
       <div class="p-6 flex-1 overflow-hidden flex flex-col">
         <!-- Date Range Controls -->
         <div class="mb-6">
-          <div class="flex flex-wrap gap-2 mb-4">
+          <div class="flex flex-wrap gap-2 mb-4 justify-between">
+            <div>
             <button 
               on:click={() => setDateRange('all')} 
               class="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-100 {!startDate && !endDate ? 'bg-blue-100 border-blue-300' : ''}"
@@ -177,6 +245,18 @@
             >
               Year to Date
             </button>
+            </div>
+
+            <div><button 
+            on:click={() => isAddEntryModalOpen = true}
+            class="bg-blue-900 hover:bg-blue-800 text-white font-medium py-1 px-4 text-sm rounded-md inline-flex items-center"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            </svg>
+            Add Entry
+          </button></div>
+            
           </div>
           
           <div class="grid grid-cols-2 gap-4">
@@ -199,6 +279,7 @@
               />
             </div>
           </div>
+          
         </div>
 
         <!-- Entries Table -->
@@ -226,6 +307,12 @@
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                 </svg>
                 <p class="mt-2 text-sm text-gray-500">No entries found for the selected date range</p>
+                <button 
+                  on:click={() => isAddEntryModalOpen = true}
+                  class="mt-2 text-blue-600 hover:text-blue-800 text-sm font-medium"
+                >
+                  Add your first entry
+                </button>
               </div>
             </div>
           {:else}
@@ -273,6 +360,23 @@
                           {/if}
                         </span>
                       </td>
+                      <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div class="flex items-center space-x-2">
+                          <button
+                            on:click={() => editEntry(entry)}
+                            class="text-blue-600 hover:text-blue-900 text-sm"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            on:click={() => deleteEntry(entry.id)}
+                            disabled={deletingEntryId === entry.id}
+                            class="text-red-600 hover:text-red-900 text-sm disabled:opacity-50"
+                          >
+                            {deletingEntryId === entry.id ? 'Deleting...' : 'Delete'}
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   {/each}
                 </tbody>
@@ -290,15 +394,15 @@
                 <p class="text-sm text-gray-500">Total Entries</p>
               </div>
               <div class="text-center">
-                <p class="text-2xl font-bold text-blue-600">{formatValue(Math.max(...entries.map(e => Number(e.value))))}</p>
+                <p class="text-2xl font-bold text-blue-900">{formatValue(Math.max(...entries.map(e => Number(e.value))))}</p>
                 <p class="text-sm text-gray-500">Highest</p>
               </div>
               <div class="text-center">
-                <p class="text-2xl font-bold text-green-600">{formatValue(Math.min(...entries.map(e => Number(e.value))))}</p>
+                <p class="text-2xl font-bold text-blue-900">{formatValue(Math.min(...entries.map(e => Number(e.value))))}</p>
                 <p class="text-sm text-gray-500">Lowest</p>
               </div>
               <div class="text-center">
-                <p class="text-2xl font-bold text-purple-600">{formatValue(entries.reduce((sum, e) => sum + Number(e.value), 0) / entries.length)}</p>
+                <p class="text-2xl font-bold text-blue-900">{formatValue(entries.reduce((sum, e) => sum + Number(e.value), 0) / entries.length)}</p>
                 <p class="text-sm text-gray-500">Average</p>
               </div>
             </div>
@@ -308,3 +412,23 @@
     </div>
   </div>
 {/if}
+
+<!-- Edit KPI Entry Modal -->
+<EditKpiEntryModal
+  bind:isOpen={isEditEntryModalOpen}
+  entry={selectedEntry}
+  on:success={handleEditEntrySuccess}
+  on:close={() => {
+    isEditEntryModalOpen = false;
+    selectedEntry = null;
+  }}
+/>
+
+<!-- Add KPI Entry Modal -->
+<AddKpiEntryModal
+  bind:isOpen={isAddEntryModalOpen}
+  kpiId={kpiId}
+  kpiName={kpi?.name || ''}
+  on:success={handleAddEntrySuccess}
+  on:close={() => isAddEntryModalOpen = false}
+/>

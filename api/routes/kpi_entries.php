@@ -25,22 +25,18 @@ switch ($_SERVER['REQUEST_METHOD']) {
         if (!$id) {
             http_response_code(400);
             echo json_encode(['success' => false, 'error' => 'A numeric KPI Entry ID is required for updating']);
+        } else {
+            $controller->update($id);
         }
-        // The update method is not yet implemented in the controller
-        http_response_code(501);
-        echo json_encode(['success' => false, 'error' => 'Updating a KPI entry is not yet supported']);
-        // $controller->update($id);
         break;
 
     case 'DELETE':
         if (!$id) {
             http_response_code(400);
             echo json_encode(['success' => false, 'error' => 'A numeric KPI Entry ID is required for deletion']);
+        } else {
+            $controller->delete($id);
         }
-        // The delete method is not yet implemented in the controller
-        http_response_code(501);
-        echo json_encode(['success' => false, 'error' => 'Deleting a KPI entry is not yet supported']);
-        // $controller->delete($id);
         break;
 
     default:

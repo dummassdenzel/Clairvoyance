@@ -133,6 +133,90 @@ class KpiEntryController extends BaseController
         }
     }
 
+    public function update(int $entryId): void
+    {
+        try {
+            $this->authService->requireRole('editor');
+            
+            if (!$entryId) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'Missing KPI Entry ID'
+                ], 400);
+                return;
+            }
+
+            $data = $this->getRequestData();
+            
+            if (empty($data)) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'No update data provided'
+                ], 400);
+                return;
+            }
+
+            $currentUser = $this->getCurrentUser();
+            
+            $success = $this->kpiEntryService->update($currentUser, $entryId, $data);
+
+            if ($success) {
+                $this->jsonResponse([
+                    'success' => true,
+                    'message' => 'KPI Entry updated successfully'
+                ]);
+            } else {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'Failed to update KPI entry'
+                ], 500);
+            }
+
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], $e->getCode() ?: 400);
+        }
+    }
+
+    public function delete(int $entryId): void
+    {
+        try {
+            $this->authService->requireRole('editor');
+            
+            if (!$entryId) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'Missing KPI Entry ID'
+                ], 400);
+                return;
+            }
+
+            $currentUser = $this->getCurrentUser();
+            
+            $success = $this->kpiEntryService->delete($currentUser, $entryId);
+
+            if ($success) {
+                $this->jsonResponse([
+                    'success' => true,
+                    'message' => 'KPI Entry deleted successfully'
+                ]);
+            } else {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'Failed to delete KPI entry'
+                ], 500);
+            }
+
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], $e->getCode() ?: 400);
+        }
+    }
+
     private function parseCsvFile(string $filePath): array
     {
         $data = [];

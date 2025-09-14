@@ -226,8 +226,12 @@ export async function uploadKpiCsv(kpiId: number, file: File): Promise<ApiRespon
   return await res.json();
 }
 
-export async function deleteKpiEntry(id: number): Promise<ApiResponse> {
-  return await del(`/kpi_entries/${id}`);
+export async function updateKpiEntry(entryId: number, data: { date?: string; value?: number }): Promise<ApiResponse<void>> {
+  return await put<void>(`/kpi_entries/${entryId}`, data);
+}
+
+export async function deleteKpiEntry(entryId: number): Promise<ApiResponse<void>> {
+  return await del<void>(`/kpi_entries/${entryId}`);
 }
 
 // --- Legacy compatibility functions (for gradual migration) ---

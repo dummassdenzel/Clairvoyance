@@ -134,11 +134,11 @@
     if (direction === 'higher_is_better') {
       if (value < redThreshold) return 'text-red-500';
       if (value < amberThreshold) return 'text-yellow-500';
-      return 'text-green-500';
+      return 'text-blue-900';
     } else if (direction === 'lower_is_better') {
       if (value > redThreshold) return 'text-red-500';
       if (value > amberThreshold) return 'text-yellow-500';
-      return 'text-green-500';
+      return 'text-blue-900';
     }
 
     return 'text-gray-900';
@@ -393,7 +393,7 @@
         </h3>
         <p class="text-sm text-gray-500">{widget.aggregation.charAt(0).toUpperCase() + widget.aggregation.slice(1)} Value</p>
         {#if !editMode && widget.kpi_id}
-          <p class="text-xs text-gray-400 mt-2">Click to view entries</p>
+          <!-- <p class="text-xs text-gray-400 mt-2">Click to view entries</p> -->
         {/if}
       </div>
     {:else}

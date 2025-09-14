@@ -69,9 +69,46 @@ class KpiEntryService
 		return $this->entries->getAggregateValue($kpiId, $type, $startDate, $endDate);
 	}
 
+	public function update(array $currentUser, int $entryId, array $data): bool
+	{
+		// First, get the entry to find the KPI ID for ownership check
+		$entry = $this->entries->findById($entryId);
+		if (!$entry) {
+			throw new \Exception('KPI entry not found', 404);
+		}
+		
+		// Check ownership through the KPI
+		$this->ensureOwnership($currentUser, (int)$entry['kpi_id']);
+		
+		// Validate the data
+		if (isset($data['date']) && !$this->entries->validateDate($data['date'])) {
+			throw new \Exception('Invalid date (YYYY-MM-DD)', 400);
+		}
+		if (isset($data['value']) && !$this->entries->validateValue($data['value'])) {
+			throw new \Exception('Invalid value', 400);
+		}
+		
+		// Check if the new date conflicts with another entry (if date is being changed)
+		if (isset($data['date']) && $data['date'] !== $entry['date']) {
+			if ($this->entries->hasEntryForDate((int)$entry['kpi_id'], $data['date'])) {
+				throw new \Exception('Entry for date already exists', 409);
+			}
+		}
+		
+		return $this->entries->update($entryId, $data);
+	}
+
 	public function delete(array $currentUser, int $entryId): bool
 	{
-		// Optionally: lookup entry -> kpi_id -> ensureOwnership()
+		// First, get the entry to find the KPI ID for ownership check
+		$entry = $this->entries->findById($entryId);
+		if (!$entry) {
+			throw new \Exception('KPI entry not found', 404);
+		}
+		
+		// Check ownership through the KPI
+		$this->ensureOwnership($currentUser, (int)$entry['kpi_id']);
+		
 		return $this->entries->delete($entryId);
 	}
 }
