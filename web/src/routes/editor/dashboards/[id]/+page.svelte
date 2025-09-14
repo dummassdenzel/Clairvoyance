@@ -12,7 +12,7 @@
   import KpiEntriesModal from '$lib/components/KpiEntriesModal.svelte';
   import Grid from 'svelte-grid';
   import gridHelp from 'svelte-grid/build/helper/index.mjs';
-  import { getContext } from 'svelte';
+    import { getContext } from 'svelte';
   import jsPDF from 'jspdf';
   import html2canvas from 'html2canvas-pro';
   import autoTable from 'jspdf-autotable';
@@ -32,7 +32,7 @@
   let isViewersModalOpen = false;
   let isWidgetSettingsModalOpen = false;
   let isKpiEntriesModalOpen = false;
-  let editMode = false;
+    let editMode = false;
   let isGeneratingReport = false;
   let newWidgetTemplate: any = null; // Template for new widget
   let selectedKpiForEntries: Kpi | null = null;
@@ -74,8 +74,8 @@
       });
       
       if (response.success) {
-        editMode = false;
-        await fetchDashboard();
+      editMode = false;
+      await fetchDashboard();
       } else {
         alert(response.message || 'Failed to save layout.');
       }
@@ -179,7 +179,7 @@
     newWidgetTemplate = null;
   }
 
-  function removeWidget(id: string) {
+    function removeWidget(id: string) {
     items = items.filter(item => item.id !== id);
   }
 
@@ -227,14 +227,14 @@
         } catch (e) {
           console.warn('Could not load logo:', e);
           // Fallback without logo
-          doc.setFontSize(10);
-          doc.setTextColor(100);
-          doc.text(title, margin, 10);
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text(title, margin, 10);
           if (pageNumber) {
             doc.text(`Page ${pageNumber}`, pageWidth - margin, 10, { align: 'right' });
           }
-          doc.setDrawColor(200);
-          doc.line(margin, 12, pageWidth - margin, 12);
+        doc.setDrawColor(200);
+        doc.line(margin, 12, pageWidth - margin, 12);
         }
       };
 
@@ -325,12 +325,12 @@
       doc.line(margin, 160, pageWidth - margin, 160);
 
       // --- Enhanced Widgets Pages ---
-      doc.addPage();
+        doc.addPage();
       let currentPage = 2;
       addHeader(reportData.name, currentPage);
-      addFooter(currentPage);
-      
-      let yPos = 25;
+        addFooter(currentPage);
+        
+        let yPos = 25;
       const widgetSpacing = 8;
       const maxWidgetHeight = 75; // Reduced to fit more widgets per page
 
@@ -340,7 +340,7 @@
 
       // Render value widgets first (they're smaller and can fit more per page)
       for (const widget of valueWidgets) {
-        const element = document.getElementById(`widget-container-${widget.id}`);
+          const element = document.getElementById(`widget-container-${widget.id}`);
         if (!element) {
           console.warn(`Widget container not found for widget ${widget.id}`);
           continue;
@@ -348,12 +348,12 @@
 
         // Check if we need a new page
         if (yPos + maxWidgetHeight > pageHeight - 30) {
-          doc.addPage();
-          currentPage++;
+            doc.addPage();
+            currentPage++;
           addHeader(reportData.name, currentPage);
-          addFooter(currentPage);
-          yPos = 25;
-        }
+            addFooter(currentPage);
+            yPos = 25;
+          }
 
         // Render widget with enhanced styling
         await renderWidgetToPDF(doc, element, widget, margin, yPos, contentWidth, maxWidgetHeight);
@@ -391,7 +391,7 @@
     }
   }
 
-  // Enhanced helper function to render individual widgets to PDF
+  // Enhanced helper function to render individual widgets to PDF with side-by-side layout
   async function renderWidgetToPDF(doc: any, element: HTMLElement, widget: any, x: number, y: number, width: number, maxHeight: number) {
     // Add widget title with consistent Helvetica font
     doc.setFont('helvetica', 'bold');
@@ -410,6 +410,15 @@
     doc.setLineWidth(0.5);
     doc.rect(x, y + 2, width, maxHeight - 5, 'S');
 
+    // Calculate layout: Chart on left (60%), Insights on right (40%)
+    const chartWidth = width * 0.6;
+    const insightsWidth = width * 0.4;
+    const chartX = x + 2;
+    const insightsX = x + chartWidth + 2;
+    const chartY = y + 8;
+    const insightsY = y + 8;
+    const availableHeight = maxHeight - 15;
+
     // Capture widget screenshot
     const originalBg = element.style.backgroundColor;
     element.style.backgroundColor = 'white';
@@ -424,34 +433,208 @@
     const imgData = canvas.toDataURL('image/png');
     const imgProps = doc.getImageProperties(imgData);
     
-    // Calculate optimal image dimensions - better space utilization
+    // Calculate chart dimensions to fit in left side
     const aspectRatio = imgProps.width / imgProps.height;
-    let imgWidth = width - 10; // Leave some padding
-    let imgHeight = imgWidth / aspectRatio;
+    let chartImgWidth = chartWidth - 4;
+    let chartImgHeight = chartImgWidth / aspectRatio;
     
-    // Ensure image fits within max height but try to use more space
-    if (imgHeight > maxHeight - 20) {
-      imgHeight = maxHeight - 20;
-      imgWidth = imgHeight * aspectRatio;
+    // Ensure chart fits within available height
+    if (chartImgHeight > availableHeight) {
+      chartImgHeight = availableHeight;
+      chartImgWidth = chartImgHeight * aspectRatio;
     }
     
-    // Center the image horizontally
-    const imgX = x + (width - imgWidth) / 2;
-    const imgY = y + 8;
+    // Center the chart vertically
+    const chartImgX = chartX + (chartWidth - chartImgWidth) / 2;
+    const chartImgY = chartY + (availableHeight - chartImgHeight) / 2;
     
-    doc.addImage(imgData, 'PNG', imgX, imgY, imgWidth, imgHeight);
+    // Add chart image
+    doc.addImage(imgData, 'PNG', chartImgX, chartImgY, chartImgWidth, chartImgHeight);
     
-    // Add widget metadata at the bottom with consistent font
+    // Add insights on the right side if KPI data is available
+    if (widget.kpi_id) {
+      try {
+        const insights = await generateKpiInsights(widget.kpi_id, widget.type);
+        if (insights) {
+          await addInsightsToPDF(doc, insights, insightsX, insightsY, insightsWidth - 4, availableHeight);
+        }
+      } catch (e) {
+        console.warn('Could not generate insights for widget:', widget.id, e);
+      }
+    }
+    
+    // Add widget metadata at the bottom
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(107, 114, 128);
     const metadataY = y + maxHeight - 8;
-    if (widget.kpi_id) {
-      doc.text(`KPI ID: ${widget.kpi_id}`, x + 5, metadataY);
+  }
+
+  // Function to generate KPI insights
+  async function generateKpiInsights(kpiId: number, widgetType: string) {
+    try {
+      // Fetch KPI details
+      const kpiResponse = await api.getKpi(kpiId);
+      if (!kpiResponse.success) return null;
+      
+      const kpi = kpiResponse.data?.kpi;
+      if (!kpi) return null;
+
+      // Fetch KPI entries for trend analysis
+      const entriesResponse = await api.getKpiEntries(kpiId);
+      if (!entriesResponse.success) return null;
+      
+      const entries = entriesResponse.data?.entries || [];
+      if (entries.length < 2) return null;
+
+      // Sort entries by date
+      const sortedEntries = entries.sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      
+      // Calculate trends
+      const latestValue = Number(sortedEntries[sortedEntries.length - 1].value);
+      const previousValue = Number(sortedEntries[sortedEntries.length - 2].value);
+      const firstValue = Number(sortedEntries[0].value);
+      
+      const recentChange = latestValue - previousValue;
+      const totalChange = latestValue - firstValue;
+      const recentChangePercent = previousValue !== 0 ? (recentChange / previousValue) * 100 : 0;
+      const totalChangePercent = firstValue !== 0 ? (totalChange / firstValue) * 100 : 0;
+      
+      // Calculate trend direction
+      const recentTrend = recentChange > 0 ? 'increasing' : recentChange < 0 ? 'decreasing' : 'stable';
+      const totalTrend = totalChange > 0 ? 'increasing' : totalChange < 0 ? 'decreasing' : 'stable';
+      
+      // Calculate average
+      const average = entries.reduce((sum: number, entry: any) => sum + Number(entry.value), 0) / entries.length;
+      
+      // Calculate volatility (standard deviation)
+      const variance = entries.reduce((sum: number, entry: any) => {
+        const diff = Number(entry.value) - average;
+        return sum + (diff * diff);
+      }, 0) / entries.length;
+      const volatility = Math.sqrt(variance);
+      
+      // Performance vs target
+      const target = Number(kpi.target);
+      const performanceVsTarget = target !== 0 ? (latestValue / target) * 100 : 0;
+      
+      return {
+        kpi,
+        latestValue,
+        previousValue,
+        recentChange,
+        recentChangePercent,
+        totalChange,
+        totalChangePercent,
+        recentTrend,
+        totalTrend,
+        average,
+        volatility,
+        performanceVsTarget,
+        entryCount: entries.length,
+        dateRange: {
+          start: sortedEntries[0].date,
+          end: sortedEntries[sortedEntries.length - 1].date
+        }
+      };
+    } catch (e) {
+      console.error('Error generating insights:', e);
+      return null;
     }
-    if (widget.aggregation) {
-      doc.text(`Aggregation: ${widget.aggregation}`, x + width - 50, metadataY);
-    }
+  }
+
+  // Enhanced function to add insights to PDF with vertical centering and dynamic colors
+  async function addInsightsToPDF(doc: any, insights: any, x: number, y: number, width: number, availableHeight: number) {
+    if (!insights) return;
+
+    const { kpi, latestValue, recentChange, recentChangePercent, recentTrend, average, performanceVsTarget, entryCount } = insights;
+    
+    // Create insights box with better styling
+    doc.setFillColor(248, 250, 252);
+    doc.rect(x, y, width, availableHeight, 'F');
+    doc.setDrawColor(229, 231, 235);
+    doc.rect(x, y, width, availableHeight, 'S');
+    
+    // Insights title
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(30, 58, 138);
+    doc.text('Key Insights', x + 3, y + 6);
+    
+    // Add a subtle line under the title
+    doc.setDrawColor(30, 58, 138);
+    doc.setLineWidth(0.5);
+    doc.line(x + 3, y + 8, x + width - 3, y + 8);
+    
+    // Calculate vertical centering for the content area
+    const contentStartY = y + 12;
+    const contentHeight = availableHeight - 12;
+    const totalLines = 5; // Current Value, Recent Change, Target Performance, Average, Data Points
+    const lineHeight = 6;
+    const sectionSpacing = 2;
+    const totalContentHeight = (totalLines * lineHeight) + ((totalLines - 1) * sectionSpacing);
+    const startY = contentStartY + (contentHeight - totalContentHeight) / 2;
+    
+    let currentY = startY;
+    const labelWidth = 40; // Space reserved for labels
+    
+    // Current value section - single text line
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(30, 58, 138);
+    const currentValueText = `Latest Value: ${kpi.format_prefix || ''}${latestValue.toLocaleString()}${kpi.format_suffix || ''}`;
+    doc.text(currentValueText, x + 3, currentY);
+    currentY += lineHeight + sectionSpacing;
+    
+    // Recent change section - with dynamic color and proper positioning
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(30, 58, 138);
+    doc.text('Recent Change:', x + 3, currentY);
+    
+    // Add the value with dynamic color at the right position
+    doc.setFont('helvetica', 'normal');
+    const changeColor = recentChange > 0 ? [34, 197, 94] : recentChange < 0 ? [239, 68, 68] : [107, 114, 128];
+    doc.setTextColor(changeColor[0], changeColor[1], changeColor[2]);
+    const changeDirection = recentChange > 0 ? 'up' : recentChange < 0 ? 'down' : 'stable';
+    const changeValueText = `${Math.abs(recentChangePercent).toFixed(1)}% ${changeDirection} (${recentTrend})`;
+    doc.text(changeValueText, x + labelWidth - 7, currentY);
+    currentY += lineHeight + sectionSpacing;
+    
+    // Performance vs target section - with dynamic color and proper positioning
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(30, 58, 138);
+    doc.text('Target Performance:', x + 3, currentY);
+    
+    // Add the value with dynamic color at the right position
+    doc.setFont('helvetica', 'normal');
+    const targetColor = performanceVsTarget >= 100 ? [34, 197, 94] : performanceVsTarget >= 80 ? [251, 191, 36] : [239, 68, 68];
+    doc.setTextColor(targetColor[0], targetColor[1], targetColor[2]);
+    const targetStatus = performanceVsTarget >= 100 ? 'Above Target' : performanceVsTarget >= 80 ? 'Near Target' : 'Below Target';
+    const targetValueText = `${performanceVsTarget.toFixed(1)}% (${targetStatus})`;
+    doc.text(targetValueText, x + labelWidth - 7, currentY);
+    currentY += lineHeight + sectionSpacing;
+    
+    // Average section - single text line
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(30, 58, 138);
+    const averageText = `Average: ${kpi.format_prefix || ''}${average.toFixed(1)}${kpi.format_suffix || ''}`;
+    doc.text(averageText, x + 3, currentY);
+    currentY += lineHeight + sectionSpacing;
+    
+    // Data points section - single text line
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(30, 58, 138);
+    const dataPointsText = `Data Points: ${entryCount} entries`;
+    doc.text(dataPointsText, x + 3, currentY);
+    
+    // Add a subtle border around the insights
+    doc.setDrawColor(30, 58, 138);
+    doc.setLineWidth(0.3);
+    doc.rect(x + 1, y + 1, width - 2, availableHeight - 2, 'S');
   }
 
   function handleViewEntries(event: CustomEvent) {
