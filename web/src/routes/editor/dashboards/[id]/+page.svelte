@@ -461,7 +461,7 @@
     // Add insights on the right side if KPI data is available
     if (widget.kpi_id) {
       try {
-        const insights = await generateKpiInsights(widget.kpi_id, widget.type);
+        const insights = await generateKpiInsights(widget.kpi_id, widget.type, widget);
         if (insights) {
           await addInsightsToPDF(doc, insights, insightsX, insightsY, insightsWidth - 4, availableHeight);
         }
@@ -477,8 +477,8 @@
     const metadataY = y + maxHeight - 8;
   }
 
-  // Function to generate KPI insights
-  async function generateKpiInsights(kpiId: number, widgetType: string) {
+  // Enhanced function to generate KPI insights that matches chart logic
+  async function generateKpiInsights(kpiId: number, widgetType: string, widget: any) {
     try {
       // Fetch KPI details
       const kpiResponse = await api.getKpi(kpiId);
@@ -487,20 +487,27 @@
       const kpi = kpiResponse.data?.kpi;
       if (!kpi) return null;
 
-      // Fetch KPI entries for trend analysis
-      const entriesResponse = await api.getKpiEntries(kpiId);
+      // Fetch KPI entries with widget's date range
+      const entriesResponse = await api.getKpiEntries(kpiId, widget.startDate, widget.endDate);
       if (!entriesResponse.success) return null;
       
-      const entries = entriesResponse.data?.entries || [];
+      let entries = entriesResponse.data?.entries || [];
       if (entries.length < 2) return null;
 
       // Sort entries by date
       const sortedEntries = entries.sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
       
-      // Calculate trends
-      const latestValue = Number(sortedEntries[sortedEntries.length - 1].value);
-      const previousValue = Number(sortedEntries[sortedEntries.length - 2].value);
-      const firstValue = Number(sortedEntries[0].value);
+      // For line charts, apply the same aggregation logic as the chart
+      if (widgetType === 'line' && widget.timeUnit && widget.aggregationMethod) {
+        entries = aggregateDataByTimeUnit(sortedEntries, widget.timeUnit, widget.aggregationMethod);
+      }
+      
+      if (entries.length < 2) return null;
+      
+      // Calculate trends using aggregated data
+      const latestValue = Number(entries[entries.length - 1].value);
+      const previousValue = Number(entries[entries.length - 2].value);
+      const firstValue = Number(entries[0].value);
       
       const recentChange = latestValue - previousValue;
       const totalChange = latestValue - firstValue;
@@ -511,10 +518,10 @@
       const recentTrend = recentChange > 0 ? 'increasing' : recentChange < 0 ? 'decreasing' : 'stable';
       const totalTrend = totalChange > 0 ? 'increasing' : totalChange < 0 ? 'decreasing' : 'stable';
       
-      // Calculate average
+      // Calculate average from aggregated data
       const average = entries.reduce((sum: number, entry: any) => sum + Number(entry.value), 0) / entries.length;
       
-      // Calculate volatility (standard deviation)
+      // Calculate volatility (standard deviation) from aggregated data
       const variance = entries.reduce((sum: number, entry: any) => {
         const diff = Number(entry.value) - average;
         return sum + (diff * diff);
@@ -524,6 +531,11 @@
       // Performance vs target
       const target = Number(kpi.target);
       const performanceVsTarget = target !== 0 ? (latestValue / target) * 100 : 0;
+      
+      // Add aggregation info for context
+      const aggregationInfo = widgetType === 'line' && widget.timeUnit && widget.aggregationMethod 
+        ? `${widget.timeUnit.charAt(0).toUpperCase() + widget.timeUnit.slice(1)} ${widget.aggregationMethod.charAt(0).toUpperCase() + widget.aggregationMethod.slice(1)}`
+        : 'Raw Data';
       
       return {
         kpi,
@@ -539,15 +551,91 @@
         volatility,
         performanceVsTarget,
         entryCount: entries.length,
+        aggregationInfo,
         dateRange: {
-          start: sortedEntries[0].date,
-          end: sortedEntries[sortedEntries.length - 1].date
+          start: entries[0].date,
+          end: entries[entries.length - 1].date
         }
       };
     } catch (e) {
       console.error('Error generating insights:', e);
       return null;
     }
+  }
+
+  // Helper function to aggregate data by time unit (same logic as DashboardWidget)
+  function aggregateDataByTimeUnit(entries: any[], timeUnit: string, aggregationMethod: string): any[] {
+    if (timeUnit === 'day') {
+      return entries; // No aggregation needed for daily data
+    }
+
+    const groupedData = new Map<string, any[]>();
+
+    // Group entries by time unit
+    entries.forEach(entry => {
+      const date = new Date(entry.date);
+      let key: string;
+
+      switch (timeUnit) {
+        case 'week':
+          // Get start of week (Monday)
+          const startOfWeek = new Date(date);
+          startOfWeek.setDate(date.getDate() - date.getDay() + 1);
+          key = startOfWeek.toISOString().split('T')[0];
+          break;
+        case 'month':
+          key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-01`;
+          break;
+        case 'year':
+          key = `${date.getFullYear()}-01-01`;
+          break;
+        default:
+          key = entry.date;
+      }
+
+      if (!groupedData.has(key)) {
+        groupedData.set(key, []);
+      }
+      groupedData.get(key)!.push(entry);
+    });
+
+    // Aggregate each group
+    const aggregatedEntries: any[] = [];
+    groupedData.forEach((group, key) => {
+      const values = group.map(entry => Number(entry.value));
+      let aggregatedValue: number;
+
+      switch (aggregationMethod) {
+        case 'sum':
+          aggregatedValue = values.reduce((sum, val) => sum + val, 0);
+          break;
+        case 'max':
+          aggregatedValue = Math.max(...values);
+          break;
+        case 'min':
+          aggregatedValue = Math.min(...values);
+          break;
+        case 'latest':
+          // Sort by date and take the latest
+          const sortedGroup = group.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+          aggregatedValue = Number(sortedGroup[0].value);
+          break;
+        case 'average':
+        default:
+          aggregatedValue = values.reduce((sum, val) => sum + val, 0) / values.length;
+          break;
+      }
+
+      aggregatedEntries.push({
+        id: group[0].id, // Use first entry's ID
+        kpi_id: group[0].kpi_id,
+        date: key,
+        value: aggregatedValue
+      });
+    });
+
+    // Sort aggregated entries by date
+    return aggregatedEntries.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }
 
   // Enhanced function to add insights to PDF with vertical centering and dynamic colors

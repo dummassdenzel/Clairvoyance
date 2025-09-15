@@ -2,11 +2,12 @@
   import { onMount, onDestroy, createEventDispatcher } from 'svelte';
   import Chart from 'chart.js/auto';
   import annotationPlugin from 'chartjs-plugin-annotation';
+  import zoomPlugin from 'chartjs-plugin-zoom';
   import 'chartjs-adapter-date-fns';
   import * as api from '$lib/services/api';
   import type { Kpi, ApiResponse, KpiEntry } from '$lib/types';
 
-  Chart.register(annotationPlugin);
+  Chart.register(annotationPlugin, zoomPlugin);
 
   export let widget: any;
   export let editMode: boolean = false;
@@ -24,6 +25,11 @@
   let isLoading = true;
   let error: string | null = null;
   let canvasElement: HTMLCanvasElement;
+
+  let isDragging = false;
+  let dragStartX = 0;
+  let dragStartY = 0;
+  let dragThreshold = 5; // pixels
 
   async function loadWidgetData() {
     if (!widget.kpi_id) {
@@ -212,6 +218,11 @@
   }
 
   async function handleWidgetClick(event: MouseEvent) {
+    // Check if this was a drag/pan gesture
+    if (isDragging) {
+      return;
+    }
+
     // Check if the click was on the legend area specifically
     const target = event.target as HTMLElement;
     
@@ -281,6 +292,32 @@
         hasKpiDetails: !!kpiDetails
       });
     }
+  }
+
+  function handleMouseDown(event: MouseEvent) {
+    isDragging = false;
+    dragStartX = event.clientX;
+    dragStartY = event.clientY;
+  }
+
+  function handleMouseMove(event: MouseEvent) {
+    if (dragStartX === 0 && dragStartY === 0) return;
+    
+    const deltaX = Math.abs(event.clientX - dragStartX);
+    const deltaY = Math.abs(event.clientY - dragStartY);
+    
+    if (deltaX > dragThreshold || deltaY > dragThreshold) {
+      isDragging = true;
+    }
+  }
+
+  function handleMouseUp() {
+    // Reset dragging state after a short delay to allow click handler to check it
+    setTimeout(() => {
+      isDragging = false;
+      dragStartX = 0;
+      dragStartY = 0;
+    }, 10);
   }
 
   // When data-related properties change, re-fetch all data
@@ -454,13 +491,24 @@
       const chartPlugins: any = {
         legend: { 
           display: widget.showLegend !== false,
-          position: widget.legendPosition || 'top',
-          // Only show legend for the first dataset
-          filter: (legendItem: any, chartData: any) => {
-            return legendItem.datasetIndex === 0;
-          }
+          position: widget.legendPosition || 'top'
         },
-        autocolors: false
+        autocolors: false,
+        zoom: {
+          zoom: {
+            wheel: {
+              enabled: true,
+            },
+            pinch: {
+              enabled: true
+            },
+            mode: 'x',
+          },
+          pan: {
+            enabled: true,
+            mode: 'x',
+          }
+        }
       };
 
       // Add goal line for line charts if target exists
@@ -572,6 +620,10 @@
                 text: 'Value'
               }
             }
+          },
+          interaction: {
+            intersect: false,
+            mode: 'index'
           }
         }
       });
@@ -676,6 +728,8 @@
       </div>
     {/if}
   </div>
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div 
     on:pointerdown={editMode ? movePointerDown : undefined} 
     on:click={handleWidgetClick}
@@ -703,11 +757,28 @@
         </div>
       </div>
     {:else if ['line', 'bar', 'pie', 'doughnut'].includes(widget.type)}
-      <div class="w-full h-full relative flex items-center justify-center">
-        <canvas 
-          bind:this={canvasElement}
-          class="w-full h-full"
-        ></canvas>
+      <div class="w-full h-full relative">
+        <!-- Chart Container -->
+        <div class="absolute inset-0 flex items-center justify-center">
+          <canvas 
+            bind:this={canvasElement}
+            on:mousedown={handleMouseDown}
+            on:mousemove={handleMouseMove}
+            on:mouseup={handleMouseUp}
+            class="w-full h-full"
+          ></canvas>
+        </div>
+        
+        <!-- Chart Info Footer - positioned absolutely at bottom -->
+        {#if widget.type === 'line' && widget.timeUnit && widget.aggregationMethod}
+          <div class="absolute bottom-0 left-0 right-0 px-2 pb-1 text-xs text-gray-500 text-center bg-white/80 backdrop-blur-sm">
+            {widget.timeUnit === 'day' ? 'Daily' : 
+             widget.timeUnit === 'week' ? 'Weekly' : 
+             widget.timeUnit === 'month' ? 'Monthly' : 
+             widget.timeUnit === 'year' ? 'Yearly' : 
+             widget.timeUnit.charAt(0).toUpperCase() + widget.timeUnit.slice(1)} • {widget.aggregationMethod.charAt(0).toUpperCase() + widget.aggregationMethod.slice(1)}
+          </div>
+        {/if}
       </div>
     {:else if widget.type === 'single-value'}
       <div class="flex flex-col items-center justify-center h-full text-center">
