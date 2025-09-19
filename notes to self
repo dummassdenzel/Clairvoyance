@@ -4,9 +4,8 @@ remove the viewer role entirely. all users are editor and can share ownership an
 
 data on same date, aggregation
 
-refine dashboard widget layout easiness in edit mode
-hovering on nodes automatically display 8 am
 
 
 minor visual bugs:
-should display no data available for this kpi on single value charts also
+make kpi editable from kpientries modal
+refine dashboard widget layout easiness in edit mode

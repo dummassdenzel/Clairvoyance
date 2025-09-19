@@ -102,15 +102,32 @@
           dateRange = null; // Reset date range for chart widgets
         }
       } else {
-        throw new Error(dataResult.message || 'Failed to load widget data');
+        // If aggregate fetch fails for single-value, show empty state instead of error banner
+        if (widget.type === 'single-value') {
+          aggregateValue = null;
+          kpiData = null;
+          dateRange = null;
+          // keep error null so single-value branch renders its empty message
+        } else {
+          throw new Error(dataResult.message || 'Failed to load widget data');
+        }
       }
     } catch (e) {
       console.error(`Failed to load data for widget ${widget.id}:`, e);
-      error = e instanceof Error ? e.message : 'Unknown error occurred';
-      kpiData = null;
-      kpiDetails = null;
-      aggregateValue = null;
-      dateRange = null;
+      if (widget.type === 'single-value') {
+        // Suppress global error for single-value so the widget shows unified empty state
+        error = null;
+        kpiData = null;
+        // keep kpiDetails as-is if we have it; otherwise it's fine to be null
+        aggregateValue = null;
+        dateRange = null;
+      } else {
+        error = e instanceof Error ? e.message : 'Unknown error occurred';
+        kpiData = null;
+        kpiDetails = null;
+        aggregateValue = null;
+        dateRange = null;
+      }
     } finally {
       isLoading = false;
     }
@@ -881,6 +898,40 @@
         };
       }
 
+      // Friendly tooltips for bar charts in time-based mode
+      if (widget.type === 'bar' && (widget.chartMode || 'time-based') === 'time-based') {
+        const prefix = kpiDetails?.format_prefix || '';
+        const suffix = kpiDetails?.format_suffix || '';
+        const unit = widget.timeUnit || 'day';
+        const formatDate = (d: Date) => {
+          if (unit === 'year') {
+            return d.toLocaleDateString('en-US', { year: 'numeric' });
+          } else if (unit === 'month') {
+            return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+          } else if (unit === 'week') {
+            return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+          } else {
+            return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+          }
+        };
+
+        chartPlugins.tooltip = {
+          callbacks: {
+            title: (items: any[]) => {
+              if (!items || items.length === 0) return '';
+              const xVal = items[0].parsed?.x ?? items[0].label;
+              const date = new Date(xVal);
+              return isNaN(date.getTime()) ? String(items[0].label) : formatDate(date);
+            },
+            label: (ctx: any) => {
+              const value = typeof ctx.parsed?.y === 'number' ? ctx.parsed.y : Number(ctx.formattedValue);
+              const series = ctx.dataset?.label ? `${ctx.dataset.label}: ` : '';
+              return `${series}${prefix}${Number(value).toLocaleString()}${suffix}`;
+            }
+          }
+        };
+      }
+
       // Add goal line for line and bar charts if target exists
       if (['line', 'bar'].includes(widget.type)) {
         const targetValue = kpiDetails ? Number(kpiDetails.target) : null;
@@ -968,8 +1019,8 @@
           plugins: chartPlugins,
           scales: ['pie', 'doughnut'].includes(widget.type) ? {} : {
             x: {
-              type: widget.type === 'line' ? 'time' : 'category',
-              time: widget.type === 'line' ? {
+              type: (widget.type === 'line') ? 'time' : ((widget.type === 'bar' && (widget.chartMode || 'time-based') === 'time-based') ? 'time' : 'category'),
+              time: (widget.type === 'line' || (widget.type === 'bar' && (widget.chartMode || 'time-based') === 'time-based')) ? {
                 unit: widget.timeUnit || 'day',
                 displayFormats: {
                   day: 'MMM dd',
@@ -980,7 +1031,7 @@
               } : undefined,
               title: {
                 display: true,
-                text: widget.type === 'line' ? 'Date' : 'Category'
+                text: (widget.type === 'line' || (widget.type === 'bar' && (widget.chartMode || 'time-based') === 'time-based')) ? 'Date' : 'Category'
               }
             },
             y: {
@@ -1173,15 +1224,21 @@
       </div>
     {:else if widget.type === 'single-value'}
       <div class="flex flex-col items-center justify-center h-full text-center">
-        <h3 class="text-4xl font-bold {getRagClass(aggregateValue, kpiDetails)}">
-          {kpiDetails?.format_prefix || ''}{aggregateValue !== null ? aggregateValue.toLocaleString() : 'N/A'}{kpiDetails?.format_suffix || ''}
-        </h3>
-        <p class="text-sm text-gray-500">{widget.aggregation.charAt(0).toUpperCase() + widget.aggregation.slice(1)} Value</p>
-        {#if dateRange}
-          <p class="text-xs text-gray-400 mt-1">{getDateRangeText()}</p>
-        {/if}
-        {#if !editMode && widget.kpi_id}
-          <!-- <p class="text-xs text-gray-400 mt-2">Click to view entries</p> -->
+        {#if aggregateValue === null}
+          <div class="text-center">
+            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+            <p class="mt-2 text-sm text-gray-400">No data available for this KPI.</p>
+          </div>
+        {:else}
+          <h3 class="text-4xl font-bold {getRagClass(aggregateValue, kpiDetails)}">
+            {kpiDetails?.format_prefix || ''}{aggregateValue.toLocaleString()}{kpiDetails?.format_suffix || ''}
+          </h3>
+          <p class="text-sm text-gray-500">{widget.aggregation.charAt(0).toUpperCase() + widget.aggregation.slice(1)} Value</p>
+          {#if dateRange}
+            <p class="text-xs text-gray-400 mt-1">{getDateRangeText()}</p>
+          {/if}
         {/if}
       </div>
     {:else}
