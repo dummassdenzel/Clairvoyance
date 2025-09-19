@@ -140,6 +140,46 @@
     // if (internalWidget.type === 'line' && internalWidget.gapHandlingMode === undefined) {
     //   internalWidget.gapHandlingMode = 'broken';
     // }
+
+    // Set default chart mode for bar charts
+    if (internalWidget.type === 'bar' && internalWidget.chartMode === undefined) {
+      internalWidget.chartMode = 'time-based';
+    }
+
+    // Set default time unit and aggregation method for bar charts
+    if (internalWidget.type === 'bar' && internalWidget.timeUnit === undefined) {
+      internalWidget.timeUnit = 'day';
+    }
+    if (internalWidget.type === 'bar' && internalWidget.aggregationMethod === undefined) {
+      internalWidget.aggregationMethod = 'sum';
+    }
+
+    // Set default category field for categorical bar charts
+    if (internalWidget.type === 'bar' && internalWidget.chartMode === 'categorical' && internalWidget.categoryField === undefined) {
+      internalWidget.categoryField = 'date';
+    }
+
+    // Set default range method for pie/doughnut charts
+    if (['pie', 'doughnut'].includes(internalWidget.type) && internalWidget.rangeMethod === undefined) {
+      internalWidget.rangeMethod = 'target-based';
+    }
+
+    // Set default datalabels display for pie/doughnut charts
+    if (['pie', 'doughnut'].includes(internalWidget.type) && internalWidget.datalabelsDisplay === undefined) {
+      internalWidget.datalabelsDisplay = 'count-percentage';
+    }
+
+    // Set default custom ranges based on KPI target value
+    if (['pie', 'doughnut'].includes(internalWidget.type) && internalWidget.rangeMethod === 'custom' && !internalWidget.customRanges) {
+      const selectedKpi = kpis.find(kpi => kpi.id === internalWidget.kpi_id);
+      const targetValue = selectedKpi && selectedKpi.target ? Number(selectedKpi.target) : 500;
+      
+      internalWidget.customRanges = {
+        low: Math.floor(targetValue * 0.2),      // 20% of target
+        medium: Math.floor(targetValue * 0.6),   // 60% of target
+        high: targetValue                        // Target value
+      };
+    }
   }
 </script>
 
@@ -245,6 +285,137 @@
               <!-- <div class="mt-3 p-2 bg-blue-100 rounded text-xs text-blue-800">
                 <strong>Gap Detection:</strong> Automatically detects gaps larger than 1 week (daily), 2 weeks (weekly), 2 months (monthly), or 1 year (yearly) and creates visual breaks in the line.
               </div> -->
+            </div>
+          {/if}
+
+          <!-- Bar Chart Settings -->
+          {#if internalWidget.type === 'bar'}
+            <div class="">
+              <h4 class="text-sm font-medium text-blue-900 mb-4">Bar Chart Settings</h4>
+              
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label for="widget-chart-mode" class="block text-sm font-medium text-gray-700">Chart Mode</label>
+                  <select 
+                    id="widget-chart-mode" 
+                    bind:value={internalWidget.chartMode} 
+                    class="mt-1 py-2 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  >
+                    <option value="time-based">Time-based</option>
+                    <option value="categorical">Categorical</option>
+                  </select>
+                  <p class="mt-1 text-xs text-gray-500">How to group and display data</p>
+                </div>
+                
+                {#if internalWidget.chartMode === 'time-based'}
+                  <div>
+                    <label for="widget-time-unit-bar" class="block text-sm font-medium text-gray-700">Time Unit</label>
+                    <select 
+                      id="widget-time-unit-bar" 
+                      bind:value={internalWidget.timeUnit} 
+                      class="mt-1 py-2 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                    >
+                      <option value="day">Daily</option>
+                      <option value="week">Weekly</option>
+                      <option value="month">Monthly</option>
+                      <option value="year">Yearly</option>
+                    </select>
+                  </div>
+                {/if}
+              </div>
+              
+              {#if internalWidget.chartMode === 'time-based'}
+                <div class="mt-4">
+                  <label for="widget-aggregation-method-bar" class="block text-sm font-medium text-gray-700">Aggregation Method</label>
+                  <select 
+                    id="widget-aggregation-method-bar" 
+                    bind:value={internalWidget.aggregationMethod} 
+                    class="mt-1 py-2 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  >
+                    <option value="sum">Sum</option>
+                    <option value="average">Average</option>
+                    <option value="max">Maximum</option>
+                    <option value="min">Minimum</option>
+                    <option value="latest">Latest Value</option>
+                  </select>
+                  <p class="mt-1 text-xs text-gray-500">How to combine entries within each time period</p>
+                </div>
+              {/if}
+              
+              {#if internalWidget.chartMode === 'categorical'}
+                <div class="mt-4">
+                  <label for="widget-category-field" class="block text-sm font-medium text-gray-700">Category Field</label>
+                  <select 
+                    id="widget-category-field" 
+                    bind:value={internalWidget.categoryField} 
+                    class="mt-1 py-2 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  >
+                    <option value="date">Date</option>
+                    <option value="value">Value Range</option>
+                  </select>
+                  <p class="mt-1 text-xs text-gray-500">How to group data into categories</p>
+                </div>
+              {/if}
+            </div>
+          {/if}
+
+          <!-- Pie/Doughnut Chart Settings -->
+          {#if ['pie', 'doughnut'].includes(internalWidget.type)}
+            <div class="">
+              <h4 class="text-sm font-medium text-blue-900 mb-4">Pie/Doughnut Chart Settings</h4>
+              
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label for="widget-range-method" class="block text-sm font-medium text-gray-700">Range Method</label>
+                  <select 
+                    id="widget-range-method" 
+                    bind:value={internalWidget.rangeMethod} 
+                    class="mt-1 py-2 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  >
+                    <option value="target-based">Target-based</option>
+                    <option value="quartile-based">Quartile-based</option>
+                    <option value="custom">Custom Ranges</option>
+                  </select>
+                  <p class="mt-1 text-xs text-gray-500">How to define value ranges</p>
+                </div>
+                <div>
+                  <label for="widget-datalabels-display" class="block text-sm font-medium text-gray-700">Data Labels Display</label>
+                  <select 
+                    id="widget-datalabels-display" 
+                    bind:value={internalWidget.datalabelsDisplay} 
+                    class="mt-1 py-2 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  >
+                    <option value="count-percentage">Count & Percentage</option>
+                    <option value="count-only">Count Only</option>
+                    <option value="percentage-only">Percentage Only</option>
+                    <option value="value-percentage">Value & Percentage</option>
+                    <option value="value-only">Value Only</option>
+                    <option value="none">None</option>
+                  </select>
+                  <p class="mt-1 text-xs text-gray-500">What to show on chart segments</p>
+                </div>
+              </div>
+              
+              {#if internalWidget.rangeMethod === 'custom'}
+                <div class="mt-4">
+                  <h5 class="text-sm font-medium text-gray-700 mb-2">Custom Ranges</h5>
+                  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label for="custom-low-range" class="block text-xs text-gray-600">Low Range</label>
+                      <input id="custom-low-range" type="number" bind:value={internalWidget.customRanges.low} placeholder="20% of target" class="mt-1 py-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm">
+                    </div>
+                    <div>
+                      <label for="custom-medium-range" class="block text-xs text-gray-600">Medium Range</label>
+                      <input id="custom-medium-range" type="number" bind:value={internalWidget.customRanges.medium} placeholder="60% of target" class="mt-1 py-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm">
+                    </div>
+                    <div>
+                      <label for="custom-high-range" class="block text-xs text-gray-600">High Range</label>
+                      <input id="custom-high-range" type="number" bind:value={internalWidget.customRanges.high} placeholder="Target value" class="mt-1 py-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm">
+                    </div>
+                  </div>
+                  <p class="mt-1 text-xs text-gray-500">Define custom value thresholds</p>
+                </div>
+              {/if}
             </div>
           {/if}
 

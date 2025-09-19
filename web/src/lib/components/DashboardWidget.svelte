@@ -3,11 +3,12 @@
   import Chart from 'chart.js/auto';
   import annotationPlugin from 'chartjs-plugin-annotation';
   import zoomPlugin from 'chartjs-plugin-zoom';
+  import ChartDataLabels from 'chartjs-plugin-datalabels';
   import 'chartjs-adapter-date-fns';
   import * as api from '$lib/services/api';
   import type { Kpi, ApiResponse, KpiEntry } from '$lib/types';
 
-  Chart.register(annotationPlugin, zoomPlugin);
+  Chart.register(annotationPlugin, zoomPlugin, ChartDataLabels);
 
   export let widget: any;
   export let editMode: boolean = false;
@@ -456,6 +457,190 @@
     return aggregatedEntries.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }
 
+  // New function to process categorical data for bar charts
+  function processCategoricalData(entries: KpiEntry[], categoryField: string = 'date') {
+    if (!entries || entries.length === 0) return { data: [], labels: [] };
+
+    const groupedData = new Map<string, KpiEntry[]>();
+
+    entries.forEach(entry => {
+      let key: string;
+
+      if (categoryField === 'date') {
+        // Group by date (daily)
+        key = entry.date;
+      } else if (categoryField === 'value') {
+        // Group by value ranges
+        const value = Number(entry.value);
+        if (value < 100) key = '0-99';
+        else if (value < 500) key = '100-499';
+        else if (value < 1000) key = '500-999';
+        else key = '1000+';
+      } else {
+        key = entry.date; // fallback
+      }
+
+      if (!groupedData.has(key)) {
+        groupedData.set(key, []);
+      }
+      groupedData.get(key)!.push(entry);
+    });
+
+    // Convert to chart data format
+    const labels: string[] = [];
+    const data: number[] = [];
+
+    groupedData.forEach((group, key) => {
+      labels.push(key);
+      // Sum the values for each category
+      const sum = group.reduce((total, entry) => total + Number(entry.value), 0);
+      data.push(sum);
+    });
+
+    return { data, labels };
+  }
+
+  // Enhanced function to process bar chart data
+  function processBarChartData(entries: KpiEntry[], chartMode: string = 'time-based', timeUnit: string = 'day', aggregationMethod: string = 'sum', categoryField: string = 'date') {
+    if (chartMode === 'time-based') {
+      // Use existing time-series aggregation
+      const aggregatedEntries = aggregateDataByTimeUnit(entries, timeUnit, aggregationMethod);
+      return {
+        data: aggregatedEntries.map(entry => Number(entry.value)),
+        labels: aggregatedEntries.map(entry => entry.date)
+      };
+    } else {
+      // Use categorical processing
+      return processCategoricalData(entries, categoryField);
+    }
+  }
+
+  // New function to process pie/doughnut chart data with value ranges
+  function processPieChartData(entries: KpiEntry[], kpiDetails: Kpi | null, rangeMethod: string = 'target-based', customRanges: any = null) {
+    if (!entries || entries.length === 0) return { data: [], labels: [], colors: [], sums: [], counts: [] };
+
+    const values = entries.map(entry => Number(entry.value));
+    const maxValue = Math.max(...values);
+    const minValue = Math.min(...values);
+    const target = kpiDetails ? Number(kpiDetails.target) : null;
+    
+    let ranges: { label: string; min: number; max: number; color: string }[] = [];
+    
+    if (rangeMethod === 'target-based' && target && !isNaN(target)) {
+      // Target-based ranges
+      ranges = [
+        { 
+          label: `Below Target (₱${minValue}-₱${target - 1})`, 
+          min: minValue, 
+          max: target - 1, 
+          color: '#ef4444' 
+        },
+        { 
+          label: `Within Target (₱${target}+)`, 
+          min: target, 
+          max: maxValue + 1, 
+          color: '#10b981' 
+        }
+      ];
+    } else if (rangeMethod === 'custom' && customRanges) {
+      // Enhanced: Auto-adjust custom ranges based on target
+      const targetValue = target && !isNaN(target) ? target : maxValue;
+      const adjustedRanges = {
+        low: customRanges.low || Math.floor(targetValue * 0.2),      // 20% of target
+        medium: customRanges.medium || Math.floor(targetValue * 0.6), // 60% of target
+        high: customRanges.high || targetValue                       // Target value (default)
+      };
+      
+      ranges = [
+        { 
+          label: `Low (₱${minValue}-₱${adjustedRanges.low - 1})`, 
+          min: minValue, 
+          max: adjustedRanges.low - 1, 
+          color: '#ef4444' 
+        },
+        { 
+          label: `Medium (₱${adjustedRanges.low}-₱${adjustedRanges.medium - 1})`, 
+          min: adjustedRanges.low, 
+          max: adjustedRanges.medium - 1, 
+          color: '#f59e0b' 
+        },
+        { 
+          label: `High (₱${adjustedRanges.medium}-₱${adjustedRanges.high - 1})`, 
+          min: adjustedRanges.medium, 
+          max: adjustedRanges.high - 1, 
+          color: '#10b981' 
+        },
+        { 
+          label: `Very High (₱${adjustedRanges.high}+)`, 
+          min: adjustedRanges.high, 
+          max: maxValue + 1, 
+          color: '#059669' 
+        }
+      ];
+    } else {
+      // Enhanced: Quartile ranges based on target value instead of data
+      const targetValue = target && !isNaN(target) ? target : maxValue;
+      
+      // Calculate quartiles based on target value
+      const q1 = Math.floor(targetValue * 0.25);  // 25% of target
+      const q2 = Math.floor(targetValue * 0.5);   // 50% of target  
+      const q3 = Math.floor(targetValue * 0.75);  // 75% of target
+      
+      ranges = [
+        { 
+          label: `Q1 (₱${minValue}-₱${q1 - 1})`, 
+          min: minValue, 
+          max: q1 - 1, 
+          color: '#ef4444' 
+        },
+        { 
+          label: `Q2 (₱${q1}-₱${q2 - 1})`, 
+          min: q1, 
+          max: q2 - 1, 
+          color: '#f59e0b' 
+        },
+        { 
+          label: `Q3 (₱${q2}-₱${q3 - 1})`, 
+          min: q2, 
+          max: q3 - 1, 
+          color: '#10b981' 
+        },
+        { 
+          label: `Q4 (₱${q3}+)`, 
+          min: q3, 
+          max: maxValue + 1, 
+          color: '#059669' 
+        }
+      ];
+    }
+
+    // Count entries and sum values in each range
+    const rangeCounts = ranges.map(range => {
+      const entriesInRange = entries.filter(entry => {
+        const value = Number(entry.value);
+        return value >= range.min && value <= range.max;
+      });
+      
+      return {
+        label: range.label,
+        count: entriesInRange.length,
+        sum: entriesInRange.reduce((total, entry) => total + Number(entry.value), 0),
+        color: range.color
+      };
+    });
+
+    // Filter out empty ranges
+    const nonEmptyRanges = rangeCounts.filter(range => range.count > 0);
+
+    return {
+      data: nonEmptyRanges.map(range => range.count),
+      labels: nonEmptyRanges.map(range => range.label),
+      colors: nonEmptyRanges.map(range => range.color),
+      sums: nonEmptyRanges.map(range => range.sum),
+      counts: nonEmptyRanges.map(range => range.count)
+    };
+  }
+
   // Enhanced chart rendering with gap handling
   function renderChart(canvas: HTMLCanvasElement) {
     if (!canvas || !kpiData) {
@@ -474,19 +659,142 @@
         value: kpiData!.values[index]
       }));
 
-      // Process data for time-series with gap detection
-      const { data: timeSeriesData, gaps, segments } = processTimeSeriesData(
-        entries,
-        widget.gapThresholdDays || 7,
-        widget.timeUnit || 'day',
-        widget.aggregationMethod || 'average'
-      );
+      let chartData: any;
+      let datasets: any[] = [];
 
-      console.log(`Widget ${widget.id}: Processed time-series data:`, { 
-        timeSeriesData, 
-        gaps, 
-        segments: segments.length 
-      });
+      if (widget.type === 'line') {
+        // Process data for time-series with gap detection
+        const { data: timeSeriesData, gaps, segments } = processTimeSeriesData(
+          entries,
+          widget.gapThresholdDays || 7,
+          widget.timeUnit || 'day',
+          widget.aggregationMethod || 'average'
+        );
+
+        // Create datasets based on gap handling mode
+        const gapHandlingMode = widget.gapHandlingMode || 'broken';
+        
+        if (segments.length === 0) {
+          // No gaps found - single dataset
+          datasets = [{
+            label: widget.title || `KPI ${widget.kpi_id}`,
+            data: timeSeriesData,
+            backgroundColor: widget.backgroundColor || 'rgba(54, 162, 235, 0.2)',
+            borderColor: widget.borderColor || 'rgba(54, 162, 235, 1)',
+            borderWidth: 2,
+            pointRadius: 4,
+            pointHoverRadius: 6
+          }];
+        } else {
+          // Gaps detected - create separate datasets for each segment (broken lines)
+          datasets = segments.map((segment, index) => {
+            // Calculate date range for this segment
+            const segmentDates = segment.map(point => point.x);
+            const startDate = new Date(Math.min(...segmentDates));
+            const endDate = new Date(Math.max(...segmentDates));
+            
+            // Format the date range
+            const formatDate = (date: Date) => {
+              return date.toLocaleDateString('en-US', { 
+                month: 'short', 
+                day: 'numeric' 
+              });
+            };
+            
+            let label;
+            if (startDate.getTime() === endDate.getTime()) {
+              // Single date
+              label = formatDate(startDate);
+            } else {
+              // Date range
+              label = `${formatDate(startDate)} - ${formatDate(endDate)}`;
+            }
+            
+            return {
+              label: label,
+              data: segment,
+              backgroundColor: widget.backgroundColor || 'rgba(54, 162, 235, 0.2)',
+              borderColor: widget.borderColor || 'rgba(54, 162, 235, 1)',
+              borderWidth: 2,
+              pointRadius: 4,
+              pointHoverRadius: 6,
+            };
+          });
+        }
+      } else if (widget.type === 'bar') {
+        // Process bar chart data
+        const barData = processBarChartData(
+          entries,
+          widget.chartMode || 'time-based',
+          widget.timeUnit || 'day',
+          widget.aggregationMethod || 'sum',
+          widget.categoryField || 'date'
+        );
+
+        datasets = [{
+          label: widget.title || `KPI ${widget.kpi_id}`,
+          data: barData.data,
+          backgroundColor: widget.backgroundColor || 'rgba(54, 162, 235, 0.8)',
+          borderColor: widget.borderColor || 'rgba(54, 162, 235, 1)',
+          borderWidth: 1
+        }];
+
+        chartData = {
+          labels: barData.labels,
+          datasets: datasets
+        };
+      } else if (['pie', 'doughnut'].includes(widget.type)) {
+        // Process pie/doughnut chart data with value ranges
+        const pieData = processPieChartData(
+          entries, 
+          kpiDetails, 
+          widget.rangeMethod || 'target-based',
+          widget.customRanges
+        );
+
+        datasets = [{
+          label: widget.title || `KPI ${widget.kpi_id}`,
+          data: pieData.data,
+          backgroundColor: pieData.colors || [
+            'rgba(54, 162, 235, 0.8)',
+            'rgba(255, 99, 132, 0.8)',
+            'rgba(255, 205, 86, 0.8)',
+            'rgba(75, 192, 192, 0.8)',
+            'rgba(153, 102, 255, 0.8)'
+          ],
+          borderColor: pieData.colors || [
+            'rgba(54, 162, 235, 1)',
+            'rgba(255, 99, 132, 1)',
+            'rgba(255, 205, 86, 1)',
+            'rgba(75, 192, 192, 1)',
+            'rgba(153, 102, 255, 1)'
+          ],
+          borderWidth: 1
+        }];
+
+        chartData = {
+          labels: pieData.labels,
+          datasets: datasets
+        };
+      } else {
+        // For other chart types, use existing logic
+        chartData = {
+          datasets: [{
+            label: widget.title || `KPI ${widget.kpi_id}`,
+            data: kpiData!.values,
+            backgroundColor: widget.backgroundColor || 'rgba(54, 162, 235, 0.8)',
+            borderColor: widget.borderColor || 'rgba(54, 162, 235, 1)',
+            borderWidth: 1
+          }]
+        };
+      }
+
+      // For line charts, use the existing chartData structure
+      if (widget.type === 'line') {
+        chartData = {
+          datasets: datasets
+        };
+      }
 
       const chartPlugins: any = {
         legend: { 
@@ -511,8 +819,25 @@
         }
       };
 
-      // Add goal line for line charts if target exists
-      if (widget.type === 'line') {
+      // Tweak legend label styling to reduce truncation on left/right legends
+      if (chartPlugins.legend && ['left', 'right'].includes(chartPlugins.legend.position)) {
+        // Keep legend vertically centered, just make it more compact to avoid cuts
+        chartPlugins.legend.align = 'center';
+        chartPlugins.legend.labels = {
+          usePointStyle: true,
+          pointStyle: 'circle',
+          boxWidth: 8,
+          boxHeight: 8,
+          padding: 6,
+          textAlign: 'left',
+          font: {
+            size: 9
+          }
+        };
+      }
+
+      // Add goal line for line and bar charts if target exists
+      if (['line', 'bar'].includes(widget.type)) {
         const targetValue = kpiDetails ? Number(kpiDetails.target) : null;
         if (targetValue !== null && !isNaN(targetValue)) {
           chartPlugins.annotation = {
@@ -535,72 +860,71 @@
         }
       }
 
-      // Create datasets based on gap handling mode
-      const gapHandlingMode = widget.gapHandlingMode || 'broken';
-      let datasets: any[] = [];
-
-      if (segments.length === 0) {
-        // No gaps found - single dataset
-        datasets = [{
-          label: widget.title || `KPI ${widget.kpi_id}`,
-          data: timeSeriesData,
-          backgroundColor: widget.backgroundColor || 'rgba(54, 162, 235, 0.2)',
-          borderColor: widget.borderColor || 'rgba(54, 162, 235, 1)',
-          borderWidth: 2,
-          pointRadius: 4,
-          pointHoverRadius: 6
-        }];
-      } else {
-        // Gaps detected - create separate datasets for each segment (broken lines)
-        datasets = segments.map((segment, index) => {
-          // Calculate date range for this segment
-          const segmentDates = segment.map(point => point.x);
-          const startDate = new Date(Math.min(...segmentDates));
-          const endDate = new Date(Math.max(...segmentDates));
-          
-          // Format the date range
-          const formatDate = (date: Date) => {
-            return date.toLocaleDateString('en-US', { 
-              month: 'short', 
-              day: 'numeric' 
-            });
-          };
-          
-          let label;
-          if (startDate.getTime() === endDate.getTime()) {
-            // Single date
-            label = formatDate(startDate);
-          } else {
-            // Date range
-            label = `${formatDate(startDate)} - ${formatDate(endDate)}`;
-          }
-          
-          return {
-            label: label,
-            data: segment,
-            backgroundColor: widget.backgroundColor || 'rgba(54, 162, 235, 0.2)',
-            borderColor: widget.borderColor || 'rgba(54, 162, 235, 1)',
-            borderWidth: 2,
-            pointRadius: 4,
-            pointHoverRadius: 6,
-            // No borderDash - clean broken lines
-          };
-        });
+      // Add datalabels for pie/doughnut charts
+      if (['pie', 'doughnut'].includes(widget.type)) {
+        const pieData = processPieChartData(
+          entries, 
+          kpiDetails, 
+          widget.rangeMethod || 'target-based',
+          widget.customRanges
+        );
+        
+        chartPlugins.datalabels = {
+          display: widget.datalabelsDisplay !== 'none',
+          color: '#fff',
+          font: {
+            weight: 'bold',
+            size: 12
+          },
+          formatter: (value: number, context: any) => {
+            const index = context.dataIndex;
+            const counts = pieData.counts || [];
+            const sums = pieData.sums || [];
+            const count = counts[index] || 0;
+            const sum = sums[index] || 0;
+            const total = sums.reduce((a: number, b: number) => a + b, 0);
+            const percentage = total > 0 ? Math.round((sum / total) * 100) : 0;
+            
+            // Format based on widget setting
+            switch (widget.datalabelsDisplay || 'count-percentage') {
+              case 'count-only':
+                return `${count}`;
+              case 'percentage-only':
+                return `${percentage}%`;
+              case 'value-only':
+                return `₱${sum.toLocaleString()}`;
+              case 'value-percentage':
+                return `₱${sum.toLocaleString()}\n(${percentage}%)`;
+              case 'count-percentage':
+              default:
+                return `${count}\n(${percentage}%)`;
+            }
+          },
+          anchor: 'center',
+          align: 'center'
+        };
       }
 
       chartInstance = new Chart(canvas, {
         type: widget.type,
-        data: {
-          datasets: datasets
-        },
+        data: chartData,
         options: { 
           responsive: true, 
           maintainAspectRatio: ['pie', 'doughnut'].includes(widget.type),
+          layout: {
+            // Add padding so the footer label doesn't overlap the chart
+            padding: {
+              top: (chartPlugins.legend && ['top'].includes(chartPlugins.legend.position)) ? 8 : 0,
+              bottom: (['pie', 'doughnut'].includes(widget.type) ? 24 : 0) + ((chartPlugins.legend && ['bottom'].includes(chartPlugins.legend.position)) ? 8 : 0),
+              left: (chartPlugins.legend && ['left'].includes(chartPlugins.legend.position)) ? 6 : 0,
+              right: (chartPlugins.legend && ['right'].includes(chartPlugins.legend.position)) ? 6 : 0
+            }
+          },
           plugins: chartPlugins,
-          scales: {
+          scales: ['pie', 'doughnut'].includes(widget.type) ? {} : {
             x: {
-              type: 'time',
-              time: {
+              type: widget.type === 'line' ? 'time' : 'category',
+              time: widget.type === 'line' ? {
                 unit: widget.timeUnit || 'day',
                 displayFormats: {
                   day: 'MMM dd',
@@ -608,10 +932,10 @@
                   month: 'MMM yyyy',
                   year: 'yyyy'
                 }
-              },
+              } : undefined,
               title: {
                 display: true,
-                text: 'Date'
+                text: widget.type === 'line' ? 'Date' : 'Category'
               }
             },
             y: {
@@ -628,7 +952,7 @@
         }
       });
 
-      console.log(`Widget ${widget.id}: Chart rendered successfully with ${gaps.length} gaps detected using ${gapHandlingMode} mode, ${segments.length} segments`);
+      console.log(`Widget ${widget.id}: Chart rendered successfully`);
     } catch (chartError) {
       console.error(`Widget ${widget.id}: Chart rendering failed:`, chartError);
       error = `Chart rendering failed: ${chartError instanceof Error ? chartError.message : 'Unknown error'}`;
@@ -777,6 +1101,23 @@
              widget.timeUnit === 'month' ? 'Monthly' : 
              widget.timeUnit === 'year' ? 'Yearly' : 
              widget.timeUnit.charAt(0).toUpperCase() + widget.timeUnit.slice(1)} • {widget.aggregationMethod.charAt(0).toUpperCase() + widget.aggregationMethod.slice(1)}
+          </div>
+        {:else if widget.type === 'bar'}
+          <div class="absolute bottom-0 left-0 right-0 px-2 pb-1 text-xs text-gray-500 text-center bg-white/80 backdrop-blur-sm">
+            {widget.chartMode === 'time-based' ? 
+              `${widget.timeUnit === 'day' ? 'Daily' : 
+                widget.timeUnit === 'week' ? 'Weekly' : 
+                widget.timeUnit === 'month' ? 'Monthly' : 
+                widget.timeUnit === 'year' ? 'Yearly' : 
+                widget.timeUnit.charAt(0).toUpperCase() + widget.timeUnit.slice(1)} • ${widget.aggregationMethod.charAt(0).toUpperCase() + widget.aggregationMethod.slice(1)}` :
+              `Categorical • ${widget.categoryField === 'date' ? 'By Date' : 'By Value Range'}`
+            }
+          </div>
+        {:else if ['pie', 'doughnut'].includes(widget.type)}
+          <div class="absolute bottom-0 left-0 right-0 px-2 pb-1 text-xs text-gray-500 text-center bg-white/80 backdrop-blur-sm">
+            {widget.rangeMethod === 'target-based' ? 'Target-based Distribution' :
+             widget.rangeMethod === 'custom' ? 'Custom Range Distribution' :
+             'Quartile-based Distribution'}
           </div>
         {/if}
       </div>

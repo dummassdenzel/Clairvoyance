@@ -48,7 +48,11 @@
   async function handleSave() {
     const layoutToSave = items.map(dataItem => {
       const layout = dataItem[cols[0][1]];
-      const { id, title, type, kpi_id, backgroundColor, borderColor, startDate, endDate, aggregation, showLegend, legendPosition, gapThresholdDays, timeUnit, aggregationMethod } = dataItem;
+      const { 
+        id, title, type, kpi_id, backgroundColor, borderColor, startDate, endDate, 
+        aggregation, showLegend, legendPosition, gapThresholdDays, timeUnit, 
+        aggregationMethod, chartMode, categoryField, rangeMethod, customRanges  // Removed categoryType, timePeriod
+      } = dataItem;
       return {
         id: Number(id),
         x: layout.x,
@@ -67,7 +71,12 @@
         legendPosition,
         gapThresholdDays,
         timeUnit,
-        aggregationMethod
+        aggregationMethod,
+        chartMode,
+        categoryField,
+        rangeMethod,       // Keep this
+        customRanges       // Keep this
+        // Removed categoryType, timePeriod
       };
     });
 
@@ -140,7 +149,11 @@
       aggregation: 'latest',
       showLegend: true,
       legendPosition: 'top',
-      gapThresholdDays: 7, // Add this line
+      gapThresholdDays: 7,
+      timeUnit: 'day',           // Add this
+      aggregationMethod: 'average', // Add this
+      chartMode: 'time-based',   // Add this
+      categoryField: 'date',     // Add this
       // Add the layout information
       x: nextPos.x,
       y: nextPos.y,
@@ -177,9 +190,15 @@
       aggregation: widgetData.aggregation,
       showLegend: widgetData.showLegend,
       legendPosition: widgetData.legendPosition,
-      gapThresholdDays: widgetData.gapThresholdDays, // Add this line
-      timeUnit: widgetData.timeUnit, // Add this line
-      aggregationMethod: widgetData.aggregationMethod // Add this line
+      gapThresholdDays: widgetData.gapThresholdDays,
+      timeUnit: widgetData.timeUnit,
+      aggregationMethod: widgetData.aggregationMethod,
+      chartMode: widgetData.chartMode,        // Add this
+      categoryField: widgetData.categoryField, // Add this
+      categoryType: widgetData.categoryType,  // Add this
+      rangeMethod: widgetData.rangeMethod,    // Add this
+      timePeriod: widgetData.timePeriod,     // Add this
+      customRanges: widgetData.customRanges   // Add this
     };
     
     items = [...items, newItem];
