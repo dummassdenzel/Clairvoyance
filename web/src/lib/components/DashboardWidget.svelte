@@ -687,6 +687,7 @@
           }];
         } else {
           // Gaps detected - create separate datasets for each segment (broken lines)
+          const sharedLabel = widget.title || `KPI ${widget.kpi_id}`;
           datasets = segments.map((segment, index) => {
             // Calculate date range for this segment
             const segmentDates = segment.map(point => point.x);
@@ -701,17 +702,9 @@
               });
             };
             
-            let label;
-            if (startDate.getTime() === endDate.getTime()) {
-              // Single date
-              label = formatDate(startDate);
-            } else {
-              // Date range
-              label = `${formatDate(startDate)} - ${formatDate(endDate)}`;
-            }
-            
             return {
-              label: label,
+              // Use a shared series label so legend doesn't get cluttered
+              label: sharedLabel,
               data: segment,
               backgroundColor: widget.backgroundColor || 'rgba(54, 162, 235, 0.2)',
               borderColor: widget.borderColor || 'rgba(54, 162, 235, 1)',
@@ -802,6 +795,10 @@
           position: widget.legendPosition || 'top'
         },
         autocolors: false,
+        // Disable datalabels by default (we'll enable only for pie/doughnut)
+        datalabels: {
+          display: false
+        },
         zoom: {
           zoom: {
             wheel: {
@@ -832,6 +829,54 @@
           textAlign: 'left',
           font: {
             size: 9
+          }
+        };
+      }
+
+      // For line charts with gap-based multiple datasets, only show a single legend item
+      if (widget.type === 'line') {
+        const existingLabels = chartPlugins.legend.labels || {};
+        chartPlugins.legend.labels = {
+          ...existingLabels,
+          filter: (legendItem: any, data: any) => {
+            // Only keep the first dataset's legend entry
+            return legendItem.datasetIndex === 0;
+          }
+        };
+      }
+
+      // Friendly tooltips for line charts
+      if (widget.type === 'line') {
+        const prefix = kpiDetails?.format_prefix || '';
+        const suffix = kpiDetails?.format_suffix || '';
+        const unit = widget.timeUnit || 'day';
+        const formatDate = (d: Date) => {
+          if (unit === 'year') {
+            return d.toLocaleDateString('en-US', { year: 'numeric' });
+          } else if (unit === 'month') {
+            return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+          } else if (unit === 'week') {
+            return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+          } else {
+            // day or default
+            return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+          }
+        };
+
+        chartPlugins.tooltip = {
+          callbacks: {
+            title: (items: any[]) => {
+              if (!items || items.length === 0) return '';
+              const ts = items[0].parsed?.x;
+              if (ts === undefined || ts === null) return '';
+              const date = new Date(ts);
+              return formatDate(date);
+            },
+            label: (ctx: any) => {
+              const value = typeof ctx.parsed?.y === 'number' ? ctx.parsed.y : Number(ctx.formattedValue);
+              const series = ctx.dataset?.label ? `${ctx.dataset.label}: ` : '';
+              return `${series}${prefix}${Number(value).toLocaleString()}${suffix}`;
+            }
           }
         };
       }
@@ -945,7 +990,12 @@
               }
             }
           },
-          interaction: {
+          interaction: widget.type === 'line' ? {
+            // Only show the nearest point's tooltip to avoid multi-segment clutter
+            intersect: true,
+            mode: 'nearest',
+            axis: 'x'
+          } : {
             intersect: false,
             mode: 'index'
           }
