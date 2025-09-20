@@ -4,6 +4,7 @@
   import type { Kpi, KpiEntry, ApiResponse } from '$lib/types';
   import AddKpiEntryModal from './AddKpiEntryModal.svelte';
   import EditKpiEntryModal from './EditKpiEntryModal.svelte';
+  import EditKpiModal from './EditKpiModal.svelte';
 
   export let isOpen = false;
   export let kpi: Kpi | null = null;
@@ -18,6 +19,7 @@
   let endDate = '';
   let isAddEntryModalOpen = false;
   let isEditEntryModalOpen = false;
+  let isEditKpiModalOpen = false;
   let selectedEntry: KpiEntry | null = null;
   let deletingEntryId: number | null = null;
   let sortOrder: 'asc' | 'desc' = 'desc'; // Default to descending (newest first)
@@ -86,6 +88,23 @@
     return 'text-gray-900';
   }
 
+  function getRagStatus(value: number): string {
+    if (!kpi) return '';
+    const redThreshold = Number(kpi.rag_red);
+    const amberThreshold = Number(kpi.rag_amber);
+    if (isNaN(redThreshold) || isNaN(amberThreshold)) return '';
+    if (kpi.direction === 'higher_is_better') {
+      if (value < redThreshold) return 'Red';
+      if (value < amberThreshold) return 'Amber';
+      return 'Green';
+    } else if (kpi.direction === 'lower_is_better') {
+      if (value > redThreshold) return 'Red';
+      if (value > amberThreshold) return 'Amber';
+      return 'Green';
+    }
+    return '';
+  }
+
   function setDateRange(range: '7d' | '30d' | 'month' | 'ytd' | 'all') {
     if (range === 'all') {
       startDate = '';
@@ -126,6 +145,32 @@
     dispatch('entriesUpdated', { 
       kpiId: kpiId,
       kpi: kpi 
+    });
+  }
+
+  async function handleEditKpiSuccess(event: CustomEvent) {
+    // Update local KPI reference and re-render header values
+    const updatedKpi = event.detail as Kpi | undefined;
+    if (updatedKpi) {
+      kpi = updatedKpi;
+      // Force new reference to trigger reactive updates in template bindings
+      kpi = kpi ? { ...kpi } as Kpi : kpi;
+    }
+    // Ensure freshest KPI thresholds from API (in case backend applies transformations)
+    try {
+      if (kpiId) {
+        const fresh = await api.getKpi(kpiId);
+        if (fresh.success && fresh.data?.kpi) {
+          kpi = { ...fresh.data.kpi } as Kpi;
+        }
+      }
+    } catch {}
+    // Force list to re-evaluate status using new thresholds immediately
+    entries = [...entries];
+    // Notify parent to refresh dependent widgets/dashboards
+    dispatch('kpiUpdated', {
+      kpiId: kpiId,
+      kpi: kpi
     });
   }
 
@@ -198,6 +243,16 @@
   $: if (startDate || endDate) {
     loadEntries();
   }
+
+  // When RAG thresholds or direction change, force status column to recompute immediately
+  $: if (kpi) {
+    // Access fields to create reactive dependency
+    const _ragRed = kpi.rag_red;
+    const _ragAmber = kpi.rag_amber;
+    const _dir = kpi.direction;
+    // Reassign entries to trigger row updates without reloading
+    entries = [...entries];
+  }
 </script>
 
 <svelte:window on:keydown={handleKeydown} />
@@ -222,8 +277,20 @@
           {/if}
         </div>
         <div class="flex items-center space-x-3">
+          {#if kpi}
+            <button
+              on:click={() => (isEditKpiModalOpen = true)}
+              class="bg-white hover:bg-gray-100 text-blue-900 font-medium py-1 px-3 text-sm rounded-md border border-blue-900 inline-flex items-center"
+              title="Edit KPI"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2 2 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z" />
+              </svg>
+              Edit KPI
+            </button>
+          {/if}
           
-          <button on:click={closeModal} class="text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
+          <button on:click={closeModal} aria-label="Close" class="text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
         </div>
       </div>
 
@@ -292,6 +359,7 @@
               <button 
                 on:click={() => isAddEntryModalOpen = true}
                 class="bg-blue-900 cursor-pointer hover:bg-blue-800 text-white font-medium py-1 px-4 text-sm rounded-md inline-flex items-center"
+                aria-label="Add KPI entry"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -380,26 +448,7 @@
                       <td class="px-6 py-4 whitespace-nowrap">
                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {getRagClass(Number(entry.value))} bg-opacity-10">
                           {#if kpi}
-                            {@const value = Number(entry.value)}
-                            {@const redThreshold = Number(kpi.rag_red)}
-                            {@const amberThreshold = Number(kpi.rag_amber)}
-                            {#if kpi.direction === 'higher_is_better'}
-                              {#if value < redThreshold}
-                                Red
-                              {:else if value < amberThreshold}
-                                Amber
-                              {:else}
-                                Green
-                              {/if}
-                            {:else}
-                              {#if value > redThreshold}
-                                Red
-                              {:else if value > amberThreshold}
-                                Amber
-                              {:else}
-                                Green
-                              {/if}
-                            {/if}
+                            {getRagStatus(Number(entry.value))}
                           {/if}
                         </span>
                       </td>
@@ -409,6 +458,7 @@
                             on:click={() => editEntry(entry)}
                             class="text-blue-800 hover:text-blue-900 cursor-pointer p-1 rounded-md hover:bg-blue-50"
                             title="Edit entry"
+                            aria-label="Edit entry"
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -419,6 +469,7 @@
                             disabled={deletingEntryId === entry.id}
                             class="text-red-500 hover:text-red-900 cursor-pointer p-1 rounded-md hover:bg-red-50 disabled:opacity-50"
                             title="Delete entry"
+                            aria-label="Delete entry"
                           >
                             {#if deletingEntryId === entry.id}
                               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -481,6 +532,14 @@
     isEditEntryModalOpen = false;
     selectedEntry = null;
   }}
+/>
+
+<!-- Edit KPI Modal -->
+<EditKpiModal
+  bind:show={isEditKpiModalOpen}
+  kpi={kpi}
+  on:success={handleEditKpiSuccess}
+  on:close={() => (isEditKpiModalOpen = false)}
 />
 
 <!-- Add KPI Entry Modal -->

@@ -762,6 +762,14 @@
     fetchDashboard();
   }
 
+  function handleKpiUpdated(event: CustomEvent) {
+    // Update local reference and refresh dashboard so widgets pick up KPI changes
+    const detail: any = event.detail || {};
+    selectedKpiForEntries = detail.kpi || selectedKpiForEntries;
+    selectedKpiIdForEntries = detail.kpiId || selectedKpiIdForEntries;
+    fetchDashboard();
+  }
+
   $: dashboardId = $page.params.id;
   $: isEditor = $user?.role === 'editor';
 
@@ -985,4 +993,5 @@
     selectedKpiIdForEntries = null;
   }}
   on:entriesUpdated={handleEntriesUpdated}
+  on:kpiUpdated={handleKpiUpdated}
 /> 
