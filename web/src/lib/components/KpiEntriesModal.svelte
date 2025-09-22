@@ -23,6 +23,7 @@
   let selectedEntry: KpiEntry | null = null;
   let deletingEntryId: number | null = null;
   let sortOrder: 'asc' | 'desc' = 'desc'; // Default to descending (newest first)
+  let expandedDates: string[] = []; // Track which date groups are expanded
 
   function closeModal() {
     isOpen = false;
@@ -66,6 +67,26 @@
     return `${kpi.format_prefix || ''}${value.toLocaleString()}${kpi.format_suffix || ''}`;
   }
 
+  function formatDate(dateString: string): string {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric' 
+    });
+  }
+
+  function formatCreatedAt(createdAt: string | undefined): string {
+    if (!createdAt) return '';
+    const date = new Date(createdAt);
+    return date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  }
+
   function getRagClass(value: number): string {
     if (!kpi) return 'text-gray-900';
 
@@ -94,13 +115,13 @@
     const amberThreshold = Number(kpi.rag_amber);
     if (isNaN(redThreshold) || isNaN(amberThreshold)) return '';
     if (kpi.direction === 'higher_is_better') {
-      if (value < redThreshold) return 'Red';
-      if (value < amberThreshold) return 'Amber';
-      return 'Green';
+      if (value < redThreshold) return 'Low';
+      if (value < amberThreshold) return 'Fair';
+      return 'Excellent';
     } else if (kpi.direction === 'lower_is_better') {
-      if (value > redThreshold) return 'Red';
-      if (value > amberThreshold) return 'Amber';
-      return 'Green';
+      if (value > redThreshold) return 'Low';
+      if (value > amberThreshold) return 'Fair';
+      return 'Excellent';
     }
     return '';
   }
@@ -213,6 +234,9 @@
       entry.id === updatedEntry.id ? updatedEntry : entry
     );
     
+    // Force re-render to update updated_at timestamps
+    entries = [...entries];
+    
     // Notify parent that entries have been updated
     dispatch('entriesUpdated', { 
       kpiId: kpiId,
@@ -232,8 +256,56 @@
     });
   }
 
+  // Group entries by date for display
+  function getGroupedEntries(): { date: string; entries: KpiEntry[]; totalValue: number; count: number }[] {
+    const grouped = new Map<string, KpiEntry[]>();
+    
+    entries.forEach(entry => {
+      if (!grouped.has(entry.date)) {
+        grouped.set(entry.date, []);
+      }
+      grouped.get(entry.date)!.push(entry);
+    });
+
+    const result = Array.from(grouped.entries())
+      .map(([date, entries]) => ({
+        date,
+        entries: entries.sort((a, b) => Number(a.value) - Number(b.value)), // Sort by value within date
+        totalValue: entries.reduce((sum, entry) => sum + Number(entry.value), 0),
+        count: entries.length
+      }))
+      .sort((a, b) => {
+        const dateA = new Date(a.date).getTime();
+        const dateB = new Date(b.date).getTime();
+        return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
+      });
+    
+    console.log('getGroupedEntries result:', result);
+    return result;
+  }
+
   function getTotalValue(): number {
     return entries.reduce((sum, entry) => sum + Number(entry.value), 0);
+  }
+
+  function toggleDateExpansion(date: string) {
+    console.log('Accordion clicked for date:', date);
+    console.log('Current expandedDates:', expandedDates);
+    console.log('Is currently expanded:', expandedDates.includes(date));
+    
+    if (expandedDates.includes(date)) {
+      expandedDates = expandedDates.filter(d => d !== date);
+      console.log('Collapsing - new expandedDates:', expandedDates);
+    } else {
+      expandedDates = [...expandedDates, date];
+      console.log('Expanding - new expandedDates:', expandedDates);
+    }
+  }
+
+  function isDateExpanded(date: string): boolean {
+    const isExpanded = expandedDates.includes(date);
+    console.log(`isDateExpanded(${date}):`, isExpanded, 'expandedDates:', expandedDates);
+    return isExpanded;
   }
 
   $: if (isOpen && kpiId) {
@@ -337,7 +409,7 @@
                 <span class="text-sm text-gray-600">Sort:</span>
                 <button 
                   on:click={toggleSortOrder}
-                  class="flex items-center space-x-1 px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-100 bg-blue-50 border-blue-300"
+                  class="flex items-center space-x-1 px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-100"
                   title={`Sort ${sortOrder === 'asc' ? 'Ascending' : 'Descending'}`}
                 >
                   {#if sortOrder === 'asc'}
@@ -392,7 +464,7 @@
           
         </div>
 
-        <!-- Entries Table -->
+        <!-- Entries Accordion -->
         <div class="flex-1 overflow-auto">
           {#if loading}
             <div class="flex items-center justify-center h-32">
@@ -426,67 +498,197 @@
               </div>
             </div>
           {:else}
-            <div class="overflow-x-auto">
-              <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                  <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Value</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                  </tr>
-                </thead>
-                <tbody class="bg-white divide-y divide-gray-200">
-                  {#each getSortedEntries() as entry}
-                    <tr class="hover:bg-gray-50">
-                      <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {new Date(entry.date).toLocaleDateString()}
-                      </td>
-                      <td class="px-6 py-4 whitespace-nowrap text-sm font-medium {getRagClass(Number(entry.value))}">
-                        {formatValue(Number(entry.value))}
-                      </td>
-                      <td class="px-6 py-4 whitespace-nowrap">
-                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {getRagClass(Number(entry.value))} bg-opacity-10">
-                          {#if kpi}
-                            {getRagStatus(Number(entry.value))}
-                          {/if}
-                        </span>
-                      </td>
-                      <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <div class="flex items-center justify-end space-x-2">
-                          <button
-                            on:click={() => editEntry(entry)}
-                            class="text-blue-800 hover:text-blue-900 cursor-pointer p-1 rounded-md hover:bg-blue-50"
-                            title="Edit entry"
-                            aria-label="Edit entry"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
-                          </button>
-                          <button
-                            on:click={() => deleteEntry(entry.id)}
-                            disabled={deletingEntryId === entry.id}
-                            class="text-red-500 hover:text-red-900 cursor-pointer p-1 rounded-md hover:bg-red-50 disabled:opacity-50"
-                            title="Delete entry"
-                            aria-label="Delete entry"
-                          >
-                            {#if deletingEntryId === entry.id}
-                              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                              </svg>
-                            {:else}
-                              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
+            <div class="space-y-2">
+              {#each getGroupedEntries() as group}
+                {#if group.count === 1}
+                  <!-- Single entry - show as simple card -->
+                  <!-- DEBUG: Single entry for date {group.date} -->
+                  {#each group.entries as entry}
+                    <div class="bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow">
+                      <div class="p-4">
+                        <div class="flex items-center justify-between">
+                          <div class="flex-1">
+                            <div class="flex items-center">
+                              <div class="flex-shrink-0 w-32">
+                                <h3 class="text-sm font-medium text-gray-900">
+                                  {formatDate(entry.date)}
+                                </h3>
+                              </div>
+                              <div class="flex-1">
+                                <div class="flex items-center space-x-3">
+                                  <span class="text-lg font-semibold {getRagClass(Number(entry.value))}">
+                                    {formatValue(Number(entry.value))}
+                                  </span>
+                                  <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {getRagClass(Number(entry.value))} bg-opacity-10">
+                                    {#if kpi}
+                                      {getRagStatus(Number(entry.value))}
+                                    {/if}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                          <div class="flex items-center space-x-4">
+                            {#if entry.updated_at}
+                              <div class="text-right">
+                                <p class="text-xs text-gray-500">{formatCreatedAt(entry.updated_at)}</p>
+                              </div>
                             {/if}
-                          </button>
+                            <div class="flex items-center space-x-2">
+                              <button
+                              on:click={() => editEntry(entry)}
+                              class="text-blue-600 hover:text-blue-800 p-2 rounded-md hover:bg-blue-50 transition-colors"
+                              title="Edit entry"
+                              aria-label="Edit entry"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                              </svg>
+                            </button>
+                            <button
+                              on:click={() => deleteEntry(entry.id)}
+                              disabled={deletingEntryId === entry.id}
+                              class="text-red-600 hover:text-red-800 p-2 rounded-md hover:bg-red-50 transition-colors disabled:opacity-50"
+                              title="Delete entry"
+                              aria-label="Delete entry"
+                            >
+                              {#if deletingEntryId === entry.id}
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                              {:else}
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              {/if}
+                            </button>
+                            </div>
+                          </div>
                         </div>
-                      </td>
-                    </tr>
+                      </div>
+                    </div>
                   {/each}
-                </tbody>
-              </table>
+                {:else}
+                  <!-- Multiple entries - show as accordion -->
+                  <!-- DEBUG: Multiple entries for date {group.date}, count: {group.count} -->
+                  <div class="bg-white border border-gray-200 rounded-lg shadow-sm">
+                    <!-- Accordion Header -->
+                    <button
+                      on:click={() => {
+                        console.log('Button clicked!');
+                        toggleDateExpansion(group.date);
+                      }}
+                      class="w-full p-4 text-left hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset transition-colors"
+                    >
+                        <div class="flex items-center justify-between">
+                        <div class="flex items-center">
+                          <div class="flex-shrink-0 w-32">
+                            <h3 class="text-sm font-medium text-gray-900">
+                              {formatDate(group.date)}
+                            </h3>
+                            <p class="text-xs text-gray-500 mt-1">
+                              {group.count} {group.count === 1 ? 'entry' : 'entries'}
+                            </p>
+                          </div>
+                          <div class="flex-1">
+                            <div class="flex items-center space-x-3">
+                              <span class="text-lg font-semibold {getRagClass(group.totalValue)}">
+                                {formatValue(group.totalValue)}
+                              </span>
+                              <span class="text-xs text-gray-500">(total)</span>
+                              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {getRagClass(group.totalValue)} bg-opacity-10">
+                                {#if kpi}
+                                  {getRagStatus(group.totalValue)}
+                                {/if}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="flex items-center space-x-4">
+                          <!-- Commented for now -->
+                          <!-- {#if group.entries.length > 0 && group.entries[0].updated_at}
+                            <div class="text-right">
+                              <p class="text-xs text-gray-500">
+                                Latest at {formatCreatedAt(group.entries[0].updated_at)}
+                              </p>
+                            </div>
+                          {/if} -->
+                          <div class="flex-shrink-0">
+                            <svg 
+                              class="h-5 w-5 text-gray-400 transition-transform duration-200 {expandedDates.includes(group.date) ? 'rotate-180' : ''}" 
+                              fill="none" 
+                              viewBox="0 0 24 24" 
+                              stroke="currentColor"
+                            >
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                    
+                    <!-- Accordion Content -->
+                    {#if expandedDates.includes(group.date)}
+                      <div class="border-t border-gray-200 bg-gray-50">
+                        <div class="p-4 space-y-3">
+                          {#each group.entries as entry, index}
+                            <div class="bg-white rounded-md border border-gray-200 p-3">
+                              <div class="flex items-center justify-between">
+                                <div class="flex items-center space-x-3">
+                                  <span class="text-xs text-gray-400 font-mono bg-gray-100 px-2 py-1 rounded">
+                                    #{index + 1}
+                                  </span>
+                                  <div class="flex items-center space-x-3">
+                                    <span class="text-sm font-medium text-gray-800">
+                                      {formatValue(Number(entry.value))}
+                                    </span>
+                                  </div>
+                                </div>
+                                <div class="flex items-center space-x-3">
+                                  {#if entry.updated_at}
+                                  <div class="text-right">
+                                    <p class="text-xs text-gray-500">{formatCreatedAt(entry.updated_at)}</p>
+                                  </div>
+                                  {/if}
+                                  <div class="flex items-center space-x-1">
+                                    <button
+                                    on:click={() => editEntry(entry)}
+                                    class="text-blue-600 hover:text-blue-800 p-1.5 rounded-md hover:bg-blue-50 transition-colors"
+                                    title="Edit entry"
+                                    aria-label="Edit entry"
+                                  >
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                    </svg>
+                                  </button>
+                                  <button
+                                    on:click={() => deleteEntry(entry.id)}
+                                    disabled={deletingEntryId === entry.id}
+                                    class="text-red-600 hover:text-red-800 p-1.5 rounded-md hover:bg-red-50 transition-colors disabled:opacity-50"
+                                    title="Delete entry"
+                                    aria-label="Delete entry"
+                                  >
+                                    {#if deletingEntryId === entry.id}
+                                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                      </svg>
+                                    {:else}
+                                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                      </svg>
+                                    {/if}
+                                  </button>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          {/each}
+                        </div>
+                      </div>
+                    {/if}
+                  </div>
+                {/if}
+              {/each}
             </div>
           {/if}
         </div>

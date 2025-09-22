@@ -35,7 +35,8 @@
     try {
       const result = await api.generateShareLink(dashboardId);
       if (result.data && result.data.token) {
-        const baseUrl = window.location.origin;
+        // Check if we're in the browser environment
+        const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
         generatedShareLink = `${baseUrl}/dashboards/share/${result.data.token}`;
         isShareModalOpen = true;
       } else {
@@ -53,7 +54,7 @@
   async function handleRemoveViewer(viewerId: string) {
     removingViewerId = viewerId;
     try {
-      await api.removeViewer(dashboardId, viewerId);
+      await api.removeViewer(parseInt(dashboardId), parseInt(viewerId));
       dispatch('update');
     } catch (e) {
       console.error('Failed to remove viewer', e);

@@ -1,14 +1,18 @@
 <script lang="ts">
   import { onMount, onDestroy, createEventDispatcher } from 'svelte';
-  import Chart from 'chart.js/auto';
-  import annotationPlugin from 'chartjs-plugin-annotation';
-  import zoomPlugin from 'chartjs-plugin-zoom';
-  import ChartDataLabels from 'chartjs-plugin-datalabels';
-  import 'chartjs-adapter-date-fns';
+  // Dynamic imports for Chart.js and plugins (browser-only)
+  // import Chart from 'chart.js/auto';
+  // import annotationPlugin from 'chartjs-plugin-annotation';
+  // import zoomPlugin from 'chartjs-plugin-zoom';
+  // import ChartDataLabels from 'chartjs-plugin-datalabels';
+  // import 'chartjs-adapter-date-fns';
   import * as api from '$lib/services/api';
   import type { Kpi, ApiResponse, KpiEntry } from '$lib/types';
 
-  Chart.register(annotationPlugin, zoomPlugin, ChartDataLabels);
+
+  // Chart.js will be loaded dynamically
+  let Chart: any = null;
+  let chartLoaded = false;
 
   export let widget: any;
   export let editMode: boolean = false;
@@ -16,9 +20,46 @@
 
   const dispatch = createEventDispatcher();
 
+  // Load Chart.js and plugins dynamically
+  async function loadChartJS() {
+    if (chartLoaded || typeof window === 'undefined') return;
+    
+    try {
+      const [
+        chartModule,
+        annotationPluginModule,
+        zoomPluginModule,
+        dataLabelsModule
+      ] = await Promise.all([
+        import('chart.js/auto'),
+        import('chartjs-plugin-annotation'),
+        import('chartjs-plugin-zoom'),
+        import('chartjs-plugin-datalabels')
+      ]);
+
+      // Import the date adapter
+      try {
+        await import('chartjs-adapter-date-fns');
+      } catch (e) {
+        console.warn('chartjs-adapter-date-fns not available:', e);
+      }
+
+      Chart = chartModule.default;
+      const annotationPlugin = annotationPluginModule.default;
+      const zoomPlugin = zoomPluginModule.default;
+      const ChartDataLabels = dataLabelsModule.default;
+
+      // Register plugins
+      Chart.register(annotationPlugin, zoomPlugin, ChartDataLabels);
+      chartLoaded = true;
+    } catch (e) {
+      console.error('Failed to load Chart.js:', e);
+    }
+  }
+
   let isConfirmingDelete = false;
 
-  let chartInstance: Chart | null = null;
+  let chartInstance: any = null;
   let kpiData: { labels: string[]; values: number[] } | null = null;
   let kpiDetails: Kpi | null = null;
   let aggregateValue: number | null = null;
@@ -92,9 +133,16 @@
             error = 'No data available for this KPI.';
             kpiData = null;
           } else {
+            // Aggregate entries by date to handle multiple entries per date
+            const aggregatedEntries = aggregateDataByTimeUnit(
+              entries, 
+              'day', // Use daily aggregation to group by exact date
+              widget.aggregationMethod || 'sum' // Default to sum for multiple entries
+            );
+            
             kpiData = {
-              labels: entries.map((d: KpiEntry) => d.date),
-              values: entries.map((d: KpiEntry) => Number(d.value))
+              labels: aggregatedEntries.map((d: KpiEntry) => d.date),
+              values: aggregatedEntries.map((d: KpiEntry) => Number(d.value))
             };
             console.log(`Widget ${widget.id} loaded data:`, kpiData);
           }
@@ -401,9 +449,7 @@
 
   // New function to aggregate data by time unit
   function aggregateDataByTimeUnit(entries: KpiEntry[], timeUnit: string, aggregationMethod: string): KpiEntry[] {
-    if (timeUnit === 'day') {
-      return entries; // No aggregation needed for daily data
-    }
+    // Always group and aggregate, even for daily data, to handle multiple entries per date
 
     const groupedData = new Map<string, KpiEntry[]>();
 
@@ -658,11 +704,22 @@
     };
   }
 
+  // Load Chart.js on component mount
+  onMount(async () => {
+    await loadChartJS();
+  });
+
   // Enhanced chart rendering with gap handling
-  function renderChart(canvas: HTMLCanvasElement) {
+  async function renderChart(canvas: HTMLCanvasElement) {
     if (!canvas || !kpiData) {
       console.log(`Widget ${widget.id}: Cannot render chart - canvas: ${!!canvas}, kpiData: ${!!kpiData}`);
       return;
+    }
+
+    // Wait for Chart.js to be loaded
+    if (!chartLoaded || !Chart) {
+      console.log(`Widget ${widget.id}: Chart.js not loaded yet, waiting...`);
+      await loadChartJS();
     }
 
     try {
@@ -1067,8 +1124,10 @@
     }
   });
 
-  // Reactive block to handle chart rendering and updates
-  $: if (canvasElement) {
+  // Async function to handle chart rendering
+  async function handleChartRendering() {
+    if (!canvasElement) return;
+    
     const isChart = ['line', 'bar', 'pie', 'doughnut'].includes(widget.type);
 
     if (chartInstance) {
@@ -1084,17 +1143,25 @@
       // but we'll render even without details
       if (['line', 'bar'].includes(widget.type)) {
         if (kpiDetails) {
-          renderChart(canvasElement);
+          await renderChart(canvasElement);
         } else {
           // Render without goal line if details aren't available yet
           console.log(`Widget ${widget.id}: Rendering line/bar chart without goal line (no details yet)`);
-          renderChart(canvasElement);
+          await renderChart(canvasElement);
         }
       } else if (['pie', 'doughnut'].includes(widget.type)) {
         // Pie/Doughnut charts don't need details
-        renderChart(canvasElement);
+        await renderChart(canvasElement);
       }
     }
+  }
+
+  // Reactive block to trigger chart rendering
+  $: if (canvasElement) {
+    // Use setTimeout to avoid blocking the reactive update
+    setTimeout(() => {
+      handleChartRendering();
+    }, 0);
   }
 
   // Debug logging for widget state changes

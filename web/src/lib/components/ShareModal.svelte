@@ -9,10 +9,12 @@
   let copied = false;
 
   function copyToClipboard() {
-    navigator.clipboard.writeText(shareLink).then(() => {
-      copied = true;
-      setTimeout(() => (copied = false), 2000); // Reset after 2 seconds
-    });
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(shareLink).then(() => {
+        copied = true;
+        setTimeout(() => (copied = false), 2000); // Reset after 2 seconds
+      });
+    }
   }
 
   function closeModal() {

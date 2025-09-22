@@ -48,9 +48,28 @@
           date: date,
           value: parseFloat(value)
         });
-  
+
         if (response.success) {
-          dispatch('success', { entry: { ...entry, date, value: parseFloat(value) } });
+          // Fetch the updated entry to get the fresh updated_at timestamp
+          try {
+            // Get all entries for this KPI and find the updated one
+            const updatedEntryResponse: ApiResponse<{ entries: KpiEntry[] }> = await api.getKpiEntries(entry.kpi_id);
+            if (updatedEntryResponse.success && updatedEntryResponse.data?.entries) {
+              const updatedEntry = updatedEntryResponse.data.entries.find(e => e.id === entry.id);
+              if (updatedEntry) {
+                dispatch('success', { entry: updatedEntry });
+              } else {
+                // Fallback to basic entry data if entry not found
+                dispatch('success', { entry: { ...entry, date, value: parseFloat(value) } });
+              }
+            } else {
+              // Fallback to basic entry data if fetch fails
+              dispatch('success', { entry: { ...entry, date, value: parseFloat(value) } });
+            }
+          } catch (fetchError) {
+            // Fallback to basic entry data if fetch fails
+            dispatch('success', { entry: { ...entry, date, value: parseFloat(value) } });
+          }
           closeModal();
         } else {
           error = response.message || 'Failed to update KPI entry';

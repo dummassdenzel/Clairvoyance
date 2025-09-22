@@ -54,7 +54,7 @@
       const response: ApiResponse<{ token: ShareToken }> = await api.generateShareToken(dashboardId, '7'); // 7 days
       
       if (response.success && response.data?.token) {
-        const baseUrl = window.location.origin;
+        const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
         currentShareLink = `${baseUrl}/viewer/redeem/${response.data.token.token}`;
         showShareModal = true;
       } else {
@@ -67,7 +67,7 @@
   }
 
   async function handleDelete(dashboardId: number) {
-    if (!window.confirm('Are you sure you want to delete this dashboard? This action cannot be undone.')) {
+    if (typeof window !== 'undefined' && !window.confirm('Are you sure you want to delete this dashboard? This action cannot be undone.')) {
       return;
     }
 
@@ -109,9 +109,11 @@
   onMount(() => {
     fetchDashboards();
     const handleGlobalClick = () => { openDropdownId = null; };
-    window.addEventListener('click', handleGlobalClick);
-
-    return () => window.removeEventListener('click', handleGlobalClick);
+    
+    if (typeof window !== 'undefined') {
+      window.addEventListener('click', handleGlobalClick);
+      return () => window.removeEventListener('click', handleGlobalClick);
+    }
   });
 </script>
 

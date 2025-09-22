@@ -34,7 +34,8 @@ class KpiEntryService
 
 		if (!$this->entries->validateDate($date)) throw new \Exception('Invalid date (YYYY-MM-DD)', 400);
 		if (!$this->entries->validateValue($value)) throw new \Exception('Invalid value', 400);
-		if ($this->entries->hasEntryForDate($kpiId, $date)) throw new \Exception('Entry for date already exists', 409);
+		// Removed: Allow multiple entries for the same date
+		// if ($this->entries->hasEntryForDate($kpiId, $date)) throw new \Exception('Entry for date already exists', 409);
 
 		return $this->entries->create($kpiId, $date, (float)$value);
 	}
@@ -49,9 +50,10 @@ class KpiEntryService
 			if (!empty($errors)) {
 				return ['success' => false, 'error' => implode('; ', $errors), 'code' => 400];
 			}
-			if ($this->entries->hasEntryForDate($kpiId, $row['date'])) {
-				return ['success' => false, 'error' => "Entry exists for {$row['date']}", 'code' => 409];
-			}
+			// Removed: Allow multiple entries for the same date
+			// if ($this->entries->hasEntryForDate($kpiId, $row['date'])) {
+			// 	return ['success' => false, 'error' => "Entry exists for {$row['date']}", 'code' => 409];
+			// }
 			$normalized[] = ['date' => $row['date'], 'value' => (float)$row['value']];
 		}
 		return $this->entries->bulkInsert($kpiId, $normalized);
@@ -88,12 +90,13 @@ class KpiEntryService
 			throw new \Exception('Invalid value', 400);
 		}
 		
+		// Removed: Allow multiple entries for the same date
 		// Check if the new date conflicts with another entry (if date is being changed)
-		if (isset($data['date']) && $data['date'] !== $entry['date']) {
-			if ($this->entries->hasEntryForDate((int)$entry['kpi_id'], $data['date'])) {
-				throw new \Exception('Entry for date already exists', 409);
-			}
-		}
+		// if (isset($data['date']) && $data['date'] !== $entry['date']) {
+		// 	if ($this->entries->hasEntryForDate((int)$entry['kpi_id'], $data['date'])) {
+		// 		throw new \Exception('Entry for date already exists', 409);
+		// 	}
+		// }
 		
 		return $this->entries->update($entryId, $data);
 	}

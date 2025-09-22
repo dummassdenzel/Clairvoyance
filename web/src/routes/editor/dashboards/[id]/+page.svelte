@@ -10,12 +10,13 @@
   import ViewersModal from '$lib/components/ViewersModal.svelte';
   import WidgetSettingsModal from '$lib/components/WidgetSettingsModal.svelte';
   import KpiEntriesModal from '$lib/components/KpiEntriesModal.svelte';
-  import Grid from 'svelte-grid';
-  import gridHelp from 'svelte-grid/build/helper/index.mjs';
+  // Dynamic imports for browser-only libraries
+  // import Grid from 'svelte-grid';
+  // import gridHelp from 'svelte-grid/build/helper/index.mjs';
     import { getContext } from 'svelte';
-  import jsPDF from 'jspdf';
-  import html2canvas from 'html2canvas-pro';
-  import autoTable from 'jspdf-autotable';
+  // Dynamic imports for browser-only libraries
+  // import jsPDF from 'jspdf';
+  // import autoTable from 'jspdf-autotable';
 
   type Item = {
     id: string;
@@ -210,9 +211,20 @@
   }
 
   async function generateReport() {
+    // Check if we're in the browser environment
+    if (typeof window === 'undefined') {
+      console.error('generateReport can only be called in the browser');
+      return;
+    }
+
     isGeneratingReport = true;
 
     try {
+      // Dynamically import browser-only libraries when needed (client-side)
+      const html2canvas = (await import('html2canvas-pro')).default;
+      const jsPDF = (await import('jspdf')).default;
+      const autoTable = (await import('jspdf-autotable')).default;
+      
       const response: ApiResponse<any> = await api.getDashboardReport(parseInt(dashboardId));
       
       if (!response.success) {
@@ -382,7 +394,7 @@
           }
 
         // Render widget with enhanced styling
-        await renderWidgetToPDF(doc, element, widget, margin, yPos, contentWidth, maxWidgetHeight);
+        await renderWidgetToPDF(doc, element, widget, margin, yPos, contentWidth, maxWidgetHeight, html2canvas, autoTable);
         yPos += maxWidgetHeight + widgetSpacing;
       }
 
@@ -404,7 +416,7 @@
         }
 
         // Render widget with enhanced styling
-        await renderWidgetToPDF(doc, element, widget, margin, yPos, contentWidth, maxWidgetHeight);
+        await renderWidgetToPDF(doc, element, widget, margin, yPos, contentWidth, maxWidgetHeight, html2canvas, autoTable);
         yPos += maxWidgetHeight + widgetSpacing;
       }
 
@@ -418,7 +430,7 @@
   }
 
   // Enhanced helper function to render individual widgets to PDF with side-by-side layout
-  async function renderWidgetToPDF(doc: any, element: HTMLElement, widget: any, x: number, y: number, width: number, maxHeight: number) {
+  async function renderWidgetToPDF(doc: any, element: HTMLElement, widget: any, x: number, y: number, width: number, maxHeight: number, html2canvas: any, autoTable: any) {
     // Add widget title with consistent Helvetica font
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(14);
@@ -814,7 +826,28 @@
   })();
 
   let items: any[] = [];
-  $: if (widgetsArr) {
+  let Grid: any = null;
+  let gridHelp: any = null;
+  let gridLoaded = false;
+
+  // Dynamically load Grid component on client-side
+  $: if (typeof window !== 'undefined' && !gridLoaded) {
+    loadGridComponent();
+  }
+
+  async function loadGridComponent() {
+    try {
+      const gridModule = await import('svelte-grid');
+      const helperModule = await import('svelte-grid/build/helper/index.mjs');
+      Grid = gridModule.default;
+      gridHelp = helperModule.default;
+      gridLoaded = true;
+    } catch (e) {
+      console.error('Failed to load Grid component:', e);
+    }
+  }
+
+  $: if (widgetsArr && gridHelp) {
     items = widgetsArr.map((widget, i) => {
       const layout = {
         x: widget.x ?? (i % 4) * 3,
@@ -918,7 +951,7 @@
     </div>
 
     <div class="mt-8">
-      {#if items.length > 0}
+      {#if items.length > 0 && Grid && gridLoaded}
         <div class="svelte-grid-container -mx-2">
           <Grid {cols} bind:items={items} rowHeight={40} let:item let:dataItem let:movePointerDown>
             <div id="widget-container-{dataItem.id}" class="h-full w-full p-2">
@@ -932,6 +965,11 @@
                 />
             </div>
           </Grid>
+        </div>
+      {:else if items.length > 0 && !gridLoaded}
+        <div class="text-center py-12 text-gray-500">
+          <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <p class="mt-2 text-sm">Loading dashboard...</p>
         </div>
       {:else}
         <div class="text-center py-12 text-gray-500 bg-gray-50 rounded-lg">
