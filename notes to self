@@ -7,3 +7,53 @@ admin interface
 
 minor visual bugs:
 refine dashboard widget layout easiness in edit mode
+
+
+Old System Analysis:
+Old Role Structure:
+Admin: Full system access, user management
+Editor: Can create/edit dashboards and KPIs
+Viewer: Can only view shared dashboards
+Old Sharing System:
+Dashboard owners can assign "viewers" to specific dashboards
+Separate dashboard_access table for viewer permissions
+Share tokens for public access
+
+Proposed New System:
+New Role Structure:
+Admin: Full system access, user management
+Editor: Universal role - can create/edit AND view all accessible dashboards
+New Access-Based System:
+Dashboard Ownership: Creator owns the dashboard
+Dashboard Sharing: Similar to Google Drive - invite specific users with different permission levels
+Permission Levels:
+Owner: Full control (create, edit, delete, share)
+Editor: Can edit dashboard and KPIs
+Viewer: Can only view dashboard
+Public Sharing: Share tokens for public access (view-only)
+Refactoring Plan:
+Phase 1: Database Schema Changes
+Remove viewer role from user roles
+Update dashboard_access table to include permission levels
+Add permission levels (owner, editor, viewer) to sharing system
+Update user creation to default to 'editor' role
+
+Phase 2: Backend API Changes
+Update authentication to handle new role structure
+Modify dashboard access logic to use permission-based system
+Update sharing endpoints to support permission levels
+Remove viewer-specific logic from controllers
+Phase 3: Frontend Changes
+Update user management to remove viewer role
+Modify dashboard sharing to use permission-based system
+Update navigation to remove viewer/editor distinctions
+Update access control throughout the application
+Phase 4: Testing & Migration
+Create migration scripts for existing data
+Test all functionality with new system
+Update documentation and user guides
+Key Benefits:
+Simplified user management - only admin vs editor
+More flexible sharing - granular permissions per dashboard
+Better UX - similar to familiar tools like Google Drive
+Easier maintenance - less role-based logic to maintain
