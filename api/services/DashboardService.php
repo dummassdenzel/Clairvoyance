@@ -55,10 +55,26 @@ class DashboardService
 		}
 		if ($currentUser['role'] !== 'admin'
 			&& (int)$dashboard['user_id'] !== (int)$currentUser['id']
-			&& !$this->dashboards->hasViewerAccess($dashboardId, (int)$currentUser['id'])) {
+			&& !$this->dashboards->hasUserAccess($dashboardId, (int)$currentUser['id'])) {
 			throw new \Exception('Access denied', 403);
 		}
-		$dashboard['viewers'] = $this->dashboards->getViewers($dashboardId);
+		
+		// Determine user's permission level for this dashboard
+		$permissionLevel = 'viewer'; // Default
+		if ($currentUser['role'] === 'admin') {
+			$permissionLevel = 'admin';
+		} elseif ((int)$dashboard['user_id'] === (int)$currentUser['id']) {
+			$permissionLevel = 'owner';
+		} else {
+			// Check dashboard_access table for specific permission level
+			$userPermission = $this->dashboards->getUserPermissionLevel($dashboardId, (int)$currentUser['id']);
+			if ($userPermission) {
+				$permissionLevel = $userPermission;
+			}
+		}
+		
+		$dashboard['viewers'] = $this->dashboards->getDashboardUsers($dashboardId);
+		$dashboard['user_permission_level'] = $permissionLevel;
 		return $dashboard;
 	}
 
@@ -67,9 +83,10 @@ class DashboardService
 		if ($currentUser['role'] === 'admin') {
 			return $this->dashboards->findAll();
 		}
-		$owned = $this->dashboards->findByUserId((int)$currentUser['id']);
-		$shared = $this->dashboards->getDashboardsByViewer((int)$currentUser['id']);
-		return array_values(array_merge($owned, $shared));
+		
+		// Get all dashboards the user has access to (owned or shared)
+		// This avoids duplicates by using a single query
+		return $this->dashboards->getDashboardsByUser((int)$currentUser['id']);
 	}
 
 	public function update(array $currentUser, int $dashboardId, array $data): bool
@@ -124,5 +141,53 @@ class DashboardService
 			throw new \Exception('Access denied', 403);
 		}
 		return $this->dashboards->removeViewer($dashboardId, $viewerUserId);
+	}
+
+	// New permission-based methods
+	public function addUserAccess(array $currentUser, int $dashboardId, int $userId, string $permissionLevel = 'viewer'): bool
+	{
+		$dashboard = $this->dashboards->findById($dashboardId);
+		if (!$dashboard) throw new \Exception('Dashboard not found', 404);
+		
+		// Check if user has permission to manage dashboard access
+		if ($currentUser['role'] !== 'admin' && (int)$dashboard['user_id'] !== (int)$currentUser['id']) {
+			throw new \Exception('Access denied', 403);
+		}
+		
+		// Validate permission level
+		if (!in_array($permissionLevel, ['owner', 'editor', 'viewer'])) {
+			throw new \Exception('Invalid permission level', 400);
+		}
+		
+		return $this->dashboards->addUserAccess($dashboardId, $userId, $permissionLevel);
+	}
+
+	public function removeUserAccess(array $currentUser, int $dashboardId, int $userId): bool
+	{
+		$dashboard = $this->dashboards->findById($dashboardId);
+		if (!$dashboard) throw new \Exception('Dashboard not found', 404);
+		
+		// Check if user has permission to manage dashboard access
+		if ($currentUser['role'] !== 'admin' && (int)$dashboard['user_id'] !== (int)$currentUser['id']) {
+			throw new \Exception('Access denied', 403);
+		}
+		
+		return $this->dashboards->removeUserAccess($dashboardId, $userId);
+	}
+
+	public function getDashboardUsers(array $currentUser, int $dashboardId): array
+	{
+		$dashboard = $this->dashboards->findById($dashboardId);
+		if (!$dashboard) throw new \Exception('Dashboard not found', 404);
+		
+		// Check if user has any access to this dashboard
+		if ($currentUser['role'] !== 'admin') {
+			$hasAccess = $this->dashboards->hasUserAccess($dashboardId, (int)$currentUser['id']);
+			if (!$hasAccess) {
+				throw new \Exception('Access denied', 403);
+			}
+		}
+		
+		return $this->dashboards->getDashboardUsers($dashboardId);
 	}
 }

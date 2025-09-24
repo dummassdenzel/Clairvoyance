@@ -133,8 +133,11 @@ export async function deleteDashboard(id: number): Promise<ApiResponse> {
   return await del(`/dashboards/${id}`);
 }
 
-export async function assignViewer(dashboardId: number, userId: number): Promise<ApiResponse<{ access: DashboardAccess }>> {
-  return await post<{ access: DashboardAccess }>(`/dashboards/${dashboardId}/viewers`, { user_id: userId });
+export async function assignViewer(dashboardId: number, userId: number, permissionLevel: string = 'viewer'): Promise<ApiResponse<{ access: DashboardAccess }>> {
+  return await post<{ access: DashboardAccess }>(`/dashboards/${dashboardId}/viewers`, { 
+    user_id: userId, 
+    permission_level: permissionLevel 
+  });
 }
 
 export async function removeViewer(dashboardId: number, userId: number): Promise<ApiResponse> {
@@ -232,6 +235,30 @@ export async function updateKpiEntry(entryId: number, data: { date?: string; val
 
 export async function deleteKpiEntry(entryId: number): Promise<ApiResponse<void>> {
   return await del<void>(`/kpi_entries/${entryId}`);
+}
+
+// --- Dashboard access functions ---
+export async function getDashboardUsers(dashboardId: number): Promise<ApiResponse<{ users: any[] }>> {
+  return await get<{ users: any[] }>(`/dashboards/${dashboardId}/users`);
+}
+
+// --- User lookup functions ---
+export async function findUserByEmail(email: string): Promise<ApiResponse<User>> {
+  const response = await fetch(`${API_BASE}/users`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    body: JSON.stringify({ email })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || 'Failed to find user');
+  }
+
+  return await response.json();
 }
 
 // --- Legacy compatibility functions (for gradual migration) ---

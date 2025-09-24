@@ -7,7 +7,7 @@ export interface LoginForm {
 export interface RegisterForm {
   email: string;
   password: string;
-  role: 'admin' | 'editor' | 'viewer';
+  role: 'admin' | 'editor';
 }
 
 export interface CreateDashboardForm {

@@ -17,6 +17,8 @@
   export let widget: any;
   export let editMode: boolean = false;
   export let movePointerDown: (e: PointerEvent) => void = () => {};
+  export let canEdit: boolean = true;
+  export let canViewEntries: boolean = true;
 
   const dispatch = createEventDispatcher();
 
@@ -144,7 +146,6 @@
               labels: aggregatedEntries.map((d: KpiEntry) => d.date),
               values: aggregatedEntries.map((d: KpiEntry) => Number(d.value))
             };
-            console.log(`Widget ${widget.id} loaded data:`, kpiData);
           }
           aggregateValue = null;
           dateRange = null; // Reset date range for chart widgets
@@ -245,11 +246,9 @@
     if (!widget.kpi_id || kpiDetails) return kpiDetails;
 
     try {
-      console.log(`Widget ${widget.id}: Loading KPI details on demand`);
       const response: ApiResponse<{ kpi: Kpi }> = await api.getKpi(widget.kpi_id);
       if (response.success && response.data?.kpi) {
         kpiDetails = response.data.kpi;
-        console.log(`Widget ${widget.id}: KPI details loaded`, kpiDetails);
         return kpiDetails;
       } else {
         console.error(`Widget ${widget.id}: Failed to load KPI details`, response.message);
@@ -323,27 +322,15 @@
       }
     }
 
-    console.log(`Widget ${widget.id} clicked!`, {
-      editMode,
-      kpiId: widget.kpi_id,
-      kpiDetails: !!kpiDetails,
-      canClick: !editMode && widget.kpi_id && kpiDetails
-    });
-
-    // Only handle clicks in view mode (not edit mode) and when we have a KPI ID
-    if (!editMode && widget.kpi_id) {
+    // Only handle clicks in view mode (not edit mode), when we have a KPI ID, and user can view entries
+    if (!editMode && widget.kpi_id && canViewEntries) {
       // Load KPI details if not already loaded
       let details = kpiDetails;
       if (!details) {
-        console.log(`Widget ${widget.id}: KPI details not loaded, loading on demand`);
         details = await loadKpiDetails();
       }
 
       if (details) {
-        console.log(`Widget ${widget.id}: Dispatching viewEntries event`, {
-          kpi: details,
-          kpiId: widget.kpi_id
-        });
         dispatch('viewEntries', { 
           kpi: details, 
           kpiId: widget.kpi_id 
@@ -351,13 +338,7 @@
       } else {
         console.error(`Widget ${widget.id}: Failed to load KPI details for modal`);
       }
-    } else {
-      console.log(`Widget ${widget.id}: Click ignored - conditions not met`, {
-        editMode,
-        hasKpiId: !!widget.kpi_id,
-        hasKpiDetails: !!kpiDetails
-      });
-    }
+    } 
   }
 
   function handleMouseDown(event: MouseEvent) {
@@ -1118,7 +1099,6 @@
   }
 
   onDestroy(() => {
-    console.log(`Widget ${widget.id} destroyed.`);
     if (chartInstance) {
       chartInstance.destroy();
     }
@@ -1135,7 +1115,6 @@
       chartInstance = null;
     }
 
-    console.log(`Widget ${widget.id}: Canvas element ready, isChart: ${isChart}, kpiData: ${!!kpiData}, kpiDetails: ${!!kpiDetails}`);
 
     // For charts, render when we have data
     if (isChart && kpiData) {
@@ -1146,7 +1125,6 @@
           await renderChart(canvasElement);
         } else {
           // Render without goal line if details aren't available yet
-          console.log(`Widget ${widget.id}: Rendering line/bar chart without goal line (no details yet)`);
           await renderChart(canvasElement);
         }
       } else if (['pie', 'doughnut'].includes(widget.type)) {
@@ -1164,21 +1142,12 @@
     }, 0);
   }
 
-  // Debug logging for widget state changes
-  $: console.log(`Widget ${widget.id} state:`, {
-    editMode,
-    kpiId: widget.kpi_id,
-    kpiDetails: !!kpiDetails,
-    isLoading,
-    error: !!error,
-    canClick: !editMode && widget.kpi_id
-  });
 </script>
 
 <div class="bg-white rounded-lg shadow-md h-full w-full flex flex-col">
   <div class="p-2 border-b border-gray-200 flex justify-between items-center" on:pointerdown={editMode ? movePointerDown : undefined} class:cursor-move={editMode}>
     <h3 class="font-semibold text-sm text-gray-700 truncate">{widget.title}</h3>
-    {#if editMode}
+    {#if editMode && canEdit}
       <div class="flex items-center space-x-1">
         {#if isConfirmingDelete}
           <span class="text-xs text-gray-600">Sure?</span>
@@ -1226,7 +1195,7 @@
     on:pointerdown={editMode ? movePointerDown : undefined} 
     on:click={handleWidgetClick}
     class:cursor-move={editMode}
-    class:cursor-pointer={!editMode && widget.kpi_id}
+    class:cursor-pointer={!editMode && widget.kpi_id && canViewEntries}
     class="flex-grow p-4 min-h-0"
   >
     {#if isLoading}

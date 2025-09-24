@@ -31,8 +31,8 @@ class UserController extends BaseController
                 return;
             }
 
-            // Default role to 'viewer' for public registration
-            $data['role'] = $data['role'] ?? 'viewer';
+            // Default role to 'editor' for public registration
+            $data['role'] = $data['role'] ?? 'editor';
 
             $result = $this->userService->createUser($data);
 
@@ -248,6 +248,42 @@ class UserController extends BaseController
                 'success' => false,
                 'error' => $e->getMessage()
             ], $e->getCode() ?: 404);
+        }
+    }
+
+    public function findByEmail(): void
+    {
+        try {
+            $data = $this->getRequestData();
+            
+            if (empty($data['email'])) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'Missing required field: email'
+                ], 400);
+                return;
+            }
+
+            $user = $this->userService->getUserByEmail($data['email']);
+
+            if ($user) {
+                $this->jsonResponse([
+                    'success' => true,
+                    'message' => 'User found',
+                    'data' => $user
+                ]);
+            } else {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'User not found'
+                ], 404);
+            }
+
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], $e->getCode() ?: 400);
         }
     }
 

@@ -5,6 +5,8 @@ export interface Dashboard {
   description?: string;
   layout: DashboardWidget[];
   user_id: number;
+  permission_level: 'owner' | 'editor' | 'viewer' | 'admin';
+  owner_email: string;
   created_at?: string;
   updated_at?: string;
 }

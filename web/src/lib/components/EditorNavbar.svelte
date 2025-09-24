@@ -22,7 +22,6 @@
         <img src="/clairvoyance-logo.png" alt="Clairvoyance Logo" class="h-8" />
         <span>Clairvoyance</span>
       </a>
-      <span class="text-sm text-gray-500">Editor</span>
     </div>
       <button
         on:click={handleCreateKpi}

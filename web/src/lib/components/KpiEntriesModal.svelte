@@ -9,6 +9,7 @@
   export let isOpen = false;
   export let kpi: Kpi | null = null;
   export let kpiId: number | null = null;
+  export let canEdit: boolean = true;
 
   const dispatch = createEventDispatcher();
 
@@ -349,7 +350,7 @@
           {/if}
         </div>
         <div class="flex items-center space-x-3">
-          {#if kpi}
+          {#if kpi && canEdit}
             <button
               on:click={() => (isEditKpiModalOpen = true)}
               class="bg-white hover:bg-gray-100 text-blue-900 font-medium py-1 px-3 text-sm rounded-md border border-blue-900 inline-flex items-center"
@@ -367,6 +368,20 @@
       </div>
 
       <div class="p-6 flex-1 overflow-hidden flex flex-col">
+        <!-- Read-only notice for viewers -->
+        {#if !canEdit}
+        <div class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+          <div class="flex items-center">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p class="text-sm text-blue-800">
+              <strong>Viewer mode:</strong> You can view KPI entries but cannot add, edit, or delete them.
+            </p>
+          </div>
+        </div>
+        {/if}
+        
         <!-- Date Range Controls -->
         <div class="mb-6">
           <div class="flex flex-wrap gap-2 mb-4 justify-between">
@@ -427,6 +442,7 @@
               </div>
             </div>
 
+            {#if canEdit}
             <div>
               <button 
                 on:click={() => isAddEntryModalOpen = true}
@@ -439,6 +455,7 @@
                 Add Entry
               </button>
             </div>
+            {/if}
           </div>
           
           <div class="grid grid-cols-2 gap-4">
@@ -534,6 +551,7 @@
                                 <p class="text-xs text-gray-500">{formatCreatedAt(entry.updated_at)}</p>
                               </div>
                             {/if}
+                            {#if canEdit}
                             <div class="flex items-center space-x-2">
                               <button
                               on:click={() => editEntry(entry)}
@@ -563,6 +581,7 @@
                               {/if}
                             </button>
                             </div>
+                            {/if}
                           </div>
                         </div>
                       </div>
@@ -650,6 +669,7 @@
                                     <p class="text-xs text-gray-500">{formatCreatedAt(entry.updated_at)}</p>
                                   </div>
                                   {/if}
+                                  {#if canEdit}
                                   <div class="flex items-center space-x-1">
                                     <button
                                     on:click={() => editEntry(entry)}
@@ -679,6 +699,7 @@
                                     {/if}
                                   </button>
                                   </div>
+                                  {/if}
                                 </div>
                               </div>
                             </div>

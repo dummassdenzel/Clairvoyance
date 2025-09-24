@@ -66,6 +66,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && is_numeric($part1) && $part2 === 're
     exit();
 }
 
+// --- Route for dashboard users ---
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && is_numeric($part1) && $part2 === 'users') {
+    $dashboardId = (int)$part1;
+    $controller->getUsers($dashboardId);
+    exit();
+}
+
 // --- Primary resource routing for /dashboards --- 
 $id = is_numeric($part1) ? (int)$part1 : null;
 

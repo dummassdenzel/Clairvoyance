@@ -24,11 +24,9 @@
         goto('/admin');
       } else if ($user.role === 'editor') {
         goto('/editor/dashboards');
-      } else if ($user.role === 'viewer') {
-        goto('/viewer');
       } else {
         // Fallback for any other roles or just in case
-        goto('/viewer');
+        goto('/editor/dashboards');
       }
     }
   }

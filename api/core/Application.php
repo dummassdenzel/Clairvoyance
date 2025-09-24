@@ -56,7 +56,12 @@ class Application
         });
 
         // Register services (we'll create these next)
-        $this->container->bind(\Services\AuthService::class, \Services\AuthService::class);
+        $this->container->bind(\Services\AuthService::class, function (Container $container) {
+            return new \Services\AuthService(
+                $container->resolve(\Models\User::class),
+                $container->resolve(\PDO::class)
+            );
+        });
         $this->container->bind(\Services\UserService::class, \Services\UserService::class);
         $this->container->bind(\Services\DashboardService::class, \Services\DashboardService::class);
         $this->container->bind(\Services\KpiService::class, \Services\KpiService::class);

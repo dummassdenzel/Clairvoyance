@@ -6,7 +6,7 @@
   interface User {
     id: number;
     email: string;
-    role: 'viewer' | 'editor' | 'admin';
+    role: 'editor' | 'admin';
   }
 
   let users: User[] = [];
@@ -14,7 +14,7 @@
   let error: string | null = null;
     let successMessage: string | null = null;
   let showAddUserModal = false;
-  let newUser = { email: '', password: '', role: 'viewer' };
+  let newUser = { email: '', password: '', role: 'editor' };
   let isSubmitting = false;
 
   $: filteredUsers = users.filter(user => user.id !== $currentUser?.id);
@@ -85,7 +85,7 @@
       if (response.status === 'success') {
         successMessage = 'User created successfully.';
         showAddUserModal = false;
-        newUser = { email: '', password: '', role: 'viewer' };
+        newUser = { email: '', password: '', role: 'editor' };
         await fetchUsers();
       } else {
         throw new Error(response.message || 'Failed to create user.');
@@ -143,7 +143,6 @@
                 value={user.role}
                 on:change={(e) => handleUpdateRole(user.id, e.currentTarget.value)}
                 disabled={user.id === $currentUser?.id}>
-                <option value="viewer">Viewer</option>
                 <option value="editor">Editor</option>
                 <option value="admin">Admin</option>
               </select>
@@ -179,7 +178,6 @@
       <div class="mb-4">
         <label for="role" class="block text-sm font-medium text-gray-700">Role</label>
         <select id="role" bind:value={newUser.role} class="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-          <option value="viewer">Viewer</option>
           <option value="editor">Editor</option>
           <option value="admin">Admin</option>
         </select>

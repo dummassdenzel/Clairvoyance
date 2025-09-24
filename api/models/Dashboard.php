@@ -18,10 +18,21 @@ class Dashboard
     public function create(string $name, string $description, string $layout, int $userId): array
     {
         try {
+            $this->db->beginTransaction();
+            
+            // Create the dashboard
             $stmt = $this->db->prepare('INSERT INTO dashboards (name, description, layout, user_id) VALUES (?, ?, ?, ?)');
             $stmt->execute([$name, $description, $layout, $userId]);
-            return ['success' => true, 'id' => $this->db->lastInsertId()];
+            $dashboardId = $this->db->lastInsertId();
+            
+            // Add owner to dashboard_access table
+            $accessStmt = $this->db->prepare('INSERT INTO dashboard_access (dashboard_id, user_id, permission_level) VALUES (?, ?, ?)');
+            $accessStmt->execute([$dashboardId, $userId, 'owner']);
+            
+            $this->db->commit();
+            return ['success' => true, 'id' => $dashboardId];
         } catch (PDOException $e) {
+            $this->db->rollBack();
             return ['success' => false, 'error' => $e->getMessage()];
         }
     }
@@ -111,18 +122,33 @@ class Dashboard
         }
     }
     
-    // Dashboard Access Management (Data Layer Only)
-    public function addViewer(int $dashboardId, int $userId): bool
+    // Dashboard Access Management (Permission-Based System)
+    public function addUserAccess(int $dashboardId, int $userId, string $permissionLevel = 'viewer'): bool
     {
         try {
-            $stmt = $this->db->prepare('INSERT INTO dashboard_access (dashboard_id, user_id) VALUES (?, ?)');
-            return $stmt->execute([$dashboardId, $userId]);
+            // Check if access already exists
+            if ($this->hasUserAccess($dashboardId, $userId)) {
+                // Update existing access
+                $stmt = $this->db->prepare('
+                    UPDATE dashboard_access 
+                    SET permission_level = ?, created_at = CURRENT_TIMESTAMP 
+                    WHERE dashboard_id = ? AND user_id = ?
+                ');
+                return $stmt->execute([$permissionLevel, $dashboardId, $userId]);
+            } else {
+                // Add new access
+                $stmt = $this->db->prepare('
+                    INSERT INTO dashboard_access (dashboard_id, user_id, permission_level) 
+                    VALUES (?, ?, ?)
+                ');
+                return $stmt->execute([$dashboardId, $userId, $permissionLevel]);
+            }
         } catch (PDOException $e) {
             return false;
         }
     }
     
-    public function removeViewer(int $dashboardId, int $userId): bool
+    public function removeUserAccess(int $dashboardId, int $userId): bool
     {
         try {
             $stmt = $this->db->prepare('DELETE FROM dashboard_access WHERE dashboard_id = ? AND user_id = ?');
@@ -132,15 +158,15 @@ class Dashboard
         }
     }
     
-    public function getViewers(int $dashboardId): array
+    public function getDashboardUsers(int $dashboardId): array
     {
         try {
             $stmt = $this->db->prepare('
-                SELECT u.id, u.email, u.role, da.created_at as access_granted_at 
+                SELECT u.id, u.email, u.role, da.permission_level, da.created_at as access_granted_at 
                 FROM dashboard_access da 
                 JOIN users u ON da.user_id = u.id 
                 WHERE da.dashboard_id = ? 
-                ORDER BY da.created_at DESC
+                ORDER BY da.permission_level DESC, da.created_at DESC
             ');
             $stmt->execute([$dashboardId]);
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -149,22 +175,62 @@ class Dashboard
         }
     }
     
-    public function hasViewerAccess(int $dashboardId, int $userId): bool
+    public function hasUserAccess(int $dashboardId, int $userId): bool
     {
         try {
-            $stmt = $this->db->prepare('SELECT 1 FROM dashboard_access WHERE dashboard_id = ? AND user_id = ? LIMIT 1');
+            $stmt = $this->db->prepare('
+                SELECT 1 FROM dashboard_access 
+                WHERE dashboard_id = ? AND user_id = ? 
+                LIMIT 1
+            ');
             $stmt->execute([$dashboardId, $userId]);
             return $stmt->fetch() !== false;
         } catch (PDOException $e) {
             return false;
         }
     }
+
+    public function getUserPermissionLevel(int $dashboardId, int $userId): ?string
+    {
+        try {
+            $stmt = $this->db->prepare('
+                SELECT permission_level FROM dashboard_access 
+                WHERE dashboard_id = ? AND user_id = ?
+            ');
+            $stmt->execute([$dashboardId, $userId]);
+            $result = $stmt->fetch();
+            return $result ? $result['permission_level'] : null;
+        } catch (PDOException $e) {
+            return null;
+        }
+    }
+
+    // Legacy methods for backward compatibility (deprecated)
+    public function addViewer(int $dashboardId, int $userId): bool
+    {
+        return $this->addUserAccess($dashboardId, $userId, 'viewer');
+    }
+    
+    public function removeViewer(int $dashboardId, int $userId): bool
+    {
+        return $this->removeUserAccess($dashboardId, $userId);
+    }
+    
+    public function getViewers(int $dashboardId): array
+    {
+        return $this->getDashboardUsers($dashboardId);
+    }
+    
+    public function hasViewerAccess(int $dashboardId, int $userId): bool
+    {
+        return $this->hasUserAccess($dashboardId, $userId);
+    }
     
     public function getDashboardsByViewer(int $userId): array
     {
         try {
             $stmt = $this->db->prepare('
-                SELECT d.*, u.email as owner_email 
+                SELECT d.*, u.email as owner_email, da.permission_level
                 FROM dashboards d 
                 JOIN dashboard_access da ON d.id = da.dashboard_id 
                 JOIN users u ON d.user_id = u.id 
@@ -172,6 +238,26 @@ class Dashboard
                 ORDER BY d.created_at DESC
             ');
             $stmt->execute([$userId]);
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            return [];
+        }
+    }
+
+    public function getDashboardsByUser(int $userId): array
+    {
+        try {
+            $stmt = $this->db->prepare('
+                SELECT DISTINCT d.*, u.email as owner_email, 
+                       COALESCE(da.permission_level, 
+                                CASE WHEN d.user_id = ? THEN "owner" ELSE "viewer" END) as permission_level
+                FROM dashboards d 
+                JOIN users u ON d.user_id = u.id 
+                LEFT JOIN dashboard_access da ON d.id = da.dashboard_id AND da.user_id = ?
+                WHERE d.user_id = ? OR da.user_id = ?
+                ORDER BY d.created_at DESC
+            ');
+            $stmt->execute([$userId, $userId, $userId, $userId]);
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (PDOException $e) {
             return [];

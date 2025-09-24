@@ -19,6 +19,10 @@ switch ($_SERVER['REQUEST_METHOD']) {
         }
         break;
 
+    case 'POST':
+        $controller->findByEmail();
+        break;
+
     case 'PUT':
         if (!$id) {
             http_response_code(400);

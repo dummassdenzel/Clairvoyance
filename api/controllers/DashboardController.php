@@ -67,6 +67,9 @@ class DashboardController extends BaseController
                 return;
             }
 
+            // Check dashboard access permission
+            $this->authService->requireDashboardPermission($id, 'viewer');
+
             $currentUser = $this->getCurrentUser();
             
             $dashboard = $this->dashboardService->get($currentUser, $id);
@@ -111,7 +114,7 @@ class DashboardController extends BaseController
     public function update(int $id): void
     {
         try {
-            $this->authService->requireRole('editor');
+            $this->authService->requireAuth();
             
             if (!$id) {
                 $this->jsonResponse([
@@ -120,6 +123,9 @@ class DashboardController extends BaseController
                 ], 400);
                 return;
             }
+
+            // Check dashboard edit permission
+            $this->authService->requireDashboardPermission($id, 'editor');
 
             $data = $this->getRequestData();
             
@@ -181,7 +187,10 @@ class DashboardController extends BaseController
     public function assignViewer(int $dashboardId): void
     {
         try {
-            $this->authService->requireRole('editor');
+            $this->authService->requireAuth();
+            
+            // Check if user has permission to manage dashboard access
+            $this->authService->requireDashboardPermission($dashboardId, 'owner');
             
             $data = $this->getRequestData();
             
@@ -193,13 +202,26 @@ class DashboardController extends BaseController
                 return;
             }
 
+            // Optional permission level, defaults to 'viewer'
+            $permissionLevel = $data['permission_level'] ?? 'viewer';
+            
+            // Validate permission level
+            if (!in_array($permissionLevel, ['owner', 'editor', 'viewer'])) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'Invalid permission level. Must be owner, editor, or viewer'
+                ], 400);
+                return;
+            }
+
             $currentUser = $this->getCurrentUser();
             
-            $this->dashboardService->addViewer($currentUser, $dashboardId, (int)$data['user_id']);
+            $this->dashboardService->addUserAccess($currentUser, $dashboardId, (int)$data['user_id'], $permissionLevel);
 
             $this->jsonResponse([
                 'success' => true,
-                'message' => 'Viewer assigned successfully'
+                'message' => 'User access granted successfully',
+                'data' => ['permission_level' => $permissionLevel]
             ]);
 
         } catch (\Exception $e) {
@@ -308,15 +330,38 @@ class DashboardController extends BaseController
     public function removeViewer(int $dashboardId, int $userId): void
     {
         try {
-            $this->authService->requireRole('editor');
+            $this->authService->requireAuth();
+            
+            // Check if user has permission to manage dashboard access
+            $this->authService->requireDashboardPermission($dashboardId, 'owner');
             
             $currentUser = $this->getCurrentUser();
             
-            $this->dashboardService->removeViewer($currentUser, $dashboardId, $userId);
+            $this->dashboardService->removeUserAccess($currentUser, $dashboardId, $userId);
 
             $this->jsonResponse([
                 'success' => true,
-                'message' => 'Viewer removed successfully'
+                'message' => 'User access removed successfully'
+            ]);
+
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], $e->getCode() ?: 400);
+        }
+    }
+
+    public function getUsers(int $dashboardId): void
+    {
+        try {
+            $currentUser = $this->getCurrentUser();
+            $users = $this->dashboardService->getDashboardUsers($currentUser, $dashboardId);
+
+            $this->jsonResponse([
+                'success' => true,
+                'message' => 'Dashboard users retrieved successfully',
+                'data' => ['users' => $users]
             ]);
 
         } catch (\Exception $e) {

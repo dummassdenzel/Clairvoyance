@@ -33,11 +33,13 @@
   let isViewersModalOpen = false;
   let isWidgetSettingsModalOpen = false;
   let isKpiEntriesModalOpen = false;
-    let editMode = false;
+  let editMode = false;
   let isGeneratingReport = false;
   let newWidgetTemplate: any = null; // Template for new widget
   let selectedKpiForEntries: Kpi | null = null;
   let selectedKpiIdForEntries: number | null = null;
+  let dashboardUsers: any[] = [];
+  let userPermissionLevel: 'owner' | 'editor' | 'viewer' | 'admin' = 'viewer';
 
   function handleCancel() {
     editMode = false;
@@ -784,6 +786,8 @@
 
   $: dashboardId = $page.params.id;
   $: isEditor = $user?.role === 'editor';
+  $: canEdit = userPermissionLevel === 'owner' || userPermissionLevel === 'editor' || userPermissionLevel === 'admin';
+  $: canManageAccess = userPermissionLevel === 'owner' || userPermissionLevel === 'admin';
 
   async function fetchDashboard() {
     loading.set(true);
@@ -793,6 +797,8 @@
       
       if (response.success && response.data?.dashboard) {
         dashboard.set(response.data.dashboard);
+        // Extract user permission level from dashboard data
+        userPermissionLevel = (response.data.dashboard as any).user_permission_level || 'viewer';
       } else {
         error.set(response.message || 'Invalid dashboard data received.');
         dashboard.set(null);
@@ -802,6 +808,20 @@
       dashboard.set(null);
     }
     loading.set(false);
+  }
+
+  async function fetchDashboardUsers() {
+    try {
+      const response = await api.getDashboardUsers(parseInt(dashboardId));
+      if (response.success && response.data?.users) {
+        dashboardUsers = response.data.users;
+      } else {
+        dashboardUsers = [];
+      }
+    } catch (e) {
+      console.error('Failed to fetch dashboard users:', e);
+      dashboardUsers = [];
+    }
   }
 
   onMount(() => {
@@ -916,9 +936,9 @@
           {/if}
         </div>
 
-        {#if isEditor}
-          <div class="flex items-center space-x-2">
-            {#if editMode}
+        <div class="flex items-center space-x-2">
+          {#if canEdit || canManageAccess}
+            {#if editMode && canEdit}
             <button on:click={handleCancel} class="bg-white hover:bg-gray-100 text-blue-900 font-medium py-2 px-4 text-sm rounded-full border border-blue-900 inline-flex items-center justify-center">
               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
               Cancel
@@ -932,21 +952,34 @@
                 Save Layout
               </button>
             {:else}
-              <button on:click={() => isViewersModalOpen = true} class="bg-white hover:bg-gray-100 text-blue-900 font-medium py-2 px-4 text-sm rounded-full border border-blue-900 inline-flex items-center justify-center">
+              {#if canManageAccess}
+              <button on:click={async () => {
+                await fetchDashboardUsers();
+                isViewersModalOpen = true;
+              }} class="bg-white hover:bg-gray-100 text-blue-900 font-medium py-2 px-4 text-sm rounded-full border border-blue-900 inline-flex items-center justify-center">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.522 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.478 0-8.268-2.943-9.542 7z" /></svg>
-                Manage Viewers
+                Manage Access
               </button>
+              {/if}
               <button on:click={generateReport} class="bg-white hover:bg-gray-100 text-blue-900 font-medium py-2 px-4 text-sm rounded-full border border-blue-900 inline-flex items-center justify-center" disabled={isGeneratingReport}>
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                 Generate Report
               </button>
+              {#if canEdit}
               <button on:click={() => editMode = true} class="bg-blue-900 hover:bg-blue-800 text-white font-medium py-2 px-4 text-sm rounded-full inline-flex items-center justify-center">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L15.232 5.232z" /></svg>
                 Edit Layout
               </button>
+              {/if}
             {/if}
-          </div>
-        {/if}
+          {:else}
+            <!-- Viewer Mode Label -->
+            <div class="flex items-center px-3 py-1 bg-blue-100 text-blue-800 rounded-full border border-gray-300">
+             
+              <span class="text-sm text-blue-800 font-medium">Viewer Mode</span>
+            </div>
+          {/if}
+        </div>
       </div>
     </div>
 
@@ -955,12 +988,14 @@
         <div class="svelte-grid-container -mx-2">
           <Grid {cols} bind:items={items} rowHeight={40} let:item let:dataItem let:movePointerDown>
             <div id="widget-container-{dataItem.id}" class="h-full w-full p-2">
-              <DashboardWidget
+                <DashboardWidget
                   widget={dataItem}
-                  {editMode}
+                  editMode={editMode && canEdit}
                   {movePointerDown}
-                  on:openSettings={(event) => openWidgetSettings(event.detail.widget)}
-                  on:remove={(event) => removeWidget(event.detail.id)}
+                  canEdit={canEdit}
+                  canViewEntries={true}
+                  on:openSettings={(event) => canEdit && openWidgetSettings(event.detail.widget)}
+                  on:remove={(event) => canEdit && removeWidget(event.detail.id)}
                   on:viewEntries={handleViewEntries}
                 />
             </div>
@@ -975,7 +1010,7 @@
         <div class="text-center py-12 text-gray-500 bg-gray-50 rounded-lg">
           <h3 class="text-lg font-medium">No widgets yet</h3>
           <p class="mt-1 text-sm">This dashboard doesn't have any widgets configured.</p>
-          {#if isEditor}
+          {#if canEdit}
             <div class="mt-6">
               <button 
                 on:click={() => {
@@ -1004,8 +1039,11 @@
   <ViewersModal 
     bind:isOpen={isViewersModalOpen} 
     dashboardId={dashboardId}
-    viewers={[]}
-    on:update={fetchDashboard}
+    users={dashboardUsers}
+    on:update={async () => {
+      await fetchDashboardUsers();
+      await fetchDashboard();
+    }}
   />
 {/if}
 
@@ -1025,6 +1063,7 @@
   bind:isOpen={isKpiEntriesModalOpen}
   kpi={selectedKpiForEntries}
   kpiId={selectedKpiIdForEntries}
+  canEdit={canEdit}
   on:close={() => {
     isKpiEntriesModalOpen = false;
     selectedKpiForEntries = null;

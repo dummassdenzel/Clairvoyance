@@ -23,9 +23,23 @@ class KpiEntryService
 	{
 		$kpi = $this->kpis->findById($kpiId);
 		if (!$kpi) throw new \Exception('KPI not found', 404);
-		if ($currentUser['role'] !== 'admin' && (int)$kpi['user_id'] !== (int)$currentUser['id']) {
-			throw new \Exception('Access denied', 403);
+
+		// Admin can access any KPI
+		if ($currentUser['role'] === 'admin') {
+			return;
 		}
+
+		// KPI owner can access their own KPIs
+		if ((int)$kpi['user_id'] === (int)$currentUser['id']) {
+			return;
+		}
+
+		// Check if user has access to any dashboard that contains this KPI
+		if ($this->hasKpiAccessThroughDashboard($currentUser['id'], $kpiId)) {
+			return;
+		}
+
+		throw new \Exception('Access denied', 403);
 	}
 
 	public function add(array $currentUser, int $kpiId, string $date, $value): array
@@ -113,5 +127,39 @@ class KpiEntryService
 		$this->ensureOwnership($currentUser, (int)$entry['kpi_id']);
 		
 		return $this->entries->delete($entryId);
+	}
+
+	/**
+	 * Check if user has access to a KPI through dashboard permissions
+	 */
+	private function hasKpiAccessThroughDashboard(int $userId, int $kpiId): bool
+	{
+		try {
+			// Get all dashboards the user has access to
+			$stmt = $this->db->prepare('
+				SELECT DISTINCT d.id, d.layout
+				FROM dashboards d 
+				LEFT JOIN dashboard_access da ON d.id = da.dashboard_id AND da.user_id = ?
+				WHERE d.user_id = ? OR da.user_id = ?
+			');
+			$stmt->execute([$userId, $userId, $userId]);
+			$dashboards = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+			// Check if any dashboard layout contains the KPI
+			foreach ($dashboards as $dashboard) {
+				$layout = json_decode($dashboard['layout'], true);
+				if (is_array($layout)) {
+					foreach ($layout as $widget) {
+						if (isset($widget['kpi_id']) && (int)$widget['kpi_id'] === $kpiId) {
+							return true;
+						}
+					}
+				}
+			}
+
+			return false;
+		} catch (\Exception $e) {
+			return false;
+		}
 	}
 }

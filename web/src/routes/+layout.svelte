@@ -5,12 +5,11 @@
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
   import EditorNavbar from '$lib/components/EditorNavbar.svelte';
-  import ViewerNavbar from '$lib/components/ViewerNavbar.svelte';
   import AdminNavbar from '$lib/components/AdminNavbar.svelte';
   import CreateKpiModal from '$lib/components/CreateKpiModal.svelte';
 
   let showNavbar = false;
-  let userRole: 'editor' | 'viewer' | 'admin' | null = null;
+  let userRole: 'editor' | 'admin' | null = null;
   let showCreateKpiModal = false;
 
   // Routes where the navbar should be hidden entirely
@@ -20,7 +19,7 @@
   $: {
     showNavbar = $authLoaded && !!$user && !noNavRoutes.includes($page.route.id || '');
     const role = $user?.role;
-    if (role === 'editor' || role === 'viewer' || role === 'admin') {
+    if (role === 'editor' || role === 'admin') {
       userRole = role;
     } else {
       userRole = null;
@@ -55,8 +54,6 @@
     <div class="fixed h-full">
       {#if userRole === 'editor'}
         <EditorNavbar on:createKpi={handleCreateKpi} />
-      {:else if userRole === 'viewer'}
-        <ViewerNavbar />
       {:else if userRole === 'admin'}
         <AdminNavbar />
       {/if}

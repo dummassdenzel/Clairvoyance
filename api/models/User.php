@@ -120,7 +120,7 @@ class User
     
     public function validateRole(string $role): bool
     {
-        return in_array($role, ['viewer', 'editor', 'admin']);
+        return in_array($role, ['editor', 'admin']);
     }
     
     public function hashPassword(string $password): string

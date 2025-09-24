@@ -31,7 +31,7 @@ class UserService
         }
 
         // Validate role
-        if (!in_array($data['role'], ['viewer', 'editor', 'admin'])) {
+        if (!in_array($data['role'], ['editor', 'admin'])) {
             return ['success' => false, 'error' => 'Invalid role specified'];
         }
 
@@ -52,7 +52,7 @@ class UserService
     public function updateUserRole(int $userId, string $role): array
     {
         // Validate role
-        if (!in_array($role, ['viewer', 'editor', 'admin'])) {
+        if (!in_array($role, ['editor', 'admin'])) {
             return ['success' => false, 'error' => 'Invalid role specified'];
         }
 
@@ -112,5 +112,10 @@ class UserService
         }
 
         return false;
+    }
+
+    public function getUserByEmail(string $email): ?array
+    {
+        return $this->userModel->findByEmail($email);
     }
 }
