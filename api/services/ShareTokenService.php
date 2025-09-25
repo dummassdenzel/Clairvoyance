@@ -53,7 +53,8 @@ class ShareTokenService
 		if (!$data || $this->tokens->isExpired($token)) {
 			throw new \Exception('Invalid or expired token', 400);
 		}
-		$this->dashboards->addViewer((int)$data['dashboard_id'], (int)$currentUser['id']);
+		// Add user access with viewer permission (default for shared links)
+		$this->dashboards->addUserAccess((int)$data['dashboard_id'], (int)$currentUser['id'], 'viewer');
 		$this->tokens->delete((int)$data['id']);
 		return (int)$data['dashboard_id'];
 	}

@@ -148,8 +148,8 @@ export async function generateShareToken(dashboardId: number, expiresAt: string)
   return await post<{ token: ShareToken }>(`/dashboards/${dashboardId}/share`, { expires_at: expiresAt });
 }
 
-export async function redeemShareToken(token: string): Promise<ApiResponse<{ dashboard: Dashboard }>> {
-  return await post<{ dashboard: Dashboard }>(`/dashboards/share/${token}`);
+export async function redeemShareToken(token: string): Promise<ApiResponse<{ dashboard_id: number }>> {
+  return await post<{ dashboard_id: number }>(`/dashboards/share/${token}`);
 }
 
 export async function getDashboardReport(dashboardId: number): Promise<ApiResponse<{ report: DashboardReport }>> {

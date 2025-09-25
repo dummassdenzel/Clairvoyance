@@ -258,11 +258,16 @@ class DashboardController extends BaseController
     public function redeemShareLink(string $token): void
     {
         try {
+            // Debug logging
+            error_log("RedeemShareLink called with token: " . $token);
+            
             $this->authService->requireAuth();
             
             $currentUser = $this->getCurrentUser();
+            error_log("Current user: " . json_encode($currentUser));
             
             $dashboardId = $this->shareTokenService->redeem($currentUser, $token);
+            error_log("Dashboard ID returned: " . $dashboardId);
 
             $this->jsonResponse([
                 'success' => true,
@@ -271,6 +276,7 @@ class DashboardController extends BaseController
             ]);
 
         } catch (\Exception $e) {
+            error_log("RedeemShareLink error: " . $e->getMessage());
             $this->jsonResponse([
                 'success' => false,
                 'error' => $e->getMessage()
