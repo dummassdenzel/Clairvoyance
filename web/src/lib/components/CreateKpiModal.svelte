@@ -49,13 +49,14 @@
       
       if (response.success) {
         dispatch('success', response.data?.kpi);
+        isSubmitting = false; // Reset submitting state before closing
         closeModal();
       } else {
         error = response.message || 'Failed to create KPI.';
+        isSubmitting = false;
       }
     } catch (e) {
       error = e instanceof Error ? e.message : 'An unexpected error occurred.';
-    } finally {
       isSubmitting = false;
     }
   }

@@ -4,8 +4,9 @@ admin refactor
 share dashboard via link                                                                                                              
 
 minor visual bugs:
-dashboards do not reload on delete
 refine dashboard widget layout easiness in edit mode
-close create kpi modal on create
+add toasts
+
+
 create kpi not instant update
 viewers should not be able to manage dashboard access
