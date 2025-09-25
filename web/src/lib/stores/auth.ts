@@ -54,7 +54,7 @@ export async function logout(): Promise<void> {
 
 export async function register(email: string, password: string, role: string): Promise<boolean> {
   try {
-    const response = await api.register({ email, password, role: role as 'admin' | 'editor' | 'viewer' });
+    const response = await api.register({ email, password, role: role as 'admin' | 'editor' });
     
     if (response.success) {
       authError.set(null);

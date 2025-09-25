@@ -1,5 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
+  import { user } from '$lib/stores/auth';
   import * as api from '$lib/services/api';
   import ShareModal from './ShareModal.svelte';
 
@@ -12,6 +13,8 @@
   let isSubmitting = false;
   let submissionError: string | null = null;
   let removingUserId: string | null = null;
+  let editingUserId: string | null = null;
+  let editingPermission: string = '';
 
   // State for the ShareModal
   let isShareModalOpen = false;
@@ -19,6 +22,15 @@
   let isGeneratingLink = false;
 
   const dispatch = createEventDispatcher();
+
+  // Reactive variables
+  $: currentUserId = $user?.id;
+  $: isOwner = currentUserId ? users.some(u => u.id === currentUserId && u.permission_level === 'owner') : false;
+
+  // Helper function to check if a user is the current user
+  function isCurrentUser(userId: string): boolean {
+    return currentUserId === parseInt(userId);
+  }
 
   function closeModal() {
     isOpen = false;
@@ -92,6 +104,34 @@
       isSubmitting = false;
     }
   }
+
+  function startEditingPermission(user: any) {
+    editingUserId = user.id;
+    editingPermission = user.permission_level || 'viewer';
+  }
+
+  function cancelEditing() {
+    editingUserId = null;
+    editingPermission = '';
+  }
+
+  async function updatePermission() {
+    if (!editingUserId || !editingPermission) return;
+    
+    isSubmitting = true;
+    submissionError = null;
+    
+    try {
+      await api.assignViewer(parseInt(dashboardId), parseInt(editingUserId), editingPermission);
+      dispatch('update');
+      editingUserId = null;
+      editingPermission = '';
+    } catch (e) {
+      submissionError = e instanceof Error ? e.message : 'Failed to update permission';
+    } finally {
+      isSubmitting = false;
+    }
+  }
 </script>
 
 <svelte:window on:keydown={handleKeydown} />
@@ -116,16 +156,58 @@
           <ul class="divide-y divide-gray-200">
             {#each users as user}
               <li class="py-3 flex items-center justify-between">
-                <div class="flex flex-col">
+                <div class="flex flex-col flex-grow">
                   <span class="text-sm text-gray-800">{user.email}</span>
-                  <span class="text-xs text-gray-500 capitalize">{user.permission_level || 'viewer'}</span>
+                  {#if editingUserId === user.id}
+                    <!-- Edit permission mode -->
+                    <div class="flex items-center space-x-2 mt-1">
+                      <select
+                        bind:value={editingPermission}
+                        class="text-xs px-2 py-1 border border-gray-300 rounded"
+                      >
+                        <option value="viewer">Viewer (Read-only)</option>
+                        <option value="editor">Editor (Can edit)</option>
+                      </select>
+                      <button
+                        on:click={updatePermission}
+                        disabled={isSubmitting}
+                        class="text-xs bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700 disabled:opacity-50"
+                      >
+                        {isSubmitting ? 'Saving...' : 'Save'}
+                      </button>
+                      <button
+                        on:click={cancelEditing}
+                        disabled={isSubmitting}
+                        class="text-xs bg-gray-500 text-white px-2 py-1 rounded hover:bg-gray-600 disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  {:else}
+                    <!-- Display mode -->
+                    <div class="flex items-center space-x-2 mt-1">
+                      <span class="text-xs text-gray-500 capitalize">{user.permission_level || 'viewer'}</span>
+                      {#if isOwner && !isCurrentUser(user.id)}
+                        <button
+                          on:click={() => startEditingPermission(user)}
+                          class="text-xs text-blue-600 hover:text-blue-800 font-semibold py-1 px-2 rounded border border-blue-300 hover:border-blue-500 transition"
+                        >
+                          Edit
+                        </button>
+                      {/if}
+                    </div>
+                  {/if}
                 </div>
-                <button 
-                  on:click={() => handleRemoveUser(user.id)} 
-                  disabled={removingUserId === user.id}
-                  class="text-xs text-red-600 hover:text-red-800 font-semibold py-1 px-2 rounded border border-red-300 hover:border-red-500 transition disabled:opacity-50">
-                  {removingUserId === user.id ? 'Removing...' : 'Remove'}
-                </button>
+                {#if !isCurrentUser(user.id)}
+                  <button 
+                    on:click={() => handleRemoveUser(user.id)} 
+                    disabled={removingUserId === user.id}
+                    class="text-xs text-red-600 hover:text-red-800 font-semibold py-1 px-2 rounded border border-red-300 hover:border-red-500 transition disabled:opacity-50">
+                    {removingUserId === user.id ? 'Removing...' : 'Remove'}
+                  </button>
+                {:else}
+                  <span class="text-xs text-gray-400 italic">You</span>
+                {/if}
               </li>
             {/each}
           </ul>
