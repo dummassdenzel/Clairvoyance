@@ -115,7 +115,20 @@
     console.log('KPI entries updated:', event.detail);
   }
 
-  onMount(fetchKpis);
+  onMount(() => {
+    fetchKpis();
+    
+    // Listen for KPI creation events from the navbar
+    const handleKpiCreated = () => {
+      fetchKpis();
+    };
+    
+    window.addEventListener('kpiCreated', handleKpiCreated);
+    
+    return () => {
+      window.removeEventListener('kpiCreated', handleKpiCreated);
+    };
+  });
 </script>
 
 <CreateKpiModal bind:show={showCreateModal} on:success={handleCreateSuccess} />

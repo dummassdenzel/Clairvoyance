@@ -44,10 +44,16 @@
   function handleCreateKpi() {
     showCreateKpiModal = true;
   }
+
+  // Function to handle successful KPI creation
+  function handleCreateKpiSuccess() {
+    // Dispatch a custom event that the KPIs page can listen to
+    window.dispatchEvent(new CustomEvent('kpiCreated'));
+  }
 </script>
 
 <!-- Create KPI Modal at layout level for proper z-index -->
-<CreateKpiModal bind:show={showCreateKpiModal} />
+<CreateKpiModal bind:show={showCreateKpiModal} on:success={handleCreateKpiSuccess} />
 
 <div class="flex min-h-screen bg-gray-50">
   {#if showNavbar}
