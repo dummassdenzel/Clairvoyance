@@ -89,7 +89,10 @@
       const response: ApiResponse = await api.deleteDashboard(dashboardId);
       
       if (response.success) {
+        // Update all dashboard stores
         dashboards.update(currentDashboards => currentDashboards.filter(d => d.id !== dashboardId));
+        ownedDashboards.update(currentOwned => currentOwned.filter(d => d.id !== dashboardId));
+        sharedDashboards.update(currentShared => currentShared.filter(d => d.id !== dashboardId));
       } else {
         alert(response.message || 'Failed to delete dashboard.');
       }
