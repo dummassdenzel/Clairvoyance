@@ -4,14 +4,27 @@
 require_once __DIR__ . '/../bootstrap.php';
 
 use Controllers\AdminController;
+use Controllers\AdminStatsController;
 
 // The global $request variable is parsed in index.php
 // For /api/admin/users/123, $request would be ['admin', 'users', '123']
 
 $adminController = new AdminController();
+$adminStatsController = new AdminStatsController();
 
-$resource = $request[1] ?? null; // e.g., 'users'
+$resource = $request[1] ?? null; // e.g., 'users', 'stats'
 $id = $request[2] ?? null;       // e.g., '123'
+
+// Handle stats endpoint
+if ($resource === 'stats') {
+    if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+        $adminStatsController->getSystemStats();
+    } else {
+        http_response_code(405);
+        echo json_encode(['success' => false, 'error' => 'Method not allowed.']);
+    }
+    exit();
+}
 
 if ($resource !== 'users') {
     http_response_code(404);

@@ -96,8 +96,9 @@ export async function register(data: RegisterForm): Promise<ApiResponse<{ user: 
 }
 
 // --- Admin Service ---
-export async function getAdminUsers(): Promise<ApiResponse<{ users: User[] }>> {
-  return await get<{ users: User[] }>('/admin/users');
+export async function getAdminUsers(): Promise<ApiResponse<{ users: User[] }> & { users: User[] }> {
+  const response = await get<{ users: User[] }>('/admin/users');
+  return response as ApiResponse<{ users: User[] }> & { users: User[] };
 }
 
 export async function createUser(data: RegisterForm): Promise<ApiResponse<{ user: User }>> {
@@ -110,6 +111,10 @@ export async function updateUserRole(id: number, role: string): Promise<ApiRespo
 
 export async function deleteUser(id: number): Promise<ApiResponse> {
   return await del(`/admin/users/${id}`);
+}
+
+export async function adminCreateUser(userData: { email: string; password: string; role: string }): Promise<ApiResponse<{ user: User }>> {
+  return await post<{ user: User }>('/admin/users', userData);
 }
 
 // --- Dashboard Service ---
@@ -285,6 +290,41 @@ export async function getAggregateKpiValue(
   const url = `/kpis/${kpiId}/aggregate?${queryString}`;
 
   return await get<{ value: number }>(url);
+}
+
+// --- Admin Service ---
+export async function getAdminStats(): Promise<ApiResponse<{
+  users: {
+    total: number;
+    by_role: { admin: number; editor: number };
+    new_this_week: number;
+    new_this_month: number;
+  };
+  dashboards: {
+    total: number;
+    new_this_week: number;
+    new_this_month: number;
+    top_owners: Array<{ email: string; dashboard_count: number }>;
+  };
+  kpis: {
+    total: number;
+    new_this_week: number;
+    new_this_month: number;
+    total_entries: number;
+    entries_this_week: number;
+  };
+  recent_activity: Array<{
+    type: string;
+    description: string;
+    timestamp: string;
+  }>;
+}>> {
+  return await get<{
+    users: any;
+    dashboards: any;
+    kpis: any;
+    recent_activity: any;
+  }>('/admin/stats');
 }
 
 // Legacy function names for backward compatibility

@@ -1,5 +1,5 @@
 <?php
-// Usage: php promote_user.php <user_email>
+// Usage: php demote_user.php <user_email>
 
 if (php_sapi_name() !== 'cli') {
     die('This script can only be run from the command line.');
@@ -14,7 +14,7 @@ if ($argc < 2) {
 require_once __DIR__ . '/../config/database.php';
 
 $email = $argv[1];
-$roleToAssign = 'admin';
+$roleToAssign = 'editor';
 
 try {
     // Create database connection
@@ -41,9 +41,9 @@ try {
     $result = $stmt->execute([$roleToAssign, $user['id']]);
     
     if ($result) {
-        echo "Successfully promoted user '{$email}' to '{$roleToAssign}'.\n";
+        echo "Successfully demoted user '{$email}' to '{$roleToAssign}'.\n";
     } else {
-        echo "Error: Could not promote user. Database update failed.\n";
+        echo "Error: Could not demote user. Database update failed.\n";
         exit(1);
     }
     
