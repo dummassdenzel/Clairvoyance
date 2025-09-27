@@ -168,7 +168,12 @@ class AdminStatsController extends BaseController {
         try {
             // Recent user registrations
             $stmt = $db->query('
-                SELECT "user_registered" as type, email as description, created_at as timestamp
+                SELECT 
+                    "user_registered" as type, 
+                    CONCAT("New user ", email, " registered as ", role) as description, 
+                    created_at as timestamp,
+                    email,
+                    role
                 FROM users 
                 WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
                 ORDER BY created_at DESC 
@@ -178,7 +183,12 @@ class AdminStatsController extends BaseController {
 
             // Recent dashboard creations
             $stmt = $db->query('
-                SELECT "dashboard_created" as type, CONCAT("Dashboard \"", name, "\" created by ", u.email) as description, d.created_at as timestamp
+                SELECT 
+                    "dashboard_created" as type, 
+                    CONCAT("Dashboard \"", name, "\" created by ", u.email) as description, 
+                    d.created_at as timestamp,
+                    u.email,
+                    d.name
                 FROM dashboards d
                 JOIN users u ON d.user_id = u.id
                 WHERE d.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
@@ -187,8 +197,41 @@ class AdminStatsController extends BaseController {
             ');
             $dashboardActivity = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
+            // Recent KPI creations
+            $stmt = $db->query('
+                SELECT 
+                    "kpi_created" as type, 
+                    CONCAT("KPI \"", name, "\" created by ", u.email) as description, 
+                    k.created_at as timestamp,
+                    u.email,
+                    k.name
+                FROM kpis k
+                JOIN users u ON k.user_id = u.id
+                WHERE k.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+                ORDER BY k.created_at DESC 
+                LIMIT 10
+            ');
+            $kpiActivity = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+            // Recent KPI entries
+            $stmt = $db->query('
+                SELECT 
+                    "kpi_entry_added" as type, 
+                    CONCAT("KPI entry added to \"", k.name, "\" by ", u.email) as description, 
+                    ke.created_at as timestamp,
+                    u.email,
+                    k.name
+                FROM kpi_entries ke
+                JOIN kpis k ON ke.kpi_id = k.id
+                JOIN users u ON k.user_id = u.id
+                WHERE ke.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+                ORDER BY ke.created_at DESC 
+                LIMIT 10
+            ');
+            $kpiEntryActivity = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
             // Combine and sort by timestamp
-            $allActivity = array_merge($userActivity, $dashboardActivity);
+            $allActivity = array_merge($userActivity, $dashboardActivity, $kpiActivity, $kpiEntryActivity);
             usort($allActivity, function($a, $b) {
                 return strtotime($b['timestamp']) - strtotime($a['timestamp']);
             });

@@ -80,12 +80,9 @@ class DashboardService
 
 	public function list(array $currentUser): array
 	{
-		if ($currentUser['role'] === 'admin') {
-			return $this->dashboards->findAll();
-		}
-		
 		// Get all dashboards the user has access to (owned or shared)
 		// This avoids duplicates by using a single query
+		// Admins still need explicit access to dashboards for security
 		return $this->dashboards->getDashboardsByUser((int)$currentUser['id']);
 	}
 

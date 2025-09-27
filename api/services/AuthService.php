@@ -88,17 +88,13 @@ class AuthService
 
         $userId = $_SESSION['user']['id'];
         
-        // Admin has all permissions
-        if ($_SESSION['user']['role'] === 'admin') {
-            return true;
-        }
-
         // Check dashboard ownership first
         if ($this->isDashboardOwner($dashboardId, $userId)) {
             return true; // Owners have all permissions
         }
 
         // Check dashboard access permissions
+        // Admins still need explicit access to dashboards for security
         return $this->checkDashboardAccess($dashboardId, $userId, $permissionLevel);
     }
 
