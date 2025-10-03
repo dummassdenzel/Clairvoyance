@@ -1,102 +1,74 @@
 <script lang="ts">
-	import '../app.css';
-	import { onMount } from 'svelte';
-	import { verifySession } from '$lib/stores/auth';
-	import { navigating } from '$app/stores';
-	
-	let isLoading = true;
-	
-	onMount(async () => {
-		// Check if token exists and is valid on app initialization
-		await verifySession();
-		isLoading = false;
-	});
+  import '../app.css';
+  import { user, authLoaded } from '$lib/stores/auth';
+  import { page } from '$app/stores';
+  import { goto } from '$app/navigation';
+  import { onMount } from 'svelte';
+  import EditorNavbar from '$lib/components/EditorNavbar.svelte';
+  import AdminNavbar from '$lib/components/AdminNavbar.svelte';
+  import CreateKpiModal from '$lib/components/CreateKpiModal.svelte';
+
+  let showNavbar = false;
+  let userRole: 'editor' | 'admin' | null = null;
+  let showCreateKpiModal = false;
+
+  // Routes where the navbar should be hidden entirely
+  const noNavRoutes = ['/auth/login', '/auth/register'];
+
+  // This will reactively update whenever the page or user store changes
+  $: {
+    showNavbar = $authLoaded && !!$user && !noNavRoutes.includes($page.route.id || '');
+    const role = $user?.role;
+    if (role === 'editor' || role === 'admin') {
+      userRole = role;
+    } else {
+      userRole = null;
+    }
+  }
+
+  onMount(() => {
+    // If auth is loaded and there's no user, redirect to login, unless on an auth page
+    if ($authLoaded && !$user && !noNavRoutes.includes($page.route.id || '')) {
+      goto('/auth/login');
+    }
+  });
+
+  // When the user store changes (e.g., after login), this will re-evaluate
+  user.subscribe(currentUser => {
+    if ($authLoaded && !currentUser && !noNavRoutes.includes($page.route.id || '')) {
+      goto('/auth/login');
+    }
+  });
+
+  // Function to handle Create KPI modal from navbar
+  function handleCreateKpi() {
+    showCreateKpiModal = true;
+  }
+
+  // Function to handle successful KPI creation
+  function handleCreateKpiSuccess() {
+    // Dispatch a custom event that the KPIs page can listen to
+    window.dispatchEvent(new CustomEvent('kpiCreated'));
+  }
 </script>
 
-<div class="app-container">
-	{#if isLoading}
-		<div class="loading-overlay">
-			<div class="loading-spinner">Loading...</div>
-		</div>
-	{:else}
-		
-		<main class="main-content">
-			{#if $navigating}
-				<div class="page-transition"></div>
-			{/if}
-			
-			<slot />
-		</main>
-		
-		<footer class="app-footer">
-			<div class="footer-content">
-				<p>&copy; {new Date().getFullYear()} Clairvoyance KPI Dashboard</p>
-			</div>
-		</footer>
-	{/if}
-</div>
+<!-- Create KPI Modal at layout level for proper z-index -->
+<CreateKpiModal bind:show={showCreateKpiModal} on:success={handleCreateKpiSuccess} />
 
-<style>
-	.app-container {
-		display: flex;
-		flex-direction: column;
-		min-height: 100vh;
-	}
-	
-	.loading-overlay {
-		position: fixed;
-		top: 0;
-		left: 0;
-		right: 0;
-		bottom: 0;
-		display: flex;
-		justify-content: center;
-		align-items: center;
-		background-color: rgba(255, 255, 255, 0.8);
-		z-index: 1000;
-	}
-	
-	.loading-spinner {
-		color: #4a90e2;
-		font-weight: bold;
-	}
-	
-	.main-content {
-		flex: 1;
-		position: relative;
-	}
-	
-	.page-transition {
-		position: absolute;
-		top: 0;
-		left: 0;
-		width: 100%;
-		height: 3px;
-		background: linear-gradient(to right, #4a90e2, #3cba92);
-		animation: loadingAnimation 1s infinite linear;
-		z-index: 10;
-	}
-	
-	@keyframes loadingAnimation {
-		0% {
-			transform: translateX(-100%);
-		}
-		100% {
-			transform: translateX(100%);
-		}
-	}
-	
-	.app-footer {
-		background-color: #f8f9fa;
-		padding: 1.5rem;
-		border-top: 1px solid #e9ecef;
-		margin-top: 2rem;
-	}
-	
-	.footer-content {
-		max-width: 1200px;
-		margin: 0 auto;
-		text-align: center;
-		color: #6c757d;
-	}
-</style>
+<div class="flex min-h-screen bg-gray-50">
+  {#if showNavbar}
+    <div class="fixed h-full">
+      {#if userRole === 'editor'}
+        <EditorNavbar on:createKpi={handleCreateKpi} />
+      {:else if userRole === 'admin'}
+        <AdminNavbar />
+      {/if}
+    </div>
+  {/if}
+
+  <main class="flex-1 transition-all duration-300" class:ml-64={showNavbar}>
+    <div class="p-4 sm:p-6 lg:p-8">
+        <slot />
+    </div>
+  </main>
+</div>

@@ -1,194 +1,383 @@
 <?php
 
-require_once __DIR__ . '/../models/Dashboard.php';
-require_once __DIR__ . '/../utils/Response.php';
-require_once __DIR__ . '/../utils/Validator.php';
-require_once __DIR__ . '/../models/Widget.php';
+namespace Controllers;
 
-class DashboardController
+use Core\BaseController;
+use Services\DashboardService;
+use Services\ShareTokenService;
+use Services\AuthService;
+
+class DashboardController extends BaseController
 {
-    private $dashboardModel;
-    private $widgetModel;
-    
+    private DashboardService $dashboardService;
+    private ShareTokenService $shareTokenService;
+    private AuthService $authService;
+
     public function __construct()
     {
-        $this->dashboardModel = new Dashboard();
-        $this->widgetModel = new Widget();
-    }
-    
-    /**
-     * Get all dashboards for a user
-     * 
-     * @param object $user Current user
-     */
-    public function getAll($user)
-    {
-        $dashboards = $this->dashboardModel->getAllForUser($user->id);
-        Response::success('Dashboards retrieved successfully', $dashboards);
-    }
-    
-    /**
-     * Get a specific dashboard by ID
-     * 
-     * @param int $id Dashboard ID
-     * @param object $user Current user
-     */
-    public function getOne($id, $user)
-    {
-        if (!Validator::isNumeric($id)) {
-            Response::error('Invalid dashboard ID');
-            return;
-        }
-        
-        $dashboard = $this->dashboardModel->getById($id);
-        if (!$dashboard) {
-            Response::notFound('Dashboard not found');
-            return;
-        }
-        
-        // Check if the user has access to this dashboard
-        if ($dashboard['user_id'] != $user->id && $user->role !== 'admin') {
-            Response::unauthorized('You do not have permission to access this dashboard');
-            return;
-        }
-        
-        Response::success('Dashboard retrieved successfully', $dashboard);
-    }
-    
-    /**
-     * Create a new dashboard
-     * 
-     * @param array $data Dashboard data
-     * @param object $user Current user
-     */
-    public function create($data, $user)
-    {
-        // Validate required fields
-        $validation = Validator::validateRequired($data, ['name']);
-        if (!$validation['isValid']) {
-            Response::error($validation['message']);
-            return;
-        }
-        
-        // Sanitize data
-        $data = Validator::sanitize($data);
-        
-        // Add user_id to data
-        $data['user_id'] = $user->id;
-        
-        // Create dashboard
-        $result = $this->dashboardModel->create($data);
-        if (!$result) {
-            Response::error('Failed to create dashboard');
-            return;
-        }
-        
-        Response::success('Dashboard created successfully', $result, 201);
-    }
-    
-    /**
-     * Update an existing dashboard
-     * 
-     * @param int $id Dashboard ID
-     * @param array $data Updated dashboard data
-     * @param object $user Current user
-     */
-    public function update($id, $data, $user)
-    {
-        if (!Validator::isNumeric($id)) {
-            Response::error('Invalid dashboard ID');
-            return;
-        }
-        
-        // Check if dashboard exists
-        $dashboard = $this->dashboardModel->getById($id);
-        if (!$dashboard) {
-            Response::notFound('Dashboard not found');
-            return;
-        }
-        
-        // Check if the user has access to this dashboard
-        if ($dashboard['user_id'] != $user->id && $user->role !== 'admin') {
-            Response::unauthorized('You do not have permission to update this dashboard');
-            return;
-        }
-        
-        // Sanitize data
-        $data = Validator::sanitize($data);
-        
-        // Update dashboard
-        $result = $this->dashboardModel->update($id, $data);
-        if (!$result) {
-            Response::error('Failed to update dashboard');
-            return;
-        }
-        
-        Response::success('Dashboard updated successfully');
-    }
-    
-    /**
-     * Delete a dashboard
-     * 
-     * @param int $id Dashboard ID
-     * @param object $user Current user
-     */
-    public function delete($id, $user)
-    {
-        if (!Validator::isNumeric($id)) {
-            Response::error('Invalid dashboard ID');
-            return;
-        }
-        
-        // Check if dashboard exists
-        $dashboard = $this->dashboardModel->getById($id);
-        if (!$dashboard) {
-            Response::notFound('Dashboard not found');
-            return;
-        }
-        
-        // Check if the user has access to this dashboard
-        if ($dashboard['user_id'] != $user->id && $user->role !== 'admin') {
-            Response::unauthorized('You do not have permission to delete this dashboard');
-            return;
-        }
-        
-        // Delete dashboard
-        $result = $this->dashboardModel->delete($id);
-        if (!$result) {
-            Response::error('Failed to delete dashboard');
-            return;
-        }
-        
-        Response::success('Dashboard deleted successfully');
+        parent::__construct();
+        $this->dashboardService = $this->getService(\Services\DashboardService::class);
+        $this->shareTokenService = $this->getService(\Services\ShareTokenService::class);
+        $this->authService = $this->getService(\Services\AuthService::class);
     }
 
-    /**
-     * Get all widgets for a specific dashboard
-     * 
-     * @param int $dashboard_id Dashboard ID
-     * @param object $user Current user
-     */
-    public function getWidgetsForDashboard($dashboard_id, $user)
+    public function create(): void
     {
-        if (!Validator::isNumeric($dashboard_id)) {
-            Response::error('Invalid dashboard ID');
-            return;
-        }
+        try {
+            $this->authService->requireRole('editor');
+            
+            $data = $this->getRequestData();
+            
+            if (!$this->validateRequired($data, ['name', 'layout'])) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'Missing required fields: name, layout'
+                ], 400);
+                return;
+            }
 
-        // First, check if dashboard exists and user has access to it
-        $dashboard = $this->dashboardModel->getById($dashboard_id);
-        if (!$dashboard) {
-            Response::notFound('Dashboard not found');
-            return;
-        }
+            $currentUser = $this->getCurrentUser();
+            
+            $result = $this->dashboardService->create($currentUser, $data);
 
-        if ($dashboard['user_id'] != $user->id && $user->role !== 'admin') {
-            Response::unauthorized('You do not have permission to access this dashboard\'s widgets');
-            return;
-        }
+            $this->jsonResponse([
+                'success' => true,
+                'message' => 'Dashboard created successfully',
+                'data' => ['id' => $result['id']]
+            ], 201);
 
-        // Assuming WidgetModel will have a method like this
-        $widgets = $this->widgetModel->getAllForDashboard($dashboard_id); 
-        Response::success('Widgets for dashboard retrieved successfully', $widgets);
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], $e->getCode() ?: 400);
+        }
+    }
+
+    public function get(int $id): void
+    {
+        try {
+            $this->authService->requireAuth();
+            
+            if (!$id) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'Missing dashboard ID'
+                ], 400);
+                return;
+            }
+
+            // Check dashboard access permission
+            $this->authService->requireDashboardPermission($id, 'viewer');
+
+            $currentUser = $this->getCurrentUser();
+            
+            $dashboard = $this->dashboardService->get($currentUser, $id);
+
+            $this->jsonResponse([
+                'success' => true,
+                'message' => 'Dashboard retrieved successfully',
+                'data' => ['dashboard' => $dashboard]
+            ]);
+
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], $e->getCode() ?: 403);
+        }
+    }
+
+    public function listAll(): void
+    {
+        try {
+            $this->authService->requireAuth();
+            
+            $currentUser = $this->getCurrentUser();
+            
+            $dashboards = $this->dashboardService->list($currentUser);
+
+            $this->jsonResponse([
+                'success' => true,
+                'message' => 'Dashboards retrieved successfully',
+                'data' => ['dashboards' => $dashboards]
+            ]);
+
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], $e->getCode() ?: 500);
+        }
+    }
+
+    public function update(int $id): void
+    {
+        try {
+            $this->authService->requireAuth();
+            
+            if (!$id) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'Missing dashboard ID'
+                ], 400);
+                return;
+            }
+
+            // Check dashboard edit permission
+            $this->authService->requireDashboardPermission($id, 'editor');
+
+            $data = $this->getRequestData();
+            
+            if (empty($data)) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'No update data provided'
+                ], 400);
+                return;
+            }
+
+            $currentUser = $this->getCurrentUser();
+            
+            $this->dashboardService->update($currentUser, $id, $data);
+
+            $this->jsonResponse([
+                'success' => true,
+                'message' => 'Dashboard updated successfully'
+            ]);
+
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], $e->getCode() ?: 400);
+        }
+    }
+
+    public function delete(int $id): void
+    {
+        try {
+            $this->authService->requireRole('editor');
+            
+            if (!$id) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'Missing dashboard ID'
+                ], 400);
+                return;
+            }
+
+            $currentUser = $this->getCurrentUser();
+            
+            $this->dashboardService->delete($currentUser, $id);
+
+            $this->jsonResponse([
+                'success' => true,
+                'message' => 'Dashboard deleted successfully'
+            ]);
+
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], $e->getCode() ?: 400);
+        }
+    }
+
+    public function assignViewer(int $dashboardId): void
+    {
+        try {
+            $this->authService->requireAuth();
+            
+            // Check if user has permission to manage dashboard access
+            $this->authService->requireDashboardPermission($dashboardId, 'owner');
+            
+            $data = $this->getRequestData();
+            
+            if (!$this->validateRequired($data, ['user_id'])) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'Missing required field: user_id'
+                ], 400);
+                return;
+            }
+
+            // Optional permission level, defaults to 'viewer'
+            $permissionLevel = $data['permission_level'] ?? 'viewer';
+            
+            // Validate permission level
+            if (!in_array($permissionLevel, ['owner', 'editor', 'viewer'])) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'Invalid permission level. Must be owner, editor, or viewer'
+                ], 400);
+                return;
+            }
+
+            $currentUser = $this->getCurrentUser();
+            
+            $this->dashboardService->addUserAccess($currentUser, $dashboardId, (int)$data['user_id'], $permissionLevel);
+
+            $this->jsonResponse([
+                'success' => true,
+                'message' => 'User access granted successfully',
+                'data' => ['permission_level' => $permissionLevel]
+            ]);
+
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], $e->getCode() ?: 400);
+        }
+    }
+
+    public function generateShareLink(int $dashboardId): void
+    {
+        try {
+            $this->authService->requireAuth();
+            
+            // Check if user has permission to manage dashboard access (owner only)
+            $this->authService->requireDashboardPermission($dashboardId, 'owner');
+            
+            $currentUser = $this->getCurrentUser();
+            
+            $result = $this->shareTokenService->generate($currentUser, $dashboardId);
+
+            $this->jsonResponse([
+                'success' => true,
+                'message' => 'Share token created successfully',
+                'data' => ['token' => $result['token']]
+            ]);
+
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], $e->getCode() ?: 403);
+        }
+    }
+
+    public function redeemShareLink(string $token): void
+    {
+        try {
+            // Debug logging
+            error_log("RedeemShareLink called with token: " . $token);
+            
+            $this->authService->requireAuth();
+            
+            $currentUser = $this->getCurrentUser();
+            error_log("Current user: " . json_encode($currentUser));
+            
+            $dashboardId = $this->shareTokenService->redeem($currentUser, $token);
+            error_log("Dashboard ID returned: " . $dashboardId);
+
+            $this->jsonResponse([
+                'success' => true,
+                'message' => 'Share token redeemed successfully',
+                'data' => ['dashboard_id' => $dashboardId]
+            ]);
+
+        } catch (\Exception $e) {
+            error_log("RedeemShareLink error: " . $e->getMessage());
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], $e->getCode() ?: 400);
+        }
+    }
+
+    public function getReportData(int $id): void
+    {
+        try {
+            $this->authService->requireAuth();
+            
+            if (!$id) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'Missing dashboard ID'
+                ], 400);
+                return;
+            }
+
+            $currentUser = $this->getCurrentUser();
+            
+            $dashboard = $this->dashboardService->get($currentUser, $id);
+            
+            // Parse the layout to get widget information
+            $layout = [];
+            if (isset($dashboard['layout'])) {
+                $layoutData = $dashboard['layout'];
+                if (is_string($layoutData)) {
+                    $layout = json_decode($layoutData, true) ?: [];
+                } elseif (is_array($layoutData)) {
+                    $layout = $layoutData;
+                }
+            }
+
+            // Prepare report data structure
+            $reportData = [
+                'name' => $dashboard['name'],
+                'description' => $dashboard['description'] ?? '',
+                'widgets' => $layout
+            ];
+
+            $this->jsonResponse([
+                'success' => true,
+                'message' => 'Report data retrieved successfully',
+                'data' => $reportData
+            ]);
+
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], $e->getCode() ?: 403);
+        }
+    }
+
+    public function removeViewer(int $dashboardId, int $userId): void
+    {
+        try {
+            $this->authService->requireAuth();
+            
+            // Check if user has permission to manage dashboard access
+            $this->authService->requireDashboardPermission($dashboardId, 'owner');
+            
+            $currentUser = $this->getCurrentUser();
+            
+            $this->dashboardService->removeUserAccess($currentUser, $dashboardId, $userId);
+
+            $this->jsonResponse([
+                'success' => true,
+                'message' => 'User access removed successfully'
+            ]);
+
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], $e->getCode() ?: 400);
+        }
+    }
+
+    public function getUsers(int $dashboardId): void
+    {
+        try {
+            $currentUser = $this->getCurrentUser();
+            $users = $this->dashboardService->getDashboardUsers($currentUser, $dashboardId);
+
+            $this->jsonResponse([
+                'success' => true,
+                'message' => 'Dashboard users retrieved successfully',
+                'data' => ['users' => $users]
+            ]);
+
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], $e->getCode() ?: 400);
+        }
     }
 }

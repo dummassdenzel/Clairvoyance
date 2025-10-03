@@ -13,7 +13,7 @@ $env = Environment::getInstance();
 
 // Define database connection parameters
 define("SERVER", $env->get('DB_HOST', 'localhost'));
-define("DATABASE", $env->get('DB_NAME', 'clairvoyance'));
+define("DATABASE", $env->get('DB_NAME', 'clairvoyance_v3'));
 define("USER", $env->get('DB_USER', 'root'));
 define("PASSWORD", $env->get('DB_PASS', ''));
 define("DRIVER", "mysql");

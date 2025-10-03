@@ -1,234 +1,70 @@
-/**
- * Authentication service for user login and registration
- */
-import * as api from '../services/api';
-import { writable, derived, get } from 'svelte/store';
+import { writable } from 'svelte/store';
+import * as api from '$lib/services/api';
+import type { User, ApiResponse } from '$lib/types';
 
-// Types
-export type UserRole = 'admin' | 'editor' | 'viewer';
+export const user = writable<User | null>(null);
+export const authError = writable<string | null>(null);
+export const authLoaded = writable<boolean>(false);
 
-export interface AuthenticatedUser {
-  id: number;
-  username: string;
-  email: string;
-  role: UserRole;
-}
-
-export interface AuthState {
-  isAuthenticated: boolean;
-  user: AuthenticatedUser | null;
-  token: string | null;
-  tokenExpiry: number | null;
-}
-
-export interface AuthResponse {
-  success: boolean;
-  message?: string;
-  user?: AuthenticatedUser;
-}
-
-// Constants
-const TOKEN_KEY = 'auth_token';
-const TOKEN_EXPIRY_KEY = 'auth_token_expiry';
-const TOKEN_EXPIRY_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
-
-// Check if we're in a browser environment
-const isBrowser = typeof window !== 'undefined';
-
-// Token management
-const TokenManager = {
-  getToken: (): string | null => 
-    isBrowser ? localStorage.getItem(TOKEN_KEY) : null,
-    
-  setToken: (token: string | null): void => {
-    if (!isBrowser) return;
-    if (token) {
-      localStorage.setItem(TOKEN_KEY, token);
+// On load, check if user is logged in
+if (typeof window !== 'undefined') {
+  api.getCurrentUser().then((response: ApiResponse<{ user: User }> | null) => {
+    if (response?.success && response.data?.user) {
+      user.set(response.data.user);
     } else {
-      localStorage.removeItem(TOKEN_KEY);
+      user.set(null);
     }
-  },
-  
-  getExpiry: (): number | null => {
-    if (!isBrowser) return null;
-    const expiry = localStorage.getItem(TOKEN_EXPIRY_KEY);
-    return expiry ? parseInt(expiry, 10) : null;
-  },
-  
-  setExpiry: (expiry: number | null): void => {
-    if (!isBrowser) return;
-    if (expiry) {
-      localStorage.setItem(TOKEN_EXPIRY_KEY, expiry.toString());
-    } else {
-      localStorage.removeItem(TOKEN_EXPIRY_KEY);
-    }
-  },
-  
-  clear: (): void => {
-    if (!isBrowser) return;
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(TOKEN_EXPIRY_KEY);
-  }
-};
-
-// Initial auth state
-const initialState: AuthState = {
-  isAuthenticated: false,
-  user: null,
-  token: TokenManager.getToken(),
-  tokenExpiry: TokenManager.getExpiry()
-};
-
-// Create Svelte store for auth state
-const authStore = writable<AuthState>(initialState);
-export const token = derived(authStore, $authStore => $authStore.token);
-
-/**
- * Update the authentication state
- */
-function updateAuthState(state: Partial<AuthState>): void {
-  authStore.update(currentState => {
-    const newState = { ...currentState, ...state };
-    
-    if (state.token !== undefined) {
-      TokenManager.setToken(state.token);
-    }
-    
-    if (state.tokenExpiry !== undefined) {
-      TokenManager.setExpiry(state.tokenExpiry);
-    }
-    
-    return newState;
+  }).catch(() => {
+    user.set(null);
+  }).finally(() => {
+    authLoaded.set(true);
   });
 }
 
-/**
- * Verify if the current session is valid
- */
-export async function verifySession(): Promise<boolean> {
-  const currentState = get(authStore);
-  
-  if (!currentState.token) {
-    return false;
-  }
-  
-  if (currentState.tokenExpiry && currentState.tokenExpiry < Date.now()) {
-    await logout();
-    return false;
-  }
-  
+export async function login(email: string, password: string): Promise<boolean> {
   try {
-    const response = await api.get('auth/verify', currentState.token);
+    const response = await api.login({ email, password });
     
-    if (!response?.user) {
-      await logout();
+    if (response.success && response.data?.user) {
+      user.set(response.data.user);
+      authError.set(null);
+      return true;
+    } else {
+      user.set(null);
+      authError.set(response.message || 'Login failed');
       return false;
     }
-    
-    updateAuthState({
-      isAuthenticated: true,
-      user: response.user
-    });
-    
-    return true;
   } catch (error) {
-    console.error('Session verification failed:', error);
-    await logout();
+    user.set(null);
+    authError.set(error instanceof Error ? error.message : 'Login failed');
     return false;
   }
 }
 
-/**
- * Log in a user
- */
-export async function login(username: string, password: string): Promise<AuthResponse> {
+export async function logout(): Promise<void> {
   try {
-    const response = await api.post('auth/login', { username, password });
-    
-    if (!response?.user || !response?.token) {
-      return {
-        success: false,
-        message: 'Invalid server response'
-      };
-    }
-    
-    const expiryTime = Date.now() + TOKEN_EXPIRY_DURATION;
-    
-    updateAuthState({
-      isAuthenticated: true,
-      user: response.user,
-      token: response.token,
-      tokenExpiry: expiryTime
-    });
-    
-    return {
-      success: true,
-      user: response.user
-    };
+    await api.logout();
   } catch (error) {
-    console.error('Login failed:', error);
-    return {
-      success: false,
-      message: error instanceof Error ? error.message : 'Authentication failed'
-    };
+    console.error('Logout error:', error);
+  } finally {
+    user.set(null);
+    authError.set(null);
   }
 }
 
-/**
- * Register a new user
- */
-export async function register(
-  username: string,
-  email: string,
-  password: string
-): Promise<AuthResponse> {
+export async function register(email: string, password: string, role: string): Promise<boolean> {
   try {
-    const response = await api.post('auth/register', { username, email, password });
+    const response = await api.register({ email, password, role: role as 'admin' | 'editor' });
     
-    if (!response?.user || !response?.token) {
-      return {
-        success: false,
-        message: 'Invalid server response'
-      };
+    if (response.success) {
+      authError.set(null);
+      return true;
+    } else {
+      authError.set(response.message || 'Registration failed');
+      return false;
     }
-    
-    const expiryTime = Date.now() + TOKEN_EXPIRY_DURATION;
-    
-    updateAuthState({
-      isAuthenticated: true,
-      user: response.user,
-      token: response.token,
-      tokenExpiry: expiryTime
-    });
-    
-    return {
-      success: true,
-      user: response.user
-    };
   } catch (error) {
-    console.error('Registration failed:', error);
-    return {
-      success: false,
-      message: error instanceof Error ? error.message : 'Registration failed'
-    };
+    authError.set(error instanceof Error ? error.message : 'Registration failed');
+    return false;
   }
-}
-
-/**
- * Log out the current user
- */
-export async function logout(): Promise<AuthResponse> {
-  TokenManager.clear();
-  
-  updateAuthState({
-    isAuthenticated: false,
-    user: null,
-    token: null,
-    tokenExpiry: null
-  });
-  
-  return { success: true };
-}
-
-// Export the auth store
-export { authStore }; 
+} 

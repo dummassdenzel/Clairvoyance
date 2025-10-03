@@ -1,233 +1,261 @@
 <?php
 
-require_once __DIR__ . '/../models/Kpi.php';
-require_once __DIR__ . '/../utils/Response.php';
-require_once __DIR__ . '/../utils/Validator.php';
+namespace Controllers;
 
-class KpiController
+use Core\BaseController;
+use Services\KpiService;
+use Services\KpiEntryService;
+use Services\AuthService;
+
+class KpiController extends BaseController
 {
-    private $kpiModel;
-    
+    private KpiService $kpiService;
+    private KpiEntryService $kpiEntryService;
+    private AuthService $authService;
+
     public function __construct()
     {
-        $this->kpiModel = new Kpi();
-    }
-    
-    /**
-     * Get all KPIs
-     */
-    public function getAll()
-    {
-        $kpis = $this->kpiModel->getAll();
-        Response::success('KPIs retrieved successfully', $kpis);
-    }
-    
-    /**
-     * Get a specific KPI by ID
-     * 
-     * @param int $id KPI ID
-     */
-    public function getOne($id)
-    {
-        if (!Validator::isNumeric($id)) {
-            Response::error('Invalid KPI ID');
-            return;
-        }
-        
-        $kpi = $this->kpiModel->getById($id);
-        if (!$kpi) {
-            Response::notFound('KPI not found');
-            return;
-        }
-        
-        Response::success('KPI retrieved successfully', $kpi);
-    }
-    
-    /**
-     * Create a new KPI
-     * 
-     * @param array $data KPI data
-     * @param object $user Current user
-     */
-    public function create($data, $user)
-    {
-        // Validate required fields
-        $validation = Validator::validateRequired($data, ['name', 'category_id']);
-        if (!$validation['isValid']) {
-            Response::error($validation['message']);
-            return;
-        }
-        
-        // Sanitize data
-        $data = Validator::sanitize($data);
-        
-        // Add user_id to data
-        $data['user_id'] = $user->id;
-        
-        // Create KPI
-        $result = $this->kpiModel->create($data);
-        if (!$result) {
-            Response::error('Failed to create KPI');
-            return;
-        }
-        
-        Response::success('KPI created successfully', $result, 201);
-    }
-    
-    /**
-     * Update an existing KPI
-     * 
-     * @param int $id KPI ID
-     * @param array $data Updated KPI data
-     */
-    public function update($id, $data)
-    {
-        if (!Validator::isNumeric($id)) {
-            Response::error('Invalid KPI ID');
-            return;
-        }
-        
-        // Check if KPI exists
-        $kpi = $this->kpiModel->getById($id);
-        if (!$kpi) {
-            Response::notFound('KPI not found');
-            return;
-        }
-        
-        // Sanitize data
-        $data = Validator::sanitize($data);
-        
-        // Update KPI
-        $result = $this->kpiModel->update($id, $data);
-        if (!$result) {
-            Response::error('Failed to update KPI');
-            return;
-        }
-        
-        Response::success('KPI updated successfully');
-    }
-    
-    /**
-     * Delete a KPI
-     * 
-     * @param int $id KPI ID
-     */
-    public function delete($id)
-    {
-        if (!Validator::isNumeric($id)) {
-            Response::error('Invalid KPI ID');
-            return;
-        }
-        
-        // Check if KPI exists
-        $kpi = $this->kpiModel->getById($id);
-        if (!$kpi) {
-            Response::notFound('KPI not found');
-            return;
-        }
-        
-        // Delete KPI
-        $result = $this->kpiModel->delete($id);
-        if (!$result) {
-            Response::error('Failed to delete KPI');
-            return;
-        }
-        
-        Response::success('KPI deleted successfully');
+        parent::__construct();
+        $this->kpiService = $this->getService(\Services\KpiService::class);
+        $this->kpiEntryService = $this->getService(\Services\KpiEntryService::class);
+        $this->authService = $this->getService(\Services\AuthService::class);
     }
 
-    /**
-     * Get all measurements for a specific KPI
-     * 
-     * @param int $kpi_id KPI ID
-     * @param object $user Current user (not used in this method but good for consistency)
-     */
-    public function getMeasurements($kpi_id, $user)
+    public function getOne(int $kpiId): void
     {
-        if (!Validator::isNumeric($kpi_id)) {
-            Response::error('Invalid KPI ID');
-            return;
+        try {
+            $this->authService->requireAuth();
+            
+            if (!$kpiId) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'Missing KPI ID'
+                ], 400);
+                return;
+            }
+
+            $currentUser = $this->getCurrentUser();
+            
+            $kpi = $this->kpiService->get($currentUser, $kpiId);
+
+            $this->jsonResponse([
+                'success' => true,
+                'message' => 'KPI retrieved successfully',
+                'data' => ['kpi' => $kpi]  // Fix: Wrap in 'kpi' property
+            ]);
+
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], $e->getCode() ?: 404);
         }
-        
-        // Check if KPI exists
-        $kpi = $this->kpiModel->getById($kpi_id);
-        if (!$kpi) {
-            Response::notFound('KPI not found, cannot retrieve measurements.');
-            return;
-        }
-        
-        $measurements = $this->kpiModel->getMeasurementsByKpiId($kpi_id);
-        
-        // The model method returns [] on error or no results, which is fine.
-        Response::success('Measurements retrieved successfully', $measurements);
     }
 
-    /**
-     * Add a measurement to a KPI
-     * 
-     * @param int $kpi_id KPI ID
-     * @param array $data Measurement data (value, date, notes)
-     * @param object $user Current user (for logging or ownership if needed, though measurements are usually tied to KPI)
-     */
-    public function addMeasurement($kpi_id, $data, $user)
+    public function update(int $kpiId): void
     {
-        if (!Validator::isNumeric($kpi_id)) {
-            Response::error('Invalid KPI ID');
-            return;
+        try {
+            $this->authService->requireRole('editor');
+            
+            if (!$kpiId) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'Missing KPI ID'
+                ], 400);
+                return;
+            }
+
+            $data = $this->getRequestData();
+            
+            if (empty($data)) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'No update data provided'
+                ], 400);
+                return;
+            }
+
+            // Provide defaults for optional fields
+            $data['direction'] = $data['direction'] ?? 'higher_is_better';
+            $data['format_prefix'] = $data['format_prefix'] ?? null;
+            $data['format_suffix'] = $data['format_suffix'] ?? null;
+
+            $currentUser = $this->getCurrentUser();
+            
+            $this->kpiService->update($currentUser, $kpiId, $data);
+
+            $this->jsonResponse([
+                'success' => true,
+                'message' => 'KPI updated successfully'
+            ]);
+
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], $e->getCode() ?: 400);
         }
+    }
 
-        // Check if KPI exists
-        $kpi = $this->kpiModel->getById($kpi_id);
-        if (!$kpi) {
-            Response::notFound('KPI not found, cannot add measurement.');
-            return;
+    public function create(): void
+    {
+        try {
+            $this->authService->requireRole('editor');
+            
+            $data = $this->getRequestData();
+            
+            if (!$this->validateRequired($data, ['name', 'target', 'rag_red', 'rag_amber'])) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'Missing required fields: name, target, rag_red, rag_amber'
+                ], 400);
+                return;
+            }
+
+            // Provide defaults for optional fields
+            $data['direction'] = $data['direction'] ?? 'higher_is_better';
+            $data['format_prefix'] = $data['format_prefix'] ?? null;
+            $data['format_suffix'] = $data['format_suffix'] ?? null;
+
+            $currentUser = $this->getCurrentUser();
+            
+            $result = $this->kpiService->create($currentUser, $data);
+
+            $this->jsonResponse([
+                'success' => true,
+                'message' => 'KPI created successfully',
+                'data' => ['id' => $result['id']]
+            ], 201);
+
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], $e->getCode() ?: 400);
         }
+    }
 
-        // Validate required fields for measurement
-        $validation = Validator::validateRequired($data, ['value', 'date']);
-        if (!$validation['isValid']) {
-            Response::error($validation['message']);
-            return;
+    public function delete(int $kpiId): void
+    {
+        try {
+            $this->authService->requireRole('editor');
+            
+            if (!$kpiId) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'Missing KPI ID'
+                ], 400);
+                return;
+            }
+
+            $currentUser = $this->getCurrentUser();
+            
+            $this->kpiService->delete($currentUser, $kpiId);
+
+            $this->jsonResponse([
+                'success' => true,
+                'message' => 'KPI deleted successfully'
+            ], 204);
+
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], $e->getCode() ?: 400);
         }
+    }
 
-        // Validate data types
-        if (!Validator::isNumeric($data['value'])) {
-            Response::error('Measurement value must be numeric.');
-            return;
+    public function listAll(): void
+    {
+        try {
+            $this->authService->requireAuth();
+            
+            $currentUser = $this->getCurrentUser();
+            
+            $kpis = $this->kpiService->list($currentUser);
+
+            $this->jsonResponse([
+                'success' => true,
+                'message' => 'KPIs retrieved successfully',
+                'data' => $kpis
+            ]);
+
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], $e->getCode() ?: 500);
         }
-        if (!Validator::isValidDate($data['date'])) {
-            Response::error('Invalid date format for measurement. Use YYYY-MM-DD.');
-            return;
+    }
+
+    public function getAggregate(int $kpiId): void
+    {
+        try {
+            $this->authService->requireAuth();
+            
+            $aggregationType = $_GET['type'] ?? null;
+            $validTypes = ['sum', 'average', 'latest'];
+
+            if (!$aggregationType || !in_array($aggregationType, $validTypes)) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'Invalid or missing aggregation type'
+                ], 400);
+                return;
+            }
+
+            $startDate = $_GET['start_date'] ?? null;
+            $endDate = $_GET['end_date'] ?? null;
+
+            $currentUser = $this->getCurrentUser();
+            
+            $result = $this->kpiEntryService->aggregate($currentUser, $kpiId, $aggregationType, $startDate, $endDate);
+
+            if ($result) {
+                $this->jsonResponse([
+                    'success' => true,
+                    'message' => 'Aggregate value retrieved successfully',
+                    'data' => $result
+                ]);
+            } else {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'Could not retrieve aggregate value'
+                ], 500);
+            }
+
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], $e->getCode() ?: 500);
         }
+    }
 
-        // Sanitize data
-        $data = Validator::sanitize($data);
+    public function listEntries(int $kpiId): void
+    {
+        try {
+            $this->authService->requireAuth();
+            
+            // Get optional query parameters for date filtering
+            $startDate = $_GET['start_date'] ?? null;
+            $endDate = $_GET['end_date'] ?? null;
 
-        // Prepare data for the model, aligning with the 'measurements' table schema
-        $measurementData = [
-            'kpi_id' => (int)$kpi_id,
-            'value' => (float)$data['value'], // Assuming 'value' is sanitized by parseFloat or is numeric
-            'timestamp' => $data['date'] // Use the input 'date' for the 'timestamp' column
-            // 'notes' field is omitted as the table does not have it
-        ];
+            $currentUser = $this->getCurrentUser();
+            
+            $result = $this->kpiEntryService->query($currentUser, $kpiId, $startDate, $endDate);
 
-        // Temporary logging before calling the model
-        error_log('[KpiController] Attempting to add measurement. KPI ID: ' . $kpi_id . '. Data: ' . json_encode($measurementData));
+            $this->jsonResponse([
+                'success' => true,
+                'message' => 'Entries retrieved successfully',
+                'data' => ['entries' => $result]  // Fix: Wrap in 'entries' property
+            ]);
 
-        $result = $this->kpiModel->addMeasurement($measurementData);
-
-        // Temporary logging after calling the model
-        error_log('[KpiController] Result from kpiModel->addMeasurement: ' . json_encode($result));
-
-        if (!$result) {
-            Response::error('Failed to add measurement');
-            return;
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], $e->getCode() ?: 500);
         }
-        
-        // Optionally, update the KPI's current_value if applicable
-        // This might involve a separate model call or a trigger in the DB
-        // For now, just return the created measurement
-        
-        Response::success('Measurement added successfully', $result, 201);
     }
 }

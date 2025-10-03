@@ -1,210 +1,307 @@
 <?php
 
-require_once __DIR__ . '/../models/User.php';
-require_once __DIR__ . '/../utils/Response.php';
-require_once __DIR__ . '/../utils/Validator.php';
+namespace Controllers;
 
-class UserController
+use Core\BaseController;
+use Services\UserService;
+use Services\AuthService;
+
+class UserController extends BaseController
 {
-    private $userModel;
-    
+    private UserService $userService;
+    private AuthService $authService;
+
     public function __construct()
     {
-        $this->userModel = new User();
+        parent::__construct();
+        $this->userService = $this->getService(\Services\UserService::class);
+        $this->authService = $this->getService(\Services\AuthService::class);
     }
-    
-    /**
-     * Get all users
-     */
-    public function getAll()
+
+    public function register(): void
     {
-        try{
-            $users = $this->userModel->getAll();
-            Response::success('Users retrieved successfully', $users);
-        }catch(Exception $e){
-            error_log("Error in UserController::getAll: " . $e->getMessage());
-            Response::error('Failed to retrieve users: ' . $e->getMessage());
-        }
-    }
-    
-    /**
-     * Get a specific user by ID
-     * 
-     * @param int $id User ID
-     */
-    public function getOne($id)
-    {
-        if (!Validator::isNumeric($id)) {
-            Response::error('Invalid user ID');
-            return;
-        }
-        
-        try{
-            $user = $this->userModel->findById($id);
+        try {
+            $data = $this->getRequestData();
             
-            if (!$user) {
-                Response::notFound('User not found');
+            if (!$this->validateRequired($data, ['email', 'password'])) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'Missing required fields: email, password'
+                ], 400);
                 return;
             }
-            
-            // Remove sensitive data
-            unset($user['password_hash']);
-            
-            Response::success('User retrieved successfully', $user);
-        } catch (Exception $e) {
-            error_log("Error in UserController::getOne: " . $e->getMessage());
-            Response::error('Failed to retrieve user: ' . $e->getMessage());
+
+            // Default role to 'editor' for public registration
+            $data['role'] = $data['role'] ?? 'editor';
+
+            $result = $this->userService->createUser($data);
+
+            if ($result['success']) {
+                $this->jsonResponse([
+                    'success' => true,
+                    'message' => 'User registered successfully',
+                    'data' => ['id' => $result['user']['id']]
+                ], 201);
+            } else {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => $result['error']
+                ], 400);
+            }
+
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], $e->getCode() ?: 400);
         }
     }
-    
-    /**
-     * Create a new user
-     * 
-     * @param array $data User data
-     */
-    public function create($data)
+
+    public function login(): void
     {
-        // Validate required fields
-        $validation = Validator::validateRequired($data, ['username', 'email', 'password', 'role']);
-        if (!$validation['isValid']) {
-            Response::error($validation['message']);
-            return;
-        }
-        
-        // Validate email format
-        if (!filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
-            Response::error('Invalid email format');
-            return;
-        }
-        
-        // Check if username already exists
-        if ($this->userModel->findByUsername($data['username'])) {
-            Response::error('Username already exists');
-            return;
-        }
-        
-        // Check if email already exists
-        if ($this->userModel->findByEmail($data['email'])) {
-            Response::error('Email already exists');
-            return;
-        }
-        
-        // Validate role
-        if (!in_array($data['role'], ['admin', 'editor', 'viewer'])) {
-            Response::error('Invalid role. Must be "admin", "editor", or "viewer"');
-            return;
-        }
-        
-        // Hash password
-        $data['password_hash'] = password_hash($data['password'], PASSWORD_DEFAULT);
-        unset($data['password']);
-        
-        // Create user
-        $result = $this->userModel->create($data);
-        
-        if (!$result) {
-            Response::error('Failed to create user');
-            return;
-        }
-        
-        // Remove sensitive data
-        unset($result['password_hash']);
-        
-        Response::success('User created successfully', $result, 201);
-    }
-    
-    /**
-     * Update an existing user
-     * 
-     * @param int $id User ID
-     * @param array $data Updated user data
-     */
-    public function update($id, $data)
-    {
-        if (!Validator::isNumeric($id)) {
-            Response::error('Invalid user ID');
-            return;
-        }
-        
-        // Check if user exists
-        $user = $this->userModel->findById($id);
-        if (!$user) {
-            Response::notFound('User not found');
-            return;
-        }
-        
-        // Validate email if provided
-        if (isset($data['email']) && !filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
-            Response::error('Invalid email format');
-            return;
-        }
-        
-        // Check if username already exists (if changing username)
-        if (isset($data['username']) && $data['username'] !== $user['username']) {
-            if ($this->userModel->findByUsername($data['username'])) {
-                Response::error('Username already exists');
+        try {
+            $data = $this->getRequestData();
+            
+            if (!$this->validateRequired($data, ['email', 'password'])) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'Missing email or password'
+                ], 400);
                 return;
             }
+
+            $result = $this->authService->login($data['email'], $data['password']);
+
+            if ($result['success']) {
+                $this->jsonResponse([
+                    'success' => true,
+                    'message' => 'Login successful',
+                    'data' => ['user' => $result['user']]
+                ]);
+            } else {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => $result['error']
+                ], 401);
+            }
+
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], $e->getCode() ?: 401);
         }
-        
-        // Check if email already exists (if changing email)
-        if (isset($data['email']) && $data['email'] !== $user['email']) {
-            if ($this->userModel->findByEmail($data['email'])) {
-                Response::error('Email already exists');
+    }
+
+    public function me(): void
+    {
+        try {
+            $this->authService->requireAuth();
+            
+            $user = $this->getCurrentUser();
+
+            $this->jsonResponse([
+                'success' => true,
+                'message' => 'Session is valid',
+                'data' => ['user' => $user]
+            ]);
+
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => 'No active session'
+            ], 401);
+        }
+    }
+
+    public function listAll(): void
+    {
+        try {
+            $this->authService->requireRole('admin');
+            
+            $users = $this->userService->listAllUsers();
+
+            $this->jsonResponse([
+                'success' => true,
+                'message' => 'Users retrieved successfully',
+                'data' => $users
+            ]);
+
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], $e->getCode() ?: 403);
+        }
+    }
+
+    public function updateRole(int $userId): void
+    {
+        try {
+            $this->authService->requireRole('admin');
+            
+            if (!$userId) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'Missing user ID'
+                ], 400);
                 return;
             }
+
+            $data = $this->getRequestData();
+            
+            if (!isset($data['role'])) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'Missing role field'
+                ], 400);
+                return;
+            }
+
+            $result = $this->userService->updateUserRole($userId, $data['role']);
+
+            if ($result['success']) {
+                $this->jsonResponse([
+                    'success' => true,
+                    'message' => $result['message']
+                ]);
+            } else {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => $result['error']
+                ], 400);
+            }
+
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], $e->getCode() ?: 400);
         }
-        
-        // Validate role if provided
-        if (isset($data['role']) && !in_array($data['role'], ['admin', 'editor', 'viewer'])) {
-            Response::error('Invalid role. Must be "admin", "editor", or "viewer"');
-            return;
-        }
-        
-        // Hash password if provided
-        if (isset($data['password'])) {
-            $data['password_hash'] = password_hash($data['password'], PASSWORD_DEFAULT);
-            unset($data['password']);
-        }
-        
-        // Update user
-        $result = $this->userModel->update($id, $data);
-        
-        if (!$result) {
-            Response::error('Failed to update user');
-            return;
-        }
-        
-        Response::success('User updated successfully');
     }
-    
-    /**
-     * Delete a user
-     * 
-     * @param int $id User ID
-     */
-    public function delete($id)
+
+    public function delete(int $userId): void
     {
-        if (!Validator::isNumeric($id)) {
-            Response::error('Invalid user ID');
-            return;
+        try {
+            $this->authService->requireRole('admin');
+            
+            if (!$userId) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'Missing user ID'
+                ], 400);
+                return;
+            }
+
+            $result = $this->userService->deleteUser($userId);
+
+            if ($result['success']) {
+                $this->jsonResponse([
+                    'success' => true,
+                    'message' => $result['message']
+                ]);
+            } else {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => $result['error']
+                ], 400);
+            }
+
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], $e->getCode() ?: 400);
         }
-        
-        // Check if user exists
-        $user = $this->userModel->findById($id);
-        if (!$user) {
-            Response::notFound('User not found');
-            return;
+    }
+
+    public function getOne(int $userId): void
+    {
+        try {
+            $this->authService->requireRole('admin');
+            
+            if (!$userId) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'Missing user ID'
+                ], 400);
+                return;
+            }
+
+            $user = $this->userService->getUserById($userId);
+
+            if ($user) {
+                $this->jsonResponse([
+                    'success' => true,
+                    'message' => 'User retrieved successfully',
+                    'data' => $user
+                ]);
+            } else {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'User not found'
+                ], 404);
+            }
+
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], $e->getCode() ?: 404);
         }
-        
-        // Delete user
-        $result = $this->userModel->delete($id);
-        
-        if (!$result) {
-            Response::error('Failed to delete user');
-            return;
+    }
+
+    public function findByEmail(): void
+    {
+        try {
+            $data = $this->getRequestData();
+            
+            if (empty($data['email'])) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'Missing required field: email'
+                ], 400);
+                return;
+            }
+
+            $user = $this->userService->getUserByEmail($data['email']);
+
+            if ($user) {
+                $this->jsonResponse([
+                    'success' => true,
+                    'message' => 'User found',
+                    'data' => $user
+                ]);
+            } else {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'User not found'
+                ], 404);
+            }
+
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], $e->getCode() ?: 400);
         }
-        
-        Response::success('User deleted successfully');
+    }
+
+    public function logout(): void
+    {
+        try {
+            $this->authService->logout();
+
+            $this->jsonResponse([
+                'success' => true,
+                'message' => 'Logged out successfully'
+            ]);
+
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], $e->getCode() ?: 500);
+        }
     }
 }

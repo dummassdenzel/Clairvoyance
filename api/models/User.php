@@ -1,188 +1,130 @@
 <?php
 
-require_once __DIR__ . '/../config/database.php';
+namespace Models;
+
+use PDO;
+use PDOException;
 
 class User
 {
-    public $pdo;
+    private PDO $db;
     
-    public function __construct()
+    public function __construct(PDO $db)
     {
-        $conn = new Connection();
-        $this->pdo = $conn->connect();
+        $this->db = $db;
     }
     
-
-    /**
-     * Get all users
-     * 
-     * @return array List of users
-     */
-    public function getAll()
+    // CRUD Operations
+    public function create(string $email, string $password, string $role): array
     {
         try {
-            $stmt = $this->pdo->prepare("SELECT id, username, email, role, created_at FROM users ORDER BY created_at DESC");
+            // Hash the password before storing
+            $hashedPassword = $this->hashPassword($password);
+            
+            $stmt = $this->db->prepare('INSERT INTO users (email, password, role) VALUES (?, ?, ?)');
+            $stmt->execute([$email, $hashedPassword, $role]);
+            return ['success' => true, 'id' => $this->db->lastInsertId()];
+        } catch (PDOException $e) {
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+    
+    public function findById(int $id): ?array
+    {
+        try {
+            $stmt = $this->db->prepare('SELECT id, email, role, created_at, updated_at FROM users WHERE id = ?');
+            $stmt->execute([$id]);
+            return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        } catch (PDOException $e) {
+            return null;
+        }
+    }
+    
+    public function findByEmail(string $email): ?array
+    {
+        try {
+            $stmt = $this->db->prepare('SELECT * FROM users WHERE email = ?');
+            $stmt->execute([$email]);
+            return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        } catch (PDOException $e) {
+            return null;
+        }
+    }
+    
+    public function authenticate(string $email, string $password): array
+    {
+        try {
+            $stmt = $this->db->prepare('SELECT id, email, password, role FROM users WHERE email = ?');
+            $stmt->execute([$email]);
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$user || !password_verify($password, $user['password'])) {
+                return ['success' => false, 'error' => 'Invalid credentials'];
+            }
+            
+            unset($user['password']);
+            return ['success' => true, 'user' => $user];
+        } catch (PDOException $e) {
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+    
+    public function updateRole(int $id, string $role): array
+    {
+        try {
+            $stmt = $this->db->prepare('UPDATE users SET role = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+            $success = $stmt->execute([$role, $id]);
+            
+            if ($success) {
+                return ['success' => true, 'message' => 'Role updated successfully'];
+            } else {
+                return ['success' => false, 'error' => 'Failed to update role'];
+            }
+        } catch (PDOException $e) {
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    public function delete(int $id): array
+    {
+        try {
+            $stmt = $this->db->prepare('DELETE FROM users WHERE id = ?');
+            $success = $stmt->execute([$id]);
+            
+            if ($success) {
+                return ['success' => true, 'message' => 'User deleted successfully'];
+            } else {
+                return ['success' => false, 'error' => 'Failed to delete user'];
+            }
+        } catch (PDOException $e) {
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    public function listAll(): array
+    {
+        try {
+            $stmt = $this->db->prepare('SELECT id, email, role, created_at, updated_at FROM users ORDER BY created_at DESC');
             $stmt->execute();
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (PDOException $e) {
-            error_log("Error fetching users: " . $e->getMessage());
             return [];
         }
     }
 
-    /**
-     * Find a user by ID
-     * 
-     * @param int $id User ID
-     * @return array|null User data or null if not found
-     */
-    public function findById($id)
+    // Data validation methods
+    public function validateEmail(string $email): bool
     {
-        try {
-            $stmt = $this->pdo->prepare("SELECT * FROM users WHERE id = :id");
-            $stmt->bindParam(':id', $id, PDO::PARAM_INT);
-            $stmt->execute();
-            return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
-        } catch (PDOException $e) {
-            error_log("Error finding user by ID: " . $e->getMessage());
-            return null;
-        }
+        return filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
     }
     
-    /**
-     * Find a user by username
-     * 
-     * @param string $username Username
-     * @return array|null User data or null if not found
-     */
-    public function findByUsername($username)
+    public function validateRole(string $role): bool
     {
-        try {
-            $stmt = $this->pdo->prepare("SELECT * FROM users WHERE username = :username");
-            $stmt->bindParam(':username', $username, PDO::PARAM_STR);
-            $stmt->execute();
-            return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
-        } catch (PDOException $e) {
-            error_log("Error finding user by username: " . $e->getMessage());
-            return null;
-        }
+        return in_array($role, ['editor', 'admin']);
     }
     
-    /**
-     * Find a user by email
-     * 
-     * @param string $email Email
-     * @return array|null User data or null if not found
-     */
-    public function findByEmail($email)
+    public function hashPassword(string $password): string
     {
-        try {
-            $stmt = $this->pdo->prepare("SELECT * FROM users WHERE email = :email");
-            $stmt->bindParam(':email', $email, PDO::PARAM_STR);
-            $stmt->execute();
-            return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
-        } catch (PDOException $e) {
-            error_log("Error finding user by email: " . $e->getMessage());
-            return null;
-        }
-    }
-    
-    /**
-     * Create a new user
-     * 
-     * @param array $data User data
-     * @return array|bool Created user data or false on failure
-     */
-    public function create($data)
-    {
-        error_log("Attempting to create user: " . json_encode($data));
-        
-        try {
-            // Debug the SQL statement
-            $sql = "INSERT INTO users (username, email, password_hash, role) VALUES (:username, :email, :password_hash, :role)";
-            error_log("SQL: " . $sql);
-            
-            $stmt = $this->pdo->prepare($sql);
-            
-            // Debug bound parameters
-            error_log("Parameters: username=" . $data['username'] . ", email=" . $data['email'] . ", role=" . $data['role']);
-            
-            $stmt->bindParam(':username', $data['username'], PDO::PARAM_STR);
-            $stmt->bindParam(':email', $data['email'], PDO::PARAM_STR);
-            $stmt->bindParam(':password_hash', $data['password_hash'], PDO::PARAM_STR);
-            $stmt->bindParam(':role', $data['role'], PDO::PARAM_STR);
-            
-            $result = $stmt->execute();
-            error_log("Execute result: " . ($result ? "true" : "false"));
-            
-            if ($result) {
-                $id = $this->pdo->lastInsertId();
-                error_log("New user ID: " . $id);
-                return $this->findById($id);
-            }
-            
-            error_log("Failed to create user, execute returned false");
-            return false;
-        } catch (PDOException $e) {
-            error_log("PDO Exception creating user: " . $e->getMessage());
-            error_log("Error code: " . $e->getCode());
-            return false;
-        } catch (Exception $e) {
-            error_log("General Exception creating user: " . $e->getMessage());
-            return false;
-        }
-    }
-    
-    /**
-     * Update a user
-     * 
-     * @param int $id User ID
-     * @param array $data Updated user data
-     * @return bool Success status
-     */
-    public function update($id, $data)
-    {
-        try {
-            $setFields = [];
-            $params = [':id' => $id];
-            
-            // Build dynamic SET clause
-            foreach ($data as $key => $value) {
-                if (in_array($key, ['username', 'email', 'password_hash', 'role'])) {
-                    $setFields[] = "$key = :$key";
-                    $params[":$key"] = $value;
-                }
-            }
-            
-            if (empty($setFields)) {
-                return false; // Nothing to update
-            }
-            
-            $sql = "UPDATE users SET " . implode(', ', $setFields) . " WHERE id = :id";
-            $stmt = $this->pdo->prepare($sql);
-            
-            return $stmt->execute($params);
-        } catch (PDOException $e) {
-            error_log("Error updating user: " . $e->getMessage());
-            return false;
-        }
-    }
-    
-    /**
-     * Delete a user
-     * 
-     * @param int $id User ID
-     * @return bool Success status
-     */
-    public function delete($id)
-    {
-        try {
-            $stmt = $this->pdo->prepare("DELETE FROM users WHERE id = :id");
-            $stmt->bindParam(':id', $id, PDO::PARAM_INT);
-            return $stmt->execute();
-        } catch (PDOException $e) {
-            error_log("Error deleting user: " . $e->getMessage());
-            return false;
-        }
+        return password_hash($password, PASSWORD_DEFAULT);
     }
 } 

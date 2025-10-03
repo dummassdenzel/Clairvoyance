@@ -1,52 +1,55 @@
 <?php
-/**
- * Authentication routes for the Clairvoyance KPI API
- */
 
-require_once __DIR__ . '/../controllers/AuthController.php';
-require_once __DIR__ . '/../utils/Response.php';
+require_once __DIR__ . '/../bootstrap.php';
 
-// Parse the request
-$authController = new AuthController();
-$method = $_SERVER['REQUEST_METHOD'];
+use Controllers\UserController;
 
-// Remove 'auth' from the beginning of the request
-array_shift($request);
-$action = $request[0] ?? '';
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
-switch ($method) {
-    case 'POST':
-        // Get the request data
-        $data = json_decode(file_get_contents('php://input'), true);
-        if (!$data) {
-            Response::error('Invalid request data');
-            break;
-        }
-        
-        switch ($action) {
-            case 'login':
-                $authController->login($data);
-                break;
-            
-            case 'register':
-                $authController->register($data);
-                break;
-            
-            default:
-                Response::notFound('Authentication endpoint not found');
-                break;
-        }
-        break;
-    
-    case 'GET':
-        if ($action === 'verify') {
-            $authController->verifyToken();
+$controller = new UserController();
+$action = $request[1] ?? null;
+
+switch ($action) {
+    case 'login':
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $controller->login();
         } else {
-            Response::notFound('Authentication endpoint not found');
+            http_response_code(405);
+            echo json_encode(['success' => false, 'error' => 'Method Not Allowed']);
         }
         break;
-    
-    default:
-        Response::error('Method not allowed', null, 405);
+
+    case 'register':
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $controller->register();
+        } else {
+            http_response_code(405);
+            echo json_encode(['success' => false, 'error' => 'Method Not Allowed']);
+        }
         break;
-} 
+
+    case 'logout':
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $controller->logout();
+        } else {
+            http_response_code(405);
+            echo json_encode(['success' => false, 'error' => 'Method Not Allowed']);
+        }
+        break;
+
+    case 'me':
+        if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+            $controller->me();
+        } else {
+            http_response_code(405);
+            echo json_encode(['success' => false, 'error' => 'Method Not Allowed']);
+        }
+        break;
+
+    default:
+        http_response_code(404);
+        echo json_encode(['success' => false, 'error' => 'Authentication endpoint not found']);
+        break;
+}
