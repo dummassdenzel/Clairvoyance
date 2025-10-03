@@ -20,8 +20,10 @@ class ShareTokenService
 	{
 		$dashboard = $this->dashboards->findById($dashboardId);
 		if (!$dashboard) throw new \Exception('Dashboard not found', 404);
-		if ($currentUser['role'] !== 'admin' && (int)$dashboard['user_id'] !== (int)$currentUser['id']) {
-			throw new \Exception('Access denied', 403);
+		
+		// Only dashboard owners can generate share links
+		if ((int)$dashboard['user_id'] !== (int)$currentUser['id']) {
+			throw new \Exception('Only dashboard owners can generate share links', 403);
 		}
 		
 		$token = $this->tokens->generateToken();

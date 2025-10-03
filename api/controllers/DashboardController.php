@@ -235,7 +235,10 @@ class DashboardController extends BaseController
     public function generateShareLink(int $dashboardId): void
     {
         try {
-            $this->authService->requireRole('editor');
+            $this->authService->requireAuth();
+            
+            // Check if user has permission to manage dashboard access (owner only)
+            $this->authService->requireDashboardPermission($dashboardId, 'owner');
             
             $currentUser = $this->getCurrentUser();
             

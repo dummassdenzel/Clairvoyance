@@ -2,10 +2,7 @@
 
 medium:
 editor role failed to save layout
-only owners should be able to share dashboard
 
-minor visual bugs:
-admin dashboard: by unkown
-
+minor:
 refine dashboard widget layout easiness in edit mode
 add toasts
