@@ -325,4 +325,23 @@ class Dashboard
             return [];
         }
     }
+
+    /**
+     * Get user's access information for a specific dashboard
+     */
+    public function getUserAccess(int $dashboardId, int $userId): ?array
+    {
+        try {
+            $stmt = $this->db->prepare('
+                SELECT da.*, u.email 
+                FROM dashboard_access da 
+                JOIN users u ON da.user_id = u.id 
+                WHERE da.dashboard_id = ? AND da.user_id = ?
+            ');
+            $stmt->execute([$dashboardId, $userId]);
+            return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        } catch (PDOException $e) {
+            return null;
+        }
+    }
 }

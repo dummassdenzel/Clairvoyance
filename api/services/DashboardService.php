@@ -92,7 +92,9 @@ class DashboardService
 		if (!$dashboard) {
 			throw new \Exception('Dashboard not found', 404);
 		}
-		if ($currentUser['role'] !== 'admin' && (int)$dashboard['user_id'] !== (int)$currentUser['id']) {
+		
+		// Check if user has editor+ permission on this dashboard
+		if ($currentUser['role'] !== 'admin' && !$this->hasDashboardPermission($currentUser['id'], $dashboardId, 'editor')) {
 			throw new \Exception('Access denied', 403);
 		}
 		if (isset($data['layout'])) {
@@ -186,5 +188,30 @@ class DashboardService
 		}
 		
 		return $this->dashboards->getDashboardUsers($dashboardId);
+	}
+
+	/**
+	 * Check if a user has a specific permission level on a dashboard
+	 */
+	private function hasDashboardPermission(int $userId, int $dashboardId, string $requiredLevel): bool
+	{
+		// Check if user is the dashboard owner
+		$dashboard = $this->dashboards->findById($dashboardId);
+		if ($dashboard && (int)$dashboard['user_id'] === $userId) {
+			return true; // Owners have all permissions
+		}
+
+		// Check dashboard access permissions
+		$userAccess = $this->dashboards->getUserAccess($dashboardId, $userId);
+		if (!$userAccess) {
+			return false;
+		}
+
+		// Define permission hierarchy: owner > editor > viewer
+		$permissionLevels = ['viewer' => 1, 'editor' => 2, 'owner' => 3];
+		$userLevel = $permissionLevels[$userAccess['permission_level']] ?? 0;
+		$requiredLevelValue = $permissionLevels[$requiredLevel] ?? 0;
+
+		return $userLevel >= $requiredLevelValue;
 	}
 }
