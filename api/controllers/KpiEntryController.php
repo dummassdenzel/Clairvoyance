@@ -80,8 +80,13 @@ class KpiEntryController extends BaseController
             $kpiId = (int)$_POST['kpi_id'];
             $currentUser = $this->getCurrentUser();
 
-            // Parse CSV file
-            $csvData = $this->parseCsvFile($_FILES['file']['tmp_name']);
+            // Get column mapping from POST data
+            $dateColumn = $_POST['date_column'] ?? null;
+            $valueColumn = $_POST['value_column'] ?? null;
+            $hasHeader = isset($_POST['has_header']) ? (bool)$_POST['has_header'] : true;
+
+            // Parse CSV file with enhanced parsing
+            $csvData = $this->parseCsvFileEnhanced($_FILES['file']['tmp_name'], $dateColumn, $valueColumn, $hasHeader);
             
             if (empty($csvData)) {
                 $this->jsonResponse([
@@ -109,9 +114,14 @@ class KpiEntryController extends BaseController
             $errors = $result['errors'] ?? [];
 
             if ($inserted > 0) {
+                $message = "CSV uploaded successfully. {$inserted} entries added";
+                if ($failed > 0) {
+                    $message .= ", {$failed} entries failed";
+                }
+                
                 $this->jsonResponse([
                     'success' => true,
-                    'message' => 'CSV processed successfully',
+                    'message' => $message,
                     'data' => [
                         'inserted' => $inserted,
                         'failed' => $failed,
@@ -121,9 +131,38 @@ class KpiEntryController extends BaseController
             } else {
                 $this->jsonResponse([
                     'success' => false,
-                    'error' => 'No entries were inserted. ' . implode('; ', $errors)
+                    'error' => 'No entries were added. ' . implode(', ', $errors)
                 ], 400);
             }
+
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], $e->getCode() ?: 400);
+        }
+    }
+
+    public function previewCsv(): void
+    {
+        try {
+            $this->authService->requireRole('editor');
+            
+            if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'CSV file is required or upload failed'
+                ], 400);
+                return;
+            }
+
+            // Parse CSV file to get headers and preview data
+            $previewData = $this->getCsvPreview($_FILES['file']['tmp_name']);
+            
+            $this->jsonResponse([
+                'success' => true,
+                'data' => $previewData
+            ]);
 
         } catch (\Exception $e) {
             $this->jsonResponse([
@@ -246,5 +285,166 @@ class KpiEntryController extends BaseController
 
         fclose($handle);
         return $data;
+    }
+
+    private function parseCsvFileEnhanced(string $filePath, ?string $dateColumn, ?string $valueColumn, bool $hasHeader = true): array
+    {
+        $data = [];
+        $handle = fopen($filePath, 'r');
+        
+        if ($handle === false) {
+            throw new \Exception('Could not read CSV file');
+        }
+
+        $headers = [];
+        $dateIndex = 0;
+        $valueIndex = 1;
+
+        // Read headers if present
+        if ($hasHeader) {
+            $headers = fgetcsv($handle);
+            if ($headers === false) {
+                fclose($handle);
+                throw new \Exception('Could not read CSV headers');
+            }
+            
+            // Find column indices
+            if ($dateColumn !== null) {
+                $dateIndex = array_search($dateColumn, $headers);
+                if ($dateIndex === false) {
+                    fclose($handle);
+                    throw new \Exception("Date column '{$dateColumn}' not found in CSV");
+                }
+            }
+            
+            if ($valueColumn !== null) {
+                $valueIndex = array_search($valueColumn, $headers);
+                if ($valueIndex === false) {
+                    fclose($handle);
+                    throw new \Exception("Value column '{$valueColumn}' not found in CSV");
+                }
+            }
+        } else {
+            // Use numeric indices if no headers
+            $dateIndex = $dateColumn ? (int)$dateColumn : 0;
+            $valueIndex = $valueColumn ? (int)$valueColumn : 1;
+        }
+
+        $rowCount = 0;
+        while (($row = fgetcsv($handle)) !== false) {
+            $rowCount++;
+            
+            if (count($row) <= max($dateIndex, $valueIndex)) {
+                continue; // Skip rows that don't have enough columns
+            }
+
+            $dateValue = trim($row[$dateIndex]);
+            $valueValue = trim($row[$valueIndex]);
+
+            // Skip empty rows
+            if (empty($dateValue) && empty($valueValue)) {
+                continue;
+            }
+
+            // Parse and validate date
+            $parsedDate = $this->parseDate($dateValue);
+            if (!$parsedDate) {
+                continue; // Skip invalid dates
+            }
+
+            // Parse and validate value
+            $parsedValue = $this->parseValue($valueValue);
+            if ($parsedValue === null) {
+                continue; // Skip invalid values
+            }
+
+            $data[] = [
+                'date' => $parsedDate,
+                'value' => $parsedValue
+            ];
+        }
+
+        fclose($handle);
+        return $data;
+    }
+
+    private function getCsvPreview(string $filePath): array
+    {
+        $handle = fopen($filePath, 'r');
+        
+        if ($handle === false) {
+            throw new \Exception('Could not read CSV file');
+        }
+
+        $headers = fgetcsv($handle);
+        if ($headers === false) {
+            fclose($handle);
+            throw new \Exception('Could not read CSV headers');
+        }
+
+        $previewRows = [];
+        $rowCount = 0;
+        
+        // Read first 5 rows for preview
+        while (($row = fgetcsv($handle)) !== false && $rowCount < 5) {
+            $previewRows[] = $row;
+            $rowCount++;
+        }
+
+        fclose($handle);
+
+        return [
+            'headers' => $headers,
+            'preview_rows' => $previewRows,
+            'total_rows' => $rowCount + 1 // +1 for header
+        ];
+    }
+
+    private function parseDate(string $dateString): ?string
+    {
+        $dateString = trim($dateString);
+        
+        // Try different date formats
+        $formats = [
+            'Y-m-d',           // 2025-01-15
+            'm/d/Y',           // 01/15/2025
+            'd/m/Y',           // 15/01/2025
+            'Y-m-d H:i:s',     // 2025-01-15 10:30:00
+            'm/d/Y H:i:s',     // 01/15/2025 10:30:00
+            'd/m/Y H:i:s',     // 15/01/2025 10:30:00
+        ];
+
+        foreach ($formats as $format) {
+            $date = \DateTime::createFromFormat($format, $dateString);
+            if ($date !== false) {
+                return $date->format('Y-m-d');
+            }
+        }
+
+        // Try strtotime as fallback
+        $timestamp = strtotime($dateString);
+        if ($timestamp !== false) {
+            return date('Y-m-d', $timestamp);
+        }
+
+        return null;
+    }
+
+    private function parseValue(string $valueString): ?float
+    {
+        $valueString = trim($valueString);
+        
+        // Remove common currency symbols and formatting
+        $valueString = str_replace(['$', '€', '£', ',', '%'], '', $valueString);
+        
+        // Handle percentage values
+        if (strpos($valueString, '%') !== false) {
+            $valueString = str_replace('%', '', $valueString);
+        }
+        
+        // Convert to float
+        $value = filter_var($valueString, FILTER_VALIDATE_FLOAT);
+        
+        return $value !== false ? $value : null;
     }
 }

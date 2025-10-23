@@ -215,10 +215,20 @@ export async function createKpiEntry(data: CreateKpiEntryForm): Promise<ApiRespo
   return await post<{ entry: KpiEntry }>('/kpi_entries', data);
 }
 
-export async function uploadKpiCsv(kpiId: number, file: File): Promise<ApiResponse<{ inserted: number; failed: number; errors: string[] }>> {
+export async function uploadKpiCsv(kpiId: number, file: File, options?: { dateColumn?: string; valueColumn?: string; hasHeader?: boolean }): Promise<ApiResponse<{ inserted: number; failed: number; errors: string[] }>> {
   const formData = new FormData();
   formData.append('file', file);
   formData.append('kpi_id', kpiId.toString());
+  
+  if (options?.dateColumn) {
+    formData.append('date_column', options.dateColumn);
+  }
+  if (options?.valueColumn) {
+    formData.append('value_column', options.valueColumn);
+  }
+  if (options?.hasHeader !== undefined) {
+    formData.append('has_header', options.hasHeader.toString());
+  }
 
   const res = await fetch(`${API_BASE}/kpi_entries`, {
     method: 'POST',
@@ -229,6 +239,25 @@ export async function uploadKpiCsv(kpiId: number, file: File): Promise<ApiRespon
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({ message: 'Upload failed' }));
     throw new Error(errorData.message || errorData.error || 'Upload failed');
+  }
+
+  return await res.json();
+}
+
+export async function previewKpiCsv(file: File): Promise<ApiResponse<{ headers: string[]; preview_rows: string[][]; total_rows: number }>> {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('preview', 'true');
+
+  const res = await fetch(`${API_BASE}/kpi_entries`, {
+    method: 'POST',
+    credentials: 'include',
+    body: formData
+  });
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({ message: 'Preview failed' }));
+    throw new Error(errorData.message || errorData.error || 'Preview failed');
   }
 
   return await res.json();

@@ -2,6 +2,7 @@
   import { createEventDispatcher } from 'svelte';
   import * as api from '$lib/services/api';
   import type { ApiResponse, KpiEntry } from '$lib/types';
+  import EnhancedCsvUploadModal from './EnhancedCsvUploadModal.svelte';
 
   export let isOpen = false;
   export let kpiId: number | null = null;
@@ -22,6 +23,9 @@
   let csvFile: File | null = null;
   let csvResult: any = null;
   let uploading = false;
+
+  // Enhanced CSV upload
+  let showCsvModal = false;
 
   function closeModal() {
     isOpen = false;
@@ -261,25 +265,27 @@
 
         <!-- CSV Upload Form -->
         {#if entryMode === 'csv'}
-          <form on:submit={handleCsvUpload} class="space-y-4">
-            <div>
-              <label for="csv-upload" class="block text-sm font-medium text-gray-700 mb-2">Choose CSV File</label>
-              <input 
-                id="csv-upload" 
-                type="file" 
-                accept=".csv" 
-                on:change={e => {
-                  const input = e.target as HTMLInputElement;
-                  if (input && input.files && input.files.length > 0) {
-                    csvFile = input.files[0];
-                  }
-                }} 
-                class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" 
-                required 
-              />
-              <p class="mt-1 text-xs text-gray-500">
-                CSV should have 2 columns: Date (YYYY-MM-DD) and Value
+          <div class="space-y-4">
+            <div class="text-center py-8">
+              <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+              <h3 class="mt-2 text-sm font-medium text-gray-900">Upload CSV Data</h3>
+              <p class="mt-1 text-sm text-gray-500">
+                Upload your data from a CSV file with flexible column mapping
               </p>
+              <div class="mt-6">
+                <button
+                  type="button"
+                  on:click={() => showCsvModal = true}
+                  class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  <svg class="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                  Choose CSV File
+                </button>
+              </div>
             </div>
 
             <div class="flex justify-end space-x-3 pt-4">
@@ -290,15 +296,8 @@
               >
                 Cancel
               </button>
-              <button 
-                type="submit" 
-                disabled={uploading || !csvFile}
-                class="bg-blue-900 text-white py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {uploading ? 'Uploading...' : 'Upload CSV'}
-              </button>
             </div>
-          </form>
+          </div>
         {/if}
 
         <!-- CSV Upload Results -->
@@ -361,3 +360,13 @@
     </div>
   </div>
 {/if}
+
+<!-- Enhanced CSV Upload Modal -->
+<EnhancedCsvUploadModal 
+  bind:isOpen={showCsvModal} 
+  kpiId={kpiId || 0}
+  on:success={() => {
+    showCsvModal = false;
+    dispatch('success');
+  }}
+/>

@@ -15,7 +15,12 @@ switch ($_SERVER['REQUEST_METHOD']) {
     case 'POST':
         // Differentiate between a JSON body and a file upload
         if (isset($_FILES['file'])) {
-            $controller->uploadCsv();
+            // Check if this is a preview request
+            if (isset($_POST['preview']) && $_POST['preview'] === 'true') {
+                $controller->previewCsv();
+            } else {
+                $controller->uploadCsv();
+            }
         } else {
             $controller->create();
         }
